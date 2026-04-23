@@ -1,0 +1,16 @@
+[Unit]
+Description=Videoreg HTTP Server
+After=vrg-boot.target
+PartOf=vrg-boot.target
+
+[Service]
+User=$VIDEOREG_USER
+Group=$VIDEOREG_GROUP
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-http.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+Type=simple
+Restart=always
+TimeoutStopSec=4
+
+[Install]
+WantedBy=vrg-boot.target

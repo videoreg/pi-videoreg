@@ -1,0 +1,16 @@
+camera.start_recording: "Start recording"
+camera.stop_recording: "Stop recording"
+camera.pause_recording: "Pause"
+camera.resume_recording: "Resume"
+camera.take_photo: "Take photo"
+camera.take_night_photo: "Night photo"
+camera.take_short_video: "Take short video"
+camera.recording: "Recording"
+camera.paused: "Paused"
+camera.stopped: "Stopped"
+camera.photo_count:
+  one: "{{n}} photo"
+  other: "{{n}} photos"
+camera.video_count:
+  one: "{{n}} video"
+  other: "{{n}} videos"

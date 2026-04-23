@@ -1,0 +1,6 @@
+bot.welcome: "Welcome to Videoreg!"
+bot.no_command: "Unknown command"
+bot.error: "Command execution error"
+bot.photo_taken: "Photo taken"
+bot.video_taken: "Video recorded"
+bot.command_error: "Error: response status \"{{status}}\""

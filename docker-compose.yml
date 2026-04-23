@@ -1,0 +1,16 @@
+services:
+  vrg-core:
+    build: .
+    command: ["vrg-core", "DEBUG", "--env", "dev"]
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./.videoreg:/app/.videoreg
+      - ./plugins:/app/plugins
+      - ./sdk:/app/sdk
+      - ./task:/app/task
+      - ./tools:/app/tools
+      - ./run.py:/app/run.py
+      - ./run-cli.py:/app/run-cli.py
+      - ./videoreg.manifest.yaml:/app/videoreg.manifest.yaml
+      - ./videoreg.manifest.dev.yaml:/app/videoreg.manifest.dev.yaml

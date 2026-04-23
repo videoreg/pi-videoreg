@@ -1,0 +1,8 @@
+power.battery: "Батарея"
+power.charging: "Заряжается"
+power.discharging: "От батареи"
+power.reboot: "Перезагрузить"
+power.shutdown: "Выключить"
+power.keep_alive: "Не выключать {{minutes}} мин."
+power.reboot_confirm: "Перезагрузить устройство?"
+power.shutdown_confirm: "Выключить устройство?"

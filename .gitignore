@@ -1,0 +1,6 @@
+.venv
+.videoreg
+.vscode
+.DS_Store
+.videoreg-draft
+__pycache__

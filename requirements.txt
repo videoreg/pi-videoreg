@@ -1,0 +1,7 @@
+aiohttp
+aiofiles
+PyJWT
+bcrypt
+psutil
+PyYAML
+inotify-simple

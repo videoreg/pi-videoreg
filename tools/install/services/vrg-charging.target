@@ -1,0 +1,4 @@
+[Unit]
+Description=Videoreg Is Charging Now
+After=basic.target
+PartOf=vrg-boot.target

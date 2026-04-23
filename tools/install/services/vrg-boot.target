@@ -1,0 +1,8 @@
+[Unit]
+Description=Videoreg Main Initialization Point
+After=sysinit.target mnt-data.mount
+Requires=sysinit.target
+Conflicts=shutdown.target
+
+[Install]
+WantedBy=sysinit.target

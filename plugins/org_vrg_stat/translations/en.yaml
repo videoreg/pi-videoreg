@@ -1,0 +1,5 @@
+stat.cpu_temp: "CPU Temperature"
+stat.storage: "Storage"
+stat.used: "Used"
+stat.free: "Free"
+stat.total: "Total"

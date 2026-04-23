@@ -1,0 +1,309 @@
+import asyncio
+import shutil
+from datetime import datetime
+from enum import Enum
+
+import plugins.org_vrg_camera.const as const
+import plugins.org_vrg_camera.osd as osd
+from plugins.org_vrg_camera.camera_controls import CameraControls, VideoMode, VideoParams
+from plugins.org_vrg_camera.h264_watcher import H264FolderWatcher
+from plugins.org_vrg_camera.jpeg_watcher import JpegFolderWatcher
+from plugins.org_vrg_stat.functions import get_cpu_temp
+from sdk.journal import JournalRecord
+from sdk.media_manager import MediaFileType
+from sdk.service import Plugin
+
+
+class VideoState(Enum):
+  STOP = "stop"
+  START = "record"
+  PAUSE = "pause"
+
+  def print(self):
+    if self.value == "record":
+      emoji = "🟢 "
+    elif self.value == "pause":
+      emoji = "🟡 "
+    elif self.value == "stop":
+      emoji = "🔴 "
+    else:
+      emoji = ""
+    return f"Camera state: {emoji}{self.value}"
+
+
+_VIDEO_STATE_EVENTS = {
+  VideoState.START: "video_start",
+  VideoState.STOP: "video_stop",
+  VideoState.PAUSE: "video_pause",
+}
+
+
+class CameraPlugin(Plugin):
+  _video_state: VideoState
+  _camera_controls: CameraControls
+  _osd: osd.OSD
+  is_first_loop_done = False
+  _jpeg_watcher: "JpegFolderWatcher"
+  _suspended = False
+
+  def __init__(self, id, name, runner):
+    super().__init__(id, name, runner)
+    self._video_state = VideoState.STOP
+    self._osd = osd.OSD(self.runner.videoreg)
+    self._converting_names: set = set()
+    self._h264_watcher: H264FolderWatcher = None
+    self._jpeg_watcher: JpegFolderWatcher = None
+
+  @property
+  def video_state(self) -> VideoState:
+    return self._video_state
+
+  @video_state.setter
+  def video_state(self, value: VideoState):
+    if self._video_state == value:
+      return
+    self._video_state = value
+    if self.journal_client:
+      asyncio.create_task(
+        self.journal_client.write(JournalRecord(type=_VIDEO_STATE_EVENTS[value], data=None))
+      )
+
+  def init_camera_controls(self, camera_controls: CameraControls):
+    self._camera_controls = camera_controls
+
+  async def start(self):
+    await super().start()
+    self._osd.reset()
+    asyncio.create_task(self._lifecycle_loop())
+    asyncio.create_task(self._check_files_loop())
+    h264_dir = self.runner.videoreg.h264_path()
+    self._h264_watcher = H264FolderWatcher(
+      h264_dir, self.journal_client, self.runner.media_manager, self.logger
+    )
+    self._h264_watcher.start()
+    jpeg_dir = self.runner.videoreg.jpeg_path()
+    self._jpeg_watcher = JpegFolderWatcher(
+      jpeg_dir, self.journal_client, self.runner.media_manager, self.logger
+    )
+    self._jpeg_watcher.start()
+
+  async def stop(self):
+    await super().stop()
+    await self.stop_video()
+    self._osd.reset()
+    if self._h264_watcher:
+      await self._h264_watcher.stop()
+    if self._jpeg_watcher:
+      await self._jpeg_watcher.stop()
+
+  async def _lifecycle_loop(self):
+    try:
+      while self.runner.is_running():
+        # 1 - check video process dead
+        if self._camera_controls.is_recording_completed():
+          await self.stop_video()
+
+        # 2 - do other stuff
+
+        is_charging = await self.runner.pisugar.get_charging_status_slow_but_safe()
+        bat_level = await self.runner.pisugar.get_battery_percent()
+        cpu_temp = get_cpu_temp()
+
+        self._osd.update(
+          [
+            osd.Token(key="chrg", text=f"C:{is_charging}", weight=osd.WEIGHT_CHRG),
+            osd.Token(key="bat", text=f"B:{bat_level}", weight=osd.WEIGHT_BAT),
+            osd.Token(key="cpu", text=f"T:{cpu_temp}C", weight=osd.WEIGHT_CPU),
+          ]
+        )
+
+        if is_charging == -1:
+          if self.video_state == VideoState.START:
+            self.logger.info("Detect charging is off: will stop video")
+            await self.stop_video()
+          elif self.video_state == VideoState.STOP:
+            if not self.is_first_loop_done:
+              self.logger.info("Take wakeup photo")
+              try:
+                await asyncio.wait_for(
+                  self.take_photo(is_screenshot=False, is_night=False), timeout=15
+                )
+              except TimeoutError:
+                self.logger.warning("wakeup photo timeout")
+
+              self._is_wakeup_photo_taken = True
+        else:
+          if self.video_state == VideoState.START:
+            if cpu_temp > 65:
+              self.logger.warning("CPU temp is to hight: will stop video")
+              await self.stop_video()
+          elif self.video_state == VideoState.STOP:
+            if cpu_temp < 60:
+              self.logger.info("Detect charging is ON and CPU temp is OK: will start video")
+              try:
+                await asyncio.wait_for(self.start_video(), timeout=15)
+              except TimeoutError:
+                self.logger.warning("start video timeout")
+              except Exception as e:
+                self.logger.error(f"start video error: {type(e).__name__}: {e}")
+            else:
+              self.logger.warning(
+                f"Detect charging is ON but CPU temp is to high {cpu_temp}. Will take photo"
+              )
+              await self.take_photo(is_screenshot=False, is_night=False)
+              await asyncio.sleep(15)  # extra sleep to cooldown
+
+        if not self.is_first_loop_done:
+          self.logger.info("first loop done")
+
+        self.is_first_loop_done = True
+
+        await asyncio.sleep(5)
+
+    except asyncio.CancelledError:
+      await self._camera_controls.shutdown()
+
+  async def start_video(self):
+    if self.video_state == VideoState.START:
+      return
+    self.video_state = VideoState.START
+    try:
+      params = VideoParams(
+        fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+        bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+        camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
+        width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
+        height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
+        hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+        vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+        screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
+      )
+      await self._camera_controls.start_video(VideoMode.BOTH, params)
+      # self.runner.media_manager.invalidate(MediaFileType.H264)
+    except Exception:
+      self.video_state = VideoState.STOP
+      raise
+
+  async def restart_video(self):
+    if self.video_state != VideoState.START:
+      return
+    await self.stop_video()
+    await self.start_video()
+
+  async def stop_video(self, pause: bool = False):
+    self.video_state = VideoState.PAUSE if pause else VideoState.STOP
+    if self._camera_controls.is_recording():
+      await self._camera_controls.stop_video()
+
+  async def suspend_video(self):
+    was_started = self.video_state == VideoState.START
+    await self.stop_video(pause=True)
+    self._suspended = was_started
+
+  async def continue_video(self):
+    if self._suspended:
+      await self.start_video()
+      self._suspended = False
+
+  async def take_photo(self, is_screenshot: bool, is_night: bool) -> str:
+    date = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
+    try:
+      path = str(self.runner.videoreg.jpeg_path(f"{date}.jpg"))
+    except PermissionError as e:
+      self.logger.error(f"take_photo permission error: {str(e)}")
+      return None
+    hflip = self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP)
+    vflip = self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP)
+    await self._camera_controls.take_photo(path, is_screenshot, is_night, hflip, vflip)
+    # self.runner.media_manager.invalidate(MediaFileType.JPEG)
+    return path
+
+  async def take_video(self, duration: int) -> str:
+    filename = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
+    try:
+      path = str(self.runner.videoreg.h264_path(f"{filename}.h264"))
+    except PermissionError as e:
+      self.logger.error(f"take_video permission error: {str(e)}")
+      return None
+    params = VideoParams(
+      fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+      bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+      camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
+      width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
+      height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
+      hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+      vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+      screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
+      duration=duration,
+    )
+    await self._camera_controls.take_video(filename, params)
+    # self.runner.media_manager.invalidate(MediaFileType.JPEG)
+    return path
+
+  def copy_to_fave(self, name: str, file_type: MediaFileType):
+    """Copies a file to the fave folder and notifies MediaManager.
+    For H264_FAVE also copies the jpeg thumbnail (if present).
+    Returns True if the main file was copied, False if not found."""
+    vr = self.runner.videoreg
+    if file_type == MediaFileType.H264_FAVE:
+      src = vr.h264_path(f"{name}.h264")
+      dst = vr.h264_fave_path(f"{name}.h264")
+    else:
+      src = vr.jpeg_path(f"{name}.jpg")
+      dst = vr.jpeg_fave_path(f"{name}.jpg")
+
+    if not src.is_file():
+      return False
+    if not dst.is_file():
+      shutil.copy2(str(src), str(dst))
+      self.runner.media_manager.append_file(file_type, dst.name)
+
+    if file_type == MediaFileType.H264_FAVE:
+      jpeg_src = vr.jpeg_path(f"{name}.jpg")
+      jpeg_dst = vr.jpeg_fave_path(f"{name}.jpg")
+      if jpeg_src.is_file() and not jpeg_dst.is_file():
+        shutil.copy2(str(jpeg_src), str(jpeg_dst))
+        self.runner.media_manager.append_file(MediaFileType.JPEG_FAVE, jpeg_dst.name)
+
+    return True
+
+  def delete_from_fave(self, name: str, file_type: MediaFileType):
+    """Removes a file from the fave folder and notifies MediaManager.
+    For H264_FAVE also removes the jpeg thumbnail (if present)."""
+    vr = self.runner.videoreg
+    if file_type == MediaFileType.H264_FAVE:
+      path = vr.h264_fave_path(f"{name}.h264")
+    else:
+      path = vr.jpeg_fave_path(f"{name}.jpg")
+
+    if path.is_file():
+      path.unlink()
+      self.runner.media_manager.remove_file(file_type, path.name)
+
+    if file_type == MediaFileType.H264_FAVE:
+      jpeg_path = vr.jpeg_fave_path(f"{name}.jpg")
+      if jpeg_path.is_file():
+        jpeg_path.unlink()
+        self.runner.media_manager.remove_file(MediaFileType.JPEG_FAVE, jpeg_path.name)
+
+  async def handle_osd_update(self, raw_data):
+    try:
+      tokens_to_update: list[osd.Token] = [osd.Token(**t) for t in raw_data]
+      self._osd.update(tokens_to_update)
+    except Exception as e:
+      self.logger.warning(f"osd update error {type(e).__name__}: {e}")
+
+  async def _check_files_loop(self):
+    await asyncio.sleep(15)
+    while self.runner.is_running():
+      removed = self.runner.media_manager.remove_old_files(
+        MediaFileType.H264, max_files=400, companion_types=[MediaFileType.MP4]
+      )
+      if removed > 0:
+        self.logger.debug(f"removed h264 files {removed}")
+
+      removed = self.runner.media_manager.remove_old_files(MediaFileType.JPEG, max_files=400)
+      if removed > 0:
+        self.logger.debug(f"removed jpeg files {removed}")
+
+      await asyncio.sleep(60 * 5)

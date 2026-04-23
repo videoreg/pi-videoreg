@@ -1,0 +1,15 @@
+[Unit]
+Description=Videoreg PiSugar Watchdog
+After=vrg-boot.target
+PartOf=vrg-boot.target
+
+[Service]
+User=$VIDEOREG_USER
+Group=$VIDEOREG_GROUP
+ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-pisugar-watchdog.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+Type=simple
+Restart=always
+TimeoutStopSec=4
+
+[Install]
+WantedBy=vrg-boot.target

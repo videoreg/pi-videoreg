@@ -1,0 +1,3 @@
+STATE_KEY_WAKEUP = "wakeup"
+STATE_KEY_LAST_SHUTDOWN_CONFIG = "last_shutdown_config"
+SHUTDOWN_DELAY_SEC = 5

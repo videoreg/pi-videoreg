@@ -1,0 +1,6 @@
+bot.welcome: "Добро пожаловать в Videoreg!"
+bot.no_command: "Неизвестная команда"
+bot.error: "Ошибка выполнения команды"
+bot.photo_taken: "Фото сделано"
+bot.video_taken: "Видео снято"
+bot.command_error: "Ошибка: статус ответа \"{{status}}\""

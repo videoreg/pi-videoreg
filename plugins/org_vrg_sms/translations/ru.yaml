@@ -1,0 +1,8 @@
+sms.inbox: "SMS Входящие"
+sms.delete: "Удалить SMS"
+sms.no_messages: "Нет сообщений"
+sms.message_count:
+  one: "{{n}} сообщение"
+  few: "{{n}} сообщения"
+  many: "{{n}} сообщений"
+  other: "{{n}} сообщения"

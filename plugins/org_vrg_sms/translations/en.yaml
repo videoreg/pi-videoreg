@@ -1,0 +1,6 @@
+sms.inbox: "SMS Inbox"
+sms.delete: "Delete SMS"
+sms.no_messages: "No messages"
+sms.message_count:
+  one: "{{n}} message"
+  other: "{{n}} messages"

@@ -1,0 +1,6 @@
+gps.tracks: "GPS Tracks"
+gps.track_count:
+  one: "{{n}} track"
+  other: "{{n}} tracks"
+gps.delete_track: "Delete track"
+gps.no_tracks: "No tracks"

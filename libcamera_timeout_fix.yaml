@@ -1,0 +1,5 @@
+version: 1.0
+target: "bcm2835"
+pipeline_handler:
+  - camera_timeout_value_ms: 0
+  - disable_startup_frame_drops: false

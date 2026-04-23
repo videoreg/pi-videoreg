@@ -1,0 +1,8 @@
+power.battery: "Battery"
+power.charging: "Charging"
+power.discharging: "On battery"
+power.reboot: "Reboot"
+power.shutdown: "Shutdown"
+power.keep_alive: "Keep alive for {{minutes}} min."
+power.reboot_confirm: "Reboot device?"
+power.shutdown_confirm: "Shutdown device?"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Videoreg Resize Third SD Card Partition (one-time)
+After=sysinit.target
+Before=mnt-data.mount vrg-boot.target
+ConditionPathExists=!/var/lib/vrg-resize3fs-once.done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash $VIDEOREG_PROJECT_HOME/task/service/vrg-resize3fs-once.sh
+
+[Install]
+WantedBy=vrg-boot.target

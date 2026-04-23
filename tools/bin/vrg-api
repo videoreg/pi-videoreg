@@ -1,0 +1,8 @@
+#!/bin/bash
+# CLI wrapper for the videoreg API client. Forwards all arguments to run-cli.py using the project venv.
+
+set -e  # Stop execution on error
+
+SCRIPT_PATH="$VIDEOREG_PROJECT_HOME/run-cli.py"
+
+"$VIDEOREG_PROJECT_HOME/.venv/bin/python3" $SCRIPT_PATH --videoreg-project-home=$VIDEOREG_PROJECT_HOME --skill=api $@

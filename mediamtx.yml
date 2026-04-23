@@ -1,0 +1,16 @@
+rtsp: yes
+rtspAddress: :8554
+protocols: [tcp]
+# For multicast
+# protocols: [udp, multicast]
+# multicastRTPPort: 8002
+# multicastIPRange: 239.0.0.0/8
+# multicastRTPPort: 8002
+# multicastRTCPPort: 8003
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+
+paths:
+  all: {}

@@ -1,0 +1,5 @@
+stat.cpu_temp: "Температура CPU"
+stat.storage: "Хранилище"
+stat.used: "Использовано"
+stat.free: "Свободно"
+stat.total: "Всего"

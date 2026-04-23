@@ -1,0 +1,4 @@
+#!/bin/bash
+# Wrapper for the PiSugar power management task. Delegates all arguments to task/pisugar.sh.
+
+bash "${VIDEOREG_PROJECT_HOME}/task/pisugar.sh" "$@"

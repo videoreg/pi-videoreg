@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Videoreg</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <!-- Загрузка -->
+        <div v-if="loading" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+            <div style="text-align: center; color: var(--color-text-secondary);">
+                <p>{{ $t('http.app.loading') }}...</p>
+            </div>
+        </div>
+
+        <!-- Неавторизованный пользователь -->
+        <login-component
+            v-else-if="!isAuthenticated"
+            @login-success="onLoginSuccess"
+        ></login-component>
+
+        <!-- Принудительная смена пароля -->
+        <change-password-component
+            v-else-if="mustChangePassword"
+            :forced="true"
+            @password-changed="onPasswordChanged"
+            @logout="logout"
+        ></change-password-component>
+
+        <!-- Авторизованный пользователь -->
+        <template v-else>
+            <!-- Строка состояния -->
+            <div class="status-bar">
+                <!-- Бургер-кнопка (только мобильные) -->
+                <button class="sidebar-burger" @click="toggleSidebar" :aria-label="$t('http.app.open_menu')">
+                    <span class="sidebar-burger-line"></span>
+                    <span class="sidebar-burger-line"></span>
+                    <span class="sidebar-burger-line"></span>
+                </button>
+
+                <!-- Логотип (только десктоп) -->
+                <h2 class="status-bar-logo">Videoreg</h2>
+
+                <!-- Статусы -->
+                <div class="status-bar-items">
+                    <!-- Загрузка -->
+                    <template v-if="!statusLoaded && !statusOffline">
+                        <div class="spinner spinner-sm"></div>
+                        <span>{{ $t('http.app.loading') }}</span>
+                    </template>
+
+                    <!-- Offline -->
+                    <template v-else-if="statusOffline">
+                        <div class="spinner spinner-sm"></div>
+                        <span>Offline</span>
+                    </template>
+
+                    <!-- Иконки -->
+                    <template v-else>
+                        <!-- Камера -->
+                        <tooltip ref="cameraTooltip">
+                            <template #anchor="{ open }">
+                                <span class="status-item" @click="open" :title="$t('http.camera.title')">
+                                    <icon v-if="statusCamera === 'record'" name="camera" color="#4caf50"></icon>
+                                    <icon v-else-if="statusCamera === 'pause'" name="camera" color="#ffc107"></icon>
+                                    <icon v-else name="camera" color="#f44336"></icon>
+                                </span>
+                            </template>
+                            <!-- Содержимое тултипа -->
+                            <div style="margin-bottom: var(--spacing-sm);">
+                                <span class="status-indicator" style="width: 100%">
+                                    <span class="status-dot" :class="{ active: statusCamera === 'record' }"></span>
+                                    <span>{{ statusCameraLabel }}</span>
+                                </span>
+                            </div>
+                            <button
+                                class="tooltip-btn"
+                                style="flex: 1;"
+                                @click="cameraStart(); $refs.cameraTooltip.close();"
+                                :disabled="cameraActionLoading !== null"
+                            >{{ cameraActionLoading === 'start' ? $t('http.camera.starting') : $t('http.camera.start') }}</button>
+                            <button
+                                class="tooltip-btn"
+                                style="flex: 1;"
+                                @click="cameraPause(); $refs.cameraTooltip.close();"
+                                :disabled="cameraActionLoading !== null"
+                            >{{ cameraActionLoading === 'pause' ? $t('http.camera.pausing') : $t('http.camera.pause') }}</button>
+                            <hr class="tooltip-divider">
+                            <button
+                                class="tooltip-btn"
+                                @click="navigate('camera'); $refs.cameraTooltip.close();"
+                            >{{ $t('http.settings') }}</button>
+                        </tooltip>
+
+                        <!-- WiFi -->
+                        <span class="status-item" :class="{ 'status-item--dim': !statusWifiAp && !statusWifiConnected }" @click="navigate('wifi')" title="WiFi">
+                            <icon v-if="statusWifiAp" name="wifi_ap"></icon>
+                            <icon v-else-if="statusWifiConnected" name="wifi"></icon>
+                            <icon v-else name="wifi_off"></icon>
+                        </span>
+
+                        <!-- Модем -->
+                        <span class="status-item" :class="{ 'status-item--dim': !statusModemConnected }" @click="navigate('modem')" :title="$t('http.modem.title')">
+                            <icon v-if="statusModemConnected" name="modem"></icon>
+                            <icon v-else name="modem_off"></icon>
+                        </span>
+
+                        <!-- WireGuard (только если активен) -->
+                        <span v-if="statusWireguard" class="status-item" @click="navigate('wireguard')" title="WireGuard">
+                            <icon name="vpn"></icon>
+                        </span>
+
+                        <!-- Питание (только если есть данные) -->
+                        <tooltip v-if="statusPowerExists" ref="powerTooltip">
+                            <template #anchor="{ open }">
+                                <span class="status-item" @click="open" :title="$t('http.power.title')">
+                                    <icon v-if="statusPowerCharging" name="battery_charging"></icon>
+                                    <icon v-else name="battery"></icon>
+                                    {{ statusPowerPercent }}%
+                                </span>
+                            </template>
+                            <!-- Содержимое тултипа -->
+                            <div style="margin-bottom: var(--spacing-sm);">
+                                <span class="status-indicator" style="width: 100%">
+                                    <span class="status-dot" :class="{ active: statusPowerCharging }"></span>
+                                    <span>{{ statusPowerCharging ? $t('http.power.charging') : $t('http.power.on_battery') }}</span>
+                                </span>
+                            </div>
+                            <button
+                                class="tooltip-btn"
+                                @click="navigate('power'); $refs.powerTooltip.close();"
+                            >{{ $t('http.settings') }}</button>
+                            <hr class="tooltip-divider">
+                            <button
+                                class="tooltip-btn"
+                                :class="{ 'tooltip-btn--success': keepAliveSuccess }"
+                                @click="powerKeepAlive()"
+                                :disabled="powerActionLoading !== null"
+                            >{{ keepAliveSuccess ? $t('http.app.done') : (powerActionLoading === 'keep_alive' ? $t('http.power.keep_alive_wait') : $t('http.power.keep_alive_btn')) }}</button>
+                            <button
+                                class="tooltip-btn"
+                                :class="{ 'tooltip-btn--success': rebootSuccess }"
+                                @click="powerReboot()"
+                                :disabled="powerActionLoading !== null"
+                            >{{ rebootSuccess ? $t('http.app.done') : (powerActionLoading === 'reboot' ? $t('http.power.rebooting') : $t('http.power.reboot_btn')) }}</button>
+                            <button
+                                class="tooltip-btn tooltip-btn--danger"
+                                :class="{ 'tooltip-btn--success': shutdownSuccess }"
+                                @click="powerShutdown()"
+                                :disabled="powerActionLoading !== null"
+                            >{{ shutdownSuccess ? $t('http.app.done') : (powerActionLoading === 'shutdown' ? $t('http.power.shutting_down') : $t('http.power.shutdown_btn')) }}</button>
+                        </tooltip>
+                    </template>
+                </div>
+            </div>
+
+            <div class="app-layout">
+            <!-- Затемнение фона (только мобильные) -->
+            <div v-if="sidebarOpen" class="sidebar-overlay" @click="closeSidebar"></div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar" :class="{ 'sidebar--open': sidebarOpen }">
+                <div class="sidebar-header">
+                    <h2>Videoreg</h2>
+                </div>
+
+                <nav>
+                    <ul class="nav-menu">
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'trips' }"
+                                @click.prevent="navigate('trips')"
+                            >
+                                <icon name="gps_tracks"></icon><span>{{ $t('http.trips') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'media-feed' }"
+                                @click.prevent="navigate('media-feed')"
+                            >
+                                <icon name="media"></icon><span>{{ $t('http.media') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'media-fave' }"
+                                @click.prevent="navigate('media-fave')"
+                            >
+                                <icon name="star"></icon><span>{{ $t('http.favorites') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'sms-inbox' }"
+                                @click.prevent="navigate('sms-inbox')"
+                            >
+                                <icon name="sms"></icon><span>{{ $t('http.sms_inbox.title') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'gps-tracks' }"
+                                @click.prevent="navigate('gps-tracks')"
+                            >
+                                <icon name="map"></icon><span>{{ $t('http.gps_tracks.title') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'home' }"
+                                @click.prevent="navigate('home')"
+                            >
+                                <icon name="dashboard"></icon><span>{{ $t('http.dashboard') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'stat' }"
+                                @click.prevent="navigate('stat')"
+                            >
+                                <icon name="chart"></icon><span>{{ $t('http.statistics') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: isSettingsActive }"
+                                @click.prevent="navigate('settings')"
+                            >
+                                <icon name="settings"></icon><span>{{ $t('http.settings') }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-menu-divider"></li>
+                        <li v-if="user" class="nav-menu-username">{{ user.username }}</li>
+                        <li>
+                            <a
+                                href="#"
+                                :class="{ active: currentPage === 'change-password' }"
+                                @click.prevent="navigate('change-password')"
+                            >
+                                {{ $t('http.change_password') }}
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="nav-menu-item--danger" @click.prevent="logout">
+                                {{ $t('http.logout') }}
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <!-- Основной контент -->
+            <main class="main-content">
+                <!-- Videoreg state -->
+                <div class="vrg-state-block" :class="{ 'vrg-state-block--collapsed': vrgStateCollapsed }" @click="vrgStateCollapsed = !vrgStateCollapsed">
+                    <div class="vrg-state-header">
+                        <span class="vrg-state-section-title">{{ $t('http.now') }}</span>
+                        <icon v-if="vrgStateCollapsed" name="chevron-down" :size="16" class="vrg-state-chevron"></icon>
+                        <div v-if="vrgStateCollapsed && !statusLoaded" class="spinner spinner-sm"></div>
+                        <span v-if="statusOffline && statusLastUpdatedLabel" class="vrg-state-last-updated">{{ $t('http.app.last_updated', {time: statusLastUpdatedLabel}) }}</span>
+                    </div>
+                    <template v-if="!vrgStateCollapsed">
+                        <template v-if="statusLoaded">
+                            <div class="vrg-state-content" @click.stop>
+                                <div v-if="statusLastMediaItem" class="vrg-state-media">
+                                    <trips-media-item
+                                        :item="statusLastMediaItem"
+                                        :initial-video-ready="statusLastMediaReady"
+                                    ></trips-media-item>
+                                </div>
+                                <div class="vrg-state-info">
+                                    <div class="vrg-state-links">
+                                        <div v-if="gpsLocation" class="vrg-state-location-row">
+                                            <a :href="gpsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ gpsLocation.label }}</a>
+                                            <button @click.stop="copyToClipboard(gpsLocation.coords)" class="btn btn-ghost btn-sm vrg-state-copy-btn" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
+                                        </div>
+                                        <div v-if="lbsLocation" class="vrg-state-location-row">
+                                            <a :href="lbsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ lbsLocation.label }}</a>
+                                            <button @click.stop="copyToClipboard(lbsLocation.coords)" class="btn btn-ghost btn-sm vrg-state-copy-btn" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; margin-top: var(--spacing-xs);" @click.stop>
+                                        <button class="btn btn-outline btn-sm" @click="takePhoto(null)" :disabled="takingPhoto">
+                                            {{ takingPhoto ? $t('http.app.taking_photo') : $t('http.app.take_photo') }}
+                                        </button>
+                                        <button class="btn btn-outline btn-sm" @click="takePhoto('night')" :disabled="takingPhoto">
+                                            {{ takingPhoto ? $t('http.app.taking_photo') : $t('http.app.take_photo_night') }}
+                                        </button>
+                                        <button class="btn btn-outline btn-sm" @click="takeShortVideo()" :disabled="takingShortVideo">
+                                            {{ takingShortVideo ? $t('http.app.taking_photo') : $t('http.app.take_short_video') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <template v-if="takenPhotos.length > 0">
+                                <div @click.stop>
+                                    <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--spacing-xs);">{{ $t('http.app.taken_photos') }}</div>
+                                    <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+                                        <div v-for="item in takenPhotos" :key="item.filename" style="width: 100px; height: 75px; flex-shrink: 0;">
+                                            <trips-media-item :item="item" :initial-video-ready="true"></trips-media-item>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <template v-if="takenShortVideos.length > 0">
+                                <div @click.stop>
+                                    <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--spacing-xs);">{{ $t('http.app.taken_videos') }}</div>
+                                    <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+                                        <div v-for="item in takenShortVideos" :key="item.filename" style="width: 100px; height: 75px; flex-shrink: 0;">
+                                            <trips-media-item :item="item" :initial-video-ready="true"></trips-media-item>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </template>
+                        <div v-else class="vrg-state-loader" @click.stop>
+                            <div class="spinner"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <component :is="currentComponent" @navigate="navigate"></component>
+            </main>
+            </div><!-- /.app-layout -->
+        </template><!-- /v-else авторизованный -->
+    </div>
+
+    <script src="/static/vue.global.js"></script>
+    <!-- Компоненты -->
+    <script src="/static/js/components/Icon.js"></script>
+    <script src="/static/js/components/Tooltip.js"></script>
+    <script src="/static/js/components/ToggleSwitch.js"></script>
+    <script src="/static/js/components/TabSwitch.js"></script>
+    <script src="/static/js/components/ProgressBar.js"></script>
+    <script src="/static/js/components/LineChart.js"></script>
+    <script src="/static/js/components/MultiLineChart.js"></script>
+    <script src="/static/js/components/pages/LoginComponent.js"></script>
+    <script src="/static/js/components/pages/HomeComponent.js"></script>
+    <script src="/static/js/components/pages/WireguardSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/ModemSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/TelegramBotSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/WiFiSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/ChangePasswordComponent.js"></script>
+    <script src="/static/js/components/pages/CameraSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/PowerSettingsComponent.js"></script>
+    <script src="/static/js/components/TripsMediaItem.js"></script>
+    <script src="/static/js/components/pages/MediaFeedComponent.js"></script>
+    <script src="/static/js/components/pages/MediaFaveComponent.js"></script>
+    <script src="/static/js/components/pages/StorageSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/SystemSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/StatComponent.js"></script>
+    <script src="/static/js/components/pages/SmsSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/SmsInboxComponent.js"></script>
+    <script src="/static/js/components/pages/GpsTracksComponent.js"></script>
+    <script src="/static/js/components/pages/TripsComponent.js"></script>
+    <script src="/static/js/components/pages/UsersSettingsComponent.js"></script>
+    <script src="/static/js/components/pages/SettingsComponent.js"></script>
+    <!-- i18n движок (до app.js) -->
+    <script src="/static/js/i18n.js"></script>
+    <!-- Главное приложение -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+#!/bin/bash
+# Runs a videoreg service directly from the shell. Usage: vrg-run SERVICE_NAME [LOG_LEVEL] [--env ENV]
+
+set -e  # Stop execution on error
+
+# Output colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+show_usage() {
+    echo "Usage: vrg-run SERVICE_NAME [LOG_LEVEL] [--env ENV]"
+    echo ""
+    echo "Parameters:"
+    echo "  SERVICE_NAME    Service name (required)"
+    echo "  LOG_LEVEL       Log level (optional, e.g.: DEBUG, INFO, WARNING, ERROR; default: DEBUG)"
+    echo "  --env ENV       Environment (optional, e.g.: dev, prod)"
+    echo ""
+    echo "Examples:"
+    echo "  vrg-run vrg-bot"
+    echo "  vrg-run vrg-bot DEBUG"
+    echo "  vrg-run vrg-camera INFO --env dev"
+}
+
+check_project_home() {
+    if [[ -z "$VIDEOREG_PROJECT_HOME" ]]; then
+        print_error "VIDEOREG_PROJECT_HOME environment variable is not set"
+        print_error "Set it with: source tools/init.sh"
+        exit 1
+    fi
+
+    if [[ ! -d "$VIDEOREG_PROJECT_HOME" ]]; then
+        print_error "Project directory does not exist: $VIDEOREG_PROJECT_HOME"
+        exit 1
+    fi
+}
+
+SERVICE_NAME=""
+LOG_LEVEL="DEBUG"
+ENV=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        --env)
+            ENV="$2"
+            shift 2
+            ;;
+        *)
+            if [[ -z "$SERVICE_NAME" ]]; then
+                SERVICE_NAME="$1"
+            else
+                LOG_LEVEL="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$SERVICE_NAME" ]]; then
+    print_error "Service name is required"
+    echo ""
+    show_usage
+    exit 1
+fi
+
+check_project_home
+
+SCRIPT_PATH="$VIDEOREG_PROJECT_HOME/task/service/${SERVICE_NAME}.sh"
+
+if [[ ! -f "$SCRIPT_PATH" ]]; then
+    print_error "Service script not found: $SCRIPT_PATH"
+    exit 1
+fi
+
+CMD="bash \"$SCRIPT_PATH\" --videoreg-project-home \"$VIDEOREG_PROJECT_HOME\""
+
+if [[ -n "$LOG_LEVEL" ]]; then
+    CMD="$CMD --log-level \"$LOG_LEVEL\""
+fi
+
+if [[ -n "$ENV" ]]; then
+    CMD="$CMD --env \"$ENV\""
+fi
+
+print_info "Starting service: $SERVICE_NAME"
+print_info "Script: $SCRIPT_PATH"
+if [[ -n "$LOG_LEVEL" ]]; then
+    print_info "Log level: $LOG_LEVEL"
+fi
+if [[ -n "$ENV" ]]; then
+    print_info "Environment: $ENV"
+fi
+echo ""
+
+eval $CMD

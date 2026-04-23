@@ -1,0 +1,20 @@
+# /etc/sudoers.d/99-videoreg
+# sudo visudo /etc/sudoers.d/99-videoreg
+
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /sbin/ip link set wwan0 down
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /sbin/ip link set wwan0 up
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/bin/udhcpc -i wwan0
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/pkill udhcpc
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/class/net/wwan0/qmi/raw_ip
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/qmicli
+
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/nmcli
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/rfkill list wifi
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/rfkill block wifi
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/rfkill unblock wifi
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/sysctl -w net.ipv4.ip_forward=1
+# VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/sysctl -w net.ipv4.ip_forward=0
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/shutdown
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/wg
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/wg-quick
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/systemd-run

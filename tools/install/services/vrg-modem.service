@@ -1,0 +1,15 @@
+[Unit]
+Description=Videoreg Modem
+After=vrg-boot.target ModemManager.service
+PartOf=vrg-boot.target
+
+[Service]
+User=$VIDEOREG_USER
+Group=$VIDEOREG_GROUP
+ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-modem.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+Type=simple
+Restart=always
+TimeoutStopSec=4
+
+[Install]
+WantedBy=vrg-boot.target

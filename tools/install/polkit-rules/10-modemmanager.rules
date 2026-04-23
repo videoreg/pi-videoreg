@@ -1,0 +1,7 @@
+polkit.addRule(function(action, subject) {
+    // if (action.id == "org.freedesktop.ModemManager1.Messaging" &&
+    if (action.id.indexOf("org.freedesktop.ModemManager1") == 0 &&
+        subject.user == "$VIDEOREG_USER") {
+        return polkit.Result.YES;
+    }
+});

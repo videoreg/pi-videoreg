@@ -1,0 +1,4 @@
+[Unit]
+Description=Videoreg Is Available To Start Network Services
+After=basic.target
+PartOf=vrg-boot.target

@@ -1,0 +1,8 @@
+gps.tracks: "GPS Треки"
+gps.track_count:
+  one: "{{n}} трек"
+  few: "{{n}} трека"
+  many: "{{n}} треков"
+  other: "{{n}} трека"
+gps.delete_track: "Удалить трек"
+gps.no_tracks: "Нет треков"

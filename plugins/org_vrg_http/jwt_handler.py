@@ -87,6 +87,6 @@ class JwtHandler:
     except jwt.ExpiredSignatureError:
       # Token expired
       return None
-    except jwt.JWTError:
+    except jwt.PyJWTError:
       # Invalid token
       return None

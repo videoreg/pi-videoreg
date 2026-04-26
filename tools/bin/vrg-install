@@ -226,7 +226,7 @@ setup_venv() {
 
     print_info "Installing Python dependencies from $REQUIREMENTS_FILE..."
     if "$VENV_DIR/bin/pip" install --upgrade pip --quiet && \
-       "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS_FILE"; then
+       "$VENV_DIR/bin/pip" install --ignore-installed -r "$REQUIREMENTS_FILE"; then
         print_success "Python dependencies installed"
     else
         print_error "Failed to install Python dependencies"

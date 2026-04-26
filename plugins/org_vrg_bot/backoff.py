@@ -33,8 +33,8 @@ class NormalBackoff(Backoff):
   factor = 1.3
   jitter = 0.1
 
-  normal_timeout = 15
   short_timeout = 5
+  normal_timeout = 15
 
   def __init__(self):
     self._current_delay = 0.0

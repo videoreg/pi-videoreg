@@ -1,4 +1,3 @@
-import asyncio
 from argparse import ArgumentParser, Namespace
 
 import sdk.log as log
@@ -49,23 +48,22 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin = BotPlugin(id, name, runner)
   plugin.init_logger(args.log_level)
 
-  # Wait in a loop until the bot token appears.
+  # Token may be empty at startup; BotPlugin.start() will wait for it before
+  # starting the dispatcher. The plugin itself must initialize so videoreg-api
+  # methods (e.g. bot.set_settings) are reachable to set the token.
   users_file_path = runner.videoreg.private_path("data/users.json")
-  TOKEN = None
-  while not TOKEN:
-    plugin.state.reload()
-    TOKEN = plugin.state.get("tg_bot_token")
-    if not TOKEN:
-      print("Waiting for bot settings (tg_bot_token not set). Retrying in 5 seconds...")
-      await asyncio.sleep(5)
+  TOKEN = plugin.state.get("tg_bot_token", "")
 
   user_manager = UserManager(users_file_path)
-  all_users = user_manager.get_all_users()
-  chats = [
-    BotChat(u["username"], u["plugin_fields"]["org_vrg_bot"]["tg_user_id"])
-    for u in all_users
-    if u.get("plugin_fields", {}).get("org_vrg_bot", {}).get("tg_user_id")
-  ]
+
+  def load_chats() -> list[BotChat]:
+    user_manager.reload()
+    return [
+      BotChat(u["username"], u["plugin_fields"]["org_vrg_bot"]["tg_user_id"])
+      for u in user_manager.get_all_users()
+      if u.get("plugin_fields", {}).get("org_vrg_bot", {}).get("tg_user_id")
+    ]
+
   plugin.init_socket(
     client_id=name,
     channels=["notify", "event"],
@@ -82,7 +80,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   context = Context(state=plugin.state, logger=plugin.logger, http_logger=http_logger)
 
-  bot = Bot(TOKEN, chats, context)
+  bot = Bot(TOKEN, load_chats(), context)
 
   tg_api = TelegramApi(bot, http_logger)
 
@@ -139,5 +137,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   plugin.dispatcher = Dispatcher(bot, tg_api, commands, callbacks, plugin.keep_alive)
   plugin.tg_api = tg_api
+  plugin.bot = bot
+  plugin.chats_loader = load_chats
 
   return plugin

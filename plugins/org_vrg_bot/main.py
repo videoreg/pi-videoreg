@@ -29,10 +29,13 @@ class Bot:
   chats: list[BotChat]
   context: Context
 
-  def __init__(self, token, chats: list, context):
+  def __init__(self, token, chats: list[BotChat], context):
     self.base_url = f"https://api.telegram.org/bot{token}"
     self.chats = chats
     self.context = context
+
+  def set_chats(self, chats: list[BotChat]) -> None:
+    self.chats = chats
 
   def find_chat(self, chat_id) -> "BotChat | None":
     chat_id_str = str(chat_id)

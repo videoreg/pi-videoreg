@@ -20,6 +20,10 @@ class UserManager:
     self.users_file_path = users_file_path
     self._users: dict[str, dict[str, Any]] = self._load_or_create_users()
 
+  def reload(self) -> None:
+    """Reloads users from the file."""
+    self._users = self._load_or_create_users()
+
   def _load_or_create_users(self) -> dict[str, dict[str, Any]]:
     """Loads the users file or creates it with a default admin user."""
     if self.users_file_path.exists():

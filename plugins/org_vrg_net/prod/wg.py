@@ -100,7 +100,7 @@ class WireguardMonitorImpl(WireguardMonitor):
 
       # Validate via wg-quick
       result = subprocess.run(
-        ["wg-quick", "strip", self._config.wg_interface], capture_output=True, text=True
+        ["sudo", "wg-quick", "strip", self._config.wg_interface], capture_output=True, text=True
       )
       if result.returncode != 0:
         self._logger.error(
@@ -153,6 +153,7 @@ class WireguardMonitorImpl(WireguardMonitor):
     self._logger.info("Stopping WireGuard...")
 
     proc = await asyncio.create_subprocess_exec(
+      "sudo",
       "wg-quick",
       "down",
       self._config.wg_interface,

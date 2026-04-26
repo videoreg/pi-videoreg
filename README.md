@@ -1,13 +1,8 @@
 # Pi-Videoreg
 
-[Videoreg.org](https://videoreg.org) — an open project exploring DIY dashcam builds for cars.
+[Videoreg.org](https://videoreg.org) — an open project exploring DIY dashcam builds for cars with remote access.
 
 **Pi-Videoreg** — a Raspberry Pi-based implementation.
-
-> The project is split across several repositories:
-> - [videoreg/pi-videoreg](https://github.com/videoreg/pi-videoreg) (this repository) — software for running a dashcam on Raspberry Pi.
-> - [videoreg/rpicam-apps](https://github.com/videoreg/rpicam-apps) — a customized fork of [raspberrypi/rpicam-apps](https://github.com/raspberrypi/rpicam-apps)
-> - [videoreg/pi-gen](https://github.com/videoreg/pi-gen) — OS configuration, `videoreg/rpicam-apps` build, `videoreg/pi-videoreg` installation, and `.img` image creation (based on [rpi-distro/pi-gen](https://github.com/rpi-distro/pi-gen)).
 
 ## Features
 - Video recording while driving
@@ -43,7 +38,8 @@ After connecting, open https://10.0.0.1:8443 in your browser (the browser may wa
 
 Web UI login credentials: username `admin`, password `videoreg`.
 
-> ⚠️ Change the user password and WiFi password immediately!
+>[!WARNING]
+>Change the user password and WiFi password immediately!
 
 ## Running with Docker
 

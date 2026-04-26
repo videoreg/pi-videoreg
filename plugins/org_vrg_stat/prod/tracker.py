@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 from logging import Logger
 import psutil
-from psutil._common import snetio
 
 from plugins.org_vrg_stat.dirs import Dirs
 from plugins.org_vrg_stat.tracker import Tracker
@@ -24,10 +23,10 @@ class TrackerImpl(Tracker):
     self._dirs = dirs
 
     self.prev_traffic_timestamp_kbps = 0
-    self.prev_traffic_counters_kbps: dict[str, snetio] = None
+    self.prev_traffic_counters_kbps: dict = None
 
     self.prev_traffic_timestamp_hourly = 0
-    self.prev_traffic_counters_hourly: dict[str, snetio] = None
+    self.prev_traffic_counters_hourly: dict = None
 
   async def start_loop(self):
     await asyncio.sleep(4)

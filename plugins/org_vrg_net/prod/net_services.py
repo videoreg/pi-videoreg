@@ -13,7 +13,7 @@ class NetServicesManagerImpl(NetServicesManager):
 
   async def start(self) -> Process:
     return await stream_subprocess(
-      cmd=["sudo", "systemctl", "start", TARGET],
+      cmd=["systemctl", "start", TARGET],
       start_cb=lambda pid, cmd: self._logger.debug(f"CMD (pid={pid}): {cmd}"),
       stdout_cb=lambda pid, s: self._logger.debug(f"STDOUT (pid={pid}): {s}"),
       stderr_cb=lambda pid, s: self._logger.debug(f"STDERR (pid={pid}): {s}"),
@@ -21,7 +21,7 @@ class NetServicesManagerImpl(NetServicesManager):
 
   async def stop(self) -> Process:
     return await stream_subprocess(
-      cmd=["sudo", "systemctl", "stop", TARGET],
+      cmd=["systemctl", "stop", TARGET],
       start_cb=lambda pid, cmd: self._logger.debug(f"CMD (pid={pid}): {cmd}"),
       stdout_cb=lambda pid, s: self._logger.debug(f"STDOUT (pid={pid}): {s}"),
       stderr_cb=lambda pid, s: self._logger.debug(f"STDERR (pid={pid}): {s}"),

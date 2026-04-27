@@ -41,7 +41,7 @@ def create_auth_middleware(jwt_handler: JwtHandler, user_manager: UserManager):
   @web.middleware
   async def auth_middleware(request: web.Request, handler: Callable):
     # Public API endpoints (no authorization required)
-    public_api_paths = ["/api/auth/login", "/api/auth/logout", "/api/auth/refresh"]
+    public_api_paths = ["/api/auth/login", "/api/auth/logout", "/api/auth/refresh", "/api/i18n"]
 
     if request.path in public_api_paths:
       return await handler(request)

@@ -229,6 +229,17 @@ Translations are loaded by the frontend at startup via `GET /api/i18n` (returns 
 
 **Fallback:** if a key is not found in the current locale → look in `en` → return the key itself.
 
+## Skills
+
+The project conventions live in skills under `.claude/skills/`. They auto-load by trigger and let you apply project rules to small edits without spawning a sub-agent:
+
+- `videoreg-architecture` — three-layer flow, method-to-plugin assignment, naming, videoreg-api response format, plugin/HTTP layer structure, command pattern, review checklist
+- `videoreg-backend` — templates for `Method<Name>(ApiMethod)`, HTTP handlers (system vs plugin, parallel aggregation), interface commands, Python i18n
+- `videoreg-frontend` — Vue 3 SPA navigation, page component template, settings sub-page registration, Icon component, JS i18n
+- `videoreg-design-system` — `style.css` rules, allowed/forbidden modifications, responsiveness, keeping `docs/CSS.md` in sync
+
+Skills are the source of truth for conventions. Sub-agents (below) reference the same skills — use sub-agents for large or parallel tasks where an isolated context window helps.
+
 ## Agents
 
 For non-trivial tasks, delegate work to specialized agents via the Task tool.

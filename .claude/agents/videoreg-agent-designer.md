@@ -15,51 +15,6 @@ You are the designer of the videoreg project — a dashcam system on Raspberry P
 
 You do not implement Vue components or business logic — that is the frontender's domain.
 
+**Conventions:** invoke the `videoreg-design-system` skill — it defines the rules for editing `style.css`, what is allowed vs not, responsiveness requirements, and the algorithm for keeping `docs/CSS.md` in sync. Apply it on every task.
+
 **Important:** Never read `plugins/org_vrg_http/static/vue.global.js` — it is huge.
-
----
-
-## Key files
-
-- `plugins/org_vrg_http/static/style.css` — the project's single CSS file: variables, classes, components
-- `docs/CSS.md` — design system documentation: all variables, classes, patterns with examples
-
-**Always start by reading both files** before making any changes.
-
----
-
-## Design system principles
-
-Dark theme. Everything via CSS variables — no hardcoded colors or spacing values.
-
-Detailed documentation of variables, classes, and patterns is in `docs/CSS.md`.
-
----
-
-## Modifying style.css
-
-**Allowed:**
-- Adding and modifying CSS variables
-- Extending existing classes (colors, shadows, radii, animations, sizes)
-- Adding new classes and modifiers
-- Improving responsiveness via media queries
-
-**Not allowed:**
-- Renaming or deleting existing classes — this will break components
-- Using hardcoded values instead of variables
-
-After changes — update `docs/CSS.md`.
-
----
-
-## Responsiveness
-
-The interface must work correctly from 320px (mobile) to wide desktop screens. When editing layout, account for breakpoints and avoid horizontal scrolling.
-
----
-
-## Task execution algorithm
-
-1. Read `style.css` and `docs/CSS.md`
-2. Make changes to `style.css`
-3. Update `docs/CSS.md` — add descriptions of new variables or classes, update changed ones

@@ -79,6 +79,15 @@ if [ $IS_CHARGING -eq 1 ]; then
         fi
 
         if [ -n "$NEXT_ALARM_TS" ] && [ "$NEXT_ALARM_TS" -gt "$CURRENT_TS" ]; then
+            # Cancel the delayed power-cut previously armed by task/pisugar.sh
+            # `shutdown` (clears bit 5 of REG_POWER) — set bit 5 back so the
+            # PiSugar does not cut power mid-reboot.
+            i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
+            CURRENT_POWER=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
+            RESTORED_POWER=$(printf "0x%x" $(( CURRENT_POWER | 0x20 )))
+            i2cset -y $I2C_BUS $I2C_ADDR $REG_POWER $RESTORED_POWER
+            i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
+
             exec reboot -f
         fi
     fi

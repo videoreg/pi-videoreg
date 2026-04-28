@@ -3,12 +3,13 @@
 # systemd shutdown hook for PiSugar battery.
 # Called by systemd at system poweroff (argument "poweroff") or reboot (argument "reboot").
 # On reboot — exits immediately without touching the hardware.
-# On poweroff — if external power is connected, the poweroff is converted into a
-#   forced reboot (reboot -f) so the device stays online while on external power
-#   instead of relying on the wakeup alarm (which is unreliable when rescheduled
-#   here). Otherwise sends a delayed power-cut command to the PiSugar via I2C:
-#   disables write protection, sets the power-cut delay, clears the "auto power-on"
-#   bit in the power register, then re-enables write protection.
+# On poweroff — if external power is connected AND a wakeup alarm is set to a
+#   future time, the poweroff is converted into a forced reboot (reboot -f) so
+#   the device stays online while on external power instead of relying on the
+#   wakeup alarm (rescheduling it here proved unreliable). Otherwise sends a
+#   delayed power-cut command to the PiSugar via I2C: disables write protection,
+#   sets the power-cut delay, clears the "auto power-on" bit in the power
+#   register, then re-enables write protection.
 #
 # During installation (tools/bin/vrg-install) this script is placed at:
 #   /lib/systemd/system-shutdown/shutdown-pisugar.sh
@@ -25,14 +26,62 @@ DELAY_SECONDS=3
 REG_WRITE_PROTECT=0x0b
 REG_SHUTDOWN_DELAY=0x09
 REG_POWER=0x02
+REG_ALARM=0x40
+REG_ALARM_WEEKDAY=0x44
+REG_ALARM_HOUR=0x45
+REG_ALARM_MIN=0x46
+REG_ALARM_SEC=0x47
 
-# If external power is connected, convert this poweroff into a forced reboot:
-# the device should stay online while on external power.
+bcd_to_dec() {
+    local val=$(printf "%d" $1)
+    echo $(( (val / 16) * 10 + (val % 16) ))
+}
+
+# If external power is connected and a wakeup alarm is scheduled for the future,
+# convert this poweroff into a forced reboot: the device should stay online
+# while on external power instead of cycling through poweroff/wakeup.
 POWER_REG=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
 IS_CHARGING=$(( (POWER_REG >> 7) & 1 ))
 
 if [ $IS_CHARGING -eq 1 ]; then
-    exec reboot -f
+    ALARM_REG=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM)
+    IS_ALARM_ENABLED=$(( (ALARM_REG >> 7) & 1 ))
+
+    if [ $IS_ALARM_ENABLED -eq 1 ]; then
+        ALARM_WEEKDAY=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_WEEKDAY))
+        ALARM_HOUR=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_HOUR))
+        ALARM_MIN=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_MIN))
+        ALARM_SEC=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_SEC))
+
+        CURRENT_DATE_UTC=$(TZ=UTC date +"%Y-%m-%d")
+        CURRENT_TS=$(date +%s)
+        CURRENT_DOW=$(TZ=UTC date -d "$CURRENT_DATE_UTC" +%w)
+        ALARM_TIME="${ALARM_HOUR}:${ALARM_MIN}:${ALARM_SEC}"
+
+        NEXT_ALARM_TS=""
+        TODAY_BIT=$((1 << CURRENT_DOW))
+        if [ $((ALARM_WEEKDAY & TODAY_BIT)) -ne 0 ]; then
+            TODAY_TARGET=$(TZ=UTC date -d "$CURRENT_DATE_UTC $ALARM_TIME" +%s 2>/dev/null)
+            if [ $? -eq 0 ] && [ "$TODAY_TARGET" -gt "$CURRENT_TS" ]; then
+                NEXT_ALARM_TS=$TODAY_TARGET
+            fi
+        fi
+
+        if [ -z "$NEXT_ALARM_TS" ]; then
+            for offset in 1 2 3 4 5 6 7; do
+                CHECK_DOW=$(( (CURRENT_DOW + offset) % 7 ))
+                CHECK_BIT=$((1 << CHECK_DOW))
+                if [ $((ALARM_WEEKDAY & CHECK_BIT)) -ne 0 ]; then
+                    NEXT_ALARM_TS=$(date -d "$CURRENT_DATE_UTC +${offset} days $ALARM_TIME UTC" +%s)
+                    break
+                fi
+            done
+        fi
+
+        if [ -n "$NEXT_ALARM_TS" ] && [ "$NEXT_ALARM_TS" -gt "$CURRENT_TS" ]; then
+            exec reboot -f
+        fi
+    fi
 fi
 
 # Disable Write Protection (Write 0x29 to 0x0b)

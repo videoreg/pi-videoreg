@@ -134,8 +134,8 @@ set_rtc_time() {
     fi
 
     local YEAR=$(TZ=UTC date -d "$PARAM_DATETIME" +%y)
-    local MONTH=$(TZ=UTC date -d "$PARAM_DATETIME" +%d)
-    local DAY=$(TZ=UTC date -d "$PARAM_DATETIME" +%m)
+    local MONTH=$(TZ=UTC date -d "$PARAM_DATETIME" +%m)
+    local DAY=$(TZ=UTC date -d "$PARAM_DATETIME" +%d)
 
     local WEEK_DAY=$(TZ=UTC date -d "$PARAM_DATETIME" +%u) # u w
 

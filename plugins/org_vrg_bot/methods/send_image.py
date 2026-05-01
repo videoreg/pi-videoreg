@@ -23,7 +23,7 @@ class MethodSendImage(ApiMethod):
     if not isinstance(args, dict):
       return {"status": "error", "error": "Arguments shuld be json"}
 
-    payload = args.get("payload", {})
+    payload = args.get("payload") or {}
     chat_id = payload.get("chat_id", self._bot.get_admin_chat().chat_id)
     file_path_str = args.get("path")
     fallback_message = args.get("fallback_message")

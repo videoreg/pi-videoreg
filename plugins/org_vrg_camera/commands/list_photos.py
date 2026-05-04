@@ -30,4 +30,7 @@ class CommandListPhotos(InterfaceCommand):
     if keyboard_data.first_file_datetime_str:
       text += f" ({keyboard_data.first_file_datetime_str})"
 
-    await interface.send_text(payload=payload, text=text, keyboard=keyboard_data.buttons)
+    if isinstance(payload, dict) and payload.get("message_id"):
+      await interface.edit_message(payload=payload, text=text, keyboard=keyboard_data.buttons)
+    else:
+      await interface.send_text(payload=payload, text=text, keyboard=keyboard_data.buttons)

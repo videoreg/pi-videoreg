@@ -65,5 +65,5 @@ class Callback:
   def __init__(self, prefix: str):
     self.prefix = prefix
 
-  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str):
+  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str, message_id: int = None):
     pass

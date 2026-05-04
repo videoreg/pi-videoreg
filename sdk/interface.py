@@ -10,6 +10,7 @@ from sdk.socket.requests import RequestTimeoutError
 
 class InterfaceInteractions(Enum):
   TEXT = "text"
+  EDIT_TEXT = "edit_text"
   STATUS = "status"
   IMAGE = "image"
   VIDEO = "video"
@@ -54,6 +55,13 @@ class Interface:
     method = self.interactions[InterfaceInteractions.TEXT.value]
     if not method:
       raise Exception("Unsopported interaction: text")
+    args = {"payload": payload, "text": text, "keyboard": keyboard}
+    return await self._interact(method, args)
+
+  async def edit_message(self, payload: Any, text: str, keyboard: Any = None) -> bool:
+    method = self.interactions.get(InterfaceInteractions.EDIT_TEXT.value)
+    if not method:
+      raise Exception("Unsupported interaction: edit_text")
     args = {"payload": payload, "text": text, "keyboard": keyboard}
     return await self._interact(method, args)
 

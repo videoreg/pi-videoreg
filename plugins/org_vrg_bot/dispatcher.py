@@ -58,7 +58,7 @@ class Dispatcher:
     while not self._stop_event.is_set():
       has_user_interaction = False
       commands_to_exec: list[tuple[BotChat, str, str]] = []
-      callbacks_to_exec: list[tuple[BotChat, str]] = []
+      callbacks_to_exec: list[tuple[BotChat, str, int]] = []
 
       try:
         updates = await self._tg_api.get_updates(
@@ -109,10 +109,11 @@ class Dispatcher:
                 continue
 
               data = callback_query.get("data", "")
+              message_id = callback_query.get("message", {}).get("message_id")
 
               self._bot.context.logger.info(f"receive callback_query data: {data}")
 
-              callbacks_to_exec.append((chat, data))
+              callbacks_to_exec.append((chat, data, message_id))
 
             offset = update["update_id"] + 1
             self._bot.context.state.save({"offset": offset})
@@ -155,8 +156,8 @@ class Dispatcher:
       for chat, command_name, command_args in commands_to_exec:
         asyncio.create_task(self._handle_command(chat, command_name, command_args))
 
-      for chat, callback_data in callbacks_to_exec:
-        asyncio.create_task(self._handle_callback(chat, callback_data))
+      for chat, callback_data, message_id in callbacks_to_exec:
+        asyncio.create_task(self._handle_callback(chat, callback_data, message_id))
 
       await self._delay(backoff)
 
@@ -169,8 +170,8 @@ class Dispatcher:
         await command.invoke(self._bot, chat, args)
         return
 
-  async def _handle_callback(self, chat: BotChat, data: str):
+  async def _handle_callback(self, chat: BotChat, data: str, message_id: int = None):
     for callback_handler in self._callbacks:
       if data.startswith(callback_handler.prefix):
-        await callback_handler.invoke(self._bot, chat, data)
+        await callback_handler.invoke(self._bot, chat, data, message_id)
         return

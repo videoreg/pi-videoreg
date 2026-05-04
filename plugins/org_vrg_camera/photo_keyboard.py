@@ -63,24 +63,24 @@ async def get_photos_keyboard(videoreg: Videoreg, logger: Logger, page: int) -> 
       buttons_row.append(
         {
           "text": "⏪ Much earlier" if page == 1 else "⏪",
-          "callback_data": f"command__camera__list_photos__{x5_page}",
+          "callback_data": f"command_edit__camera__list_photos__{x5_page}",
         }
       )
 
     buttons_row.append(
-      {"text": "⬅️ Earlier", "callback_data": f"command__camera__list_photos__{next_page}"}
+      {"text": "⬅️ Earlier", "callback_data": f"command_edit__camera__list_photos__{next_page}"}
     )
   if page > 1:
     prev_page = page - 1
     buttons_row.append(
-      {"text": "Later ➡️", "callback_data": f"command__camera__list_photos__{prev_page}"}
+      {"text": "Later ➡️", "callback_data": f"command_edit__camera__list_photos__{prev_page}"}
     )
     x5_page = max(page - 5, 1)
     if x5_page < prev_page:
       buttons_row.append(
         {
           "text": "Much later ⏩" if page == count_pages else "⏩",
-          "callback_data": f"command__camera__list_photos__{x5_page}",
+          "callback_data": f"command_edit__camera__list_photos__{x5_page}",
         }
       )
 

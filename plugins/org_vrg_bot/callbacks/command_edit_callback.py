@@ -5,7 +5,7 @@ from plugins.org_vrg_bot.telegram_api import TelegramApi
 from sdk.socket.api import ApiClient, ApiResponse
 
 
-class CommandCallback(Callback):
+class CommandEditCallback(Callback):
   _api_client: ApiClient
   _tg_api: TelegramApi
 
@@ -27,7 +27,7 @@ class CommandCallback(Callback):
 
       api_args = {
         "command": command_name,
-        "payload": {"chat_id": chat.chat_id},
+        "payload": {"chat_id": chat.chat_id, "message_id": message_id},
         "args": command_args,
         "interface": "bot",
       }

@@ -105,6 +105,33 @@ class TelegramApi:
       raise
 
   @track_task
+  async def edit_message_text(
+    self, chat_id: str, message_id: int, text, reply_markup: Any = None, parse_mode: str = None
+  ):
+    method = "editMessageText"
+    url = f"{self._bot.base_url}/{method}"
+    params = {"chat_id": chat_id, "message_id": message_id, "text": text, "timeout": "0"}
+    if reply_markup:
+      params["reply_markup"] = reply_markup
+    if parse_mode:
+      params["parse_mode"] = parse_mode
+
+    self._log_request(method, params)
+
+    try:
+      timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
+      async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(url, data=params) as response:
+          response_json = await response.json()
+
+      self._log_response(method, response_json)
+      return response_json
+
+    except asyncio.CancelledError:
+      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      raise
+
+  @track_task
   async def send_photo(self, chat_id: str, photo_path, reply_markup: Any = None):
     method = "sendPhoto"
     url = f"{self._bot.base_url}/{method}"

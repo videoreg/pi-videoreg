@@ -95,6 +95,7 @@ interfaces:
   - name: bot
     interactions:
       text: bot.send_text
+      edit_text: bot.edit_message
       status: bot.send_status
       image: bot.send_image
       video: bot.send_video

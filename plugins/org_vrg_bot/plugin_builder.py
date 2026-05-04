@@ -2,6 +2,7 @@ from argparse import ArgumentParser, Namespace
 
 import sdk.log as log
 from plugins.org_vrg_bot.callbacks.command_callback import CommandCallback
+from plugins.org_vrg_bot.callbacks.command_edit_callback import CommandEditCallback
 from plugins.org_vrg_bot.commands.api import CommandApi
 from plugins.org_vrg_bot.commands.common import CommandCommon
 from plugins.org_vrg_bot.commands.start import CommandStart
@@ -12,6 +13,7 @@ from plugins.org_vrg_bot.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_bot.methods.send_document import MethodSendDocument
 from plugins.org_vrg_bot.methods.send_image import MethodSendImage
 from plugins.org_vrg_bot.methods.send_status import MethodSendStatus
+from plugins.org_vrg_bot.methods.edit_message import MethodEditMessage
 from plugins.org_vrg_bot.methods.send_text import MethodSendText
 from plugins.org_vrg_bot.methods.send_video import MethodSendVideo
 from plugins.org_vrg_bot.methods.set_settings import MethodSetSettings
@@ -89,6 +91,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "send_video": MethodSendVideo(plugin, bot, tg_api),
       "send_image": MethodSendImage(plugin, bot, tg_api),
       "send_text": MethodSendText(plugin, bot, tg_api),
+      "edit_message": MethodEditMessage(plugin, bot, tg_api),
       "send_document": MethodSendDocument(plugin, bot, tg_api),
       "send_status": MethodSendStatus(plugin, bot, tg_api),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
@@ -133,6 +136,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   callbacks = [
     CommandCallback(prefix="command__", api_client=plugin.api_client, tg_api=tg_api),
+    CommandEditCallback(prefix="command_edit__", api_client=plugin.api_client, tg_api=tg_api),
   ]
 
   plugin.dispatcher = Dispatcher(bot, tg_api, commands, callbacks, plugin.keep_alive)

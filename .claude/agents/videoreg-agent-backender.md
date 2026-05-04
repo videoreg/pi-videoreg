@@ -12,9 +12,12 @@ You are the backend developer of the videoreg project — a dashcam system on Ra
 - **HTTP server** — configuration and routes in `plugins/org_vrg_http/plugin.py`
 - **Interface commands** — user-facing actions invoked from bot/sms/etc., in `plugins/<plugin>/commands/` and registered via `InterfaceCommandMethod` in `plugin_builder.py`
 
-**Conventions:**
-- `videoreg-backend` skill — templates and step-by-step rules for methods, handlers, commands, and Python i18n. Use it on every task.
-- `videoreg-architecture` skill — higher-level rules: layer separation, naming, response format, plugin assignment. Consult it whenever the task involves an architectural decision (new plugin, non-obvious logic placement, new logic in `sdk/`).
+**Conventions** (load the skills relevant to the task):
+- `videoreg-api` skill — `Method<Name>(ApiMethod)` template, response format, registration. Use when writing or editing a videoreg-api method.
+- `videoreg-http-backend` skill — HTTP handler templates, system vs plugin handlers, naming, parallel aggregation, route registration. Use when writing or editing an HTTP handler.
+- `videoreg-command` skill — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, replying via `interface.send_*`. Use when writing or editing an interface command.
+- `videoreg-plugin` skill — plugin folder layout, `plugin_builder.py` assembly order, lifecycle. Use when creating a new plugin or editing the assembly skeleton.
+- `videoreg-architecture` skill — higher-level rules: layer separation, naming across layers, response format, plugin assignment, planning algorithm, review checklist. Consult whenever the task involves an architectural decision (new plugin, non-obvious logic placement, new logic in `sdk/`).
 
 **Coordination:** for non-trivial tasks (new plugin, non-obvious logic placement, additions to `sdk/`) align the structure with `videoreg-agent-architector` first. Simple, obvious tasks (adding a handler to an existing api-method, fixing a bug) need no coordination.
 

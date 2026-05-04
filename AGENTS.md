@@ -145,96 +145,22 @@ How an interface interacts with the plugin that handles a command:
 
 Plugin commands live in `commands/`.
 
-## Event journal
+## Event journal, FolderWatcher, i18n
 
-A mechanism for writing business events to a file. Intentionally separate from technical logging.
-
-**Files**: `.videoreg/data/plugins/org_vrg_core/journal/YYYY-MM-DD.txt` (new file each day).
-
-**Line format**: `<ISO-date>,<plugin_id>,<event_type>,<JSON-data>`
-
-**Classes** (`sdk/journal.py`):
-- `JournalRecord(type, data)` — record model
-- `JournalClient` — sends a record to the `"journal"` bus channel; initialized via `plugin.init_journal_client()`
-- `JournalServer` — receives records and writes them to file; lives in the `org_vrg_core` plugin
-
-**How to send an event from a plugin**:
-```python
-# In plugin_builder.py:
-plugin.init_journal_client()
-
-# In plugin.py:
-asyncio.create_task(self.journal_client.write(JournalRecord(type="my_event", data={"key": "value"})))
-```
-
-**Event names** are unique across plugins. Examples: `start`, `stop`, `video_start`, `video_stop`, `video_pause`, `charging_on`, `charging_off`.
-
-## FolderWatcher (sdk/folder_watcher.py)
-
-Abstract class for monitoring a folder for new files via `inotify-simple`.
-
-- Reacts to `CLOSE_WRITE | MOVED_TO` — only fully written files
-- Blocking `inotify.read(timeout=500ms)` runs in `run_in_executor`; `threading.Event` lets the thread exit within 500 ms after `stop()` is called
-- Subclasses implement `async on_file_created(filename: str)`
-
-**Implementation example** (`org_vrg_camera/h264_watcher.py`):
-```python
-class H264FolderWatcher(FolderWatcher):
-  async def on_file_created(self, filename: str):
-    self._media_manager.append_file(MediaFileType.H264, filename)
-    await self._journal_client.write(JournalRecord(type="video_h264_created", data={"filename": filename}))
-```
-
-**Lifecycle**: `watcher.start()` in `plugin.start()`, `await watcher.stop()` in `plugin.stop()`.
-
-## Internationalization (i18n)
-
-**Engine:** `sdk/i18n.py` — class `I18n`. Created in `ServiceRunner` at startup, accessible as `runner.i18n`.
-
-**Locale** is set in `videoreg.manifest.yaml` (`locale: ru`). Default is `"ru"`.
-
-**Translation file structure:**
-```
-sdk/translations/           ← global strings (common.*)
-  ru.yaml
-  en.yaml
-plugins/<id>/translations/  ← plugin strings, merged on top of global
-  ru.yaml
-  en.yaml
-```
-
-**Key format** — flat, namespaced with dots: `common.error`, `camera.start_recording`.
-
-**Plural forms** — CLDR keys (`one`, `few`, `many`, `other`), value is a dict:
-```yaml
-camera.video_count:
-  one: "{{n}} video"
-  other: "{{n}} videos"
-```
-
-**Python API:**
-```python
-plugin.runner.i18n.t("camera.start_recording")           # → "Start recording"
-plugin.runner.i18n.t("bot.command_error", status=404)    # variable substitution {{status}}
-plugin.runner.i18n.p("camera.video_count", 5)            # → "5 videos"
-```
-
-**JS API** — global object `VrgI18n`, available in Vue components as global properties:
-```javascript
-{{ $t('camera.start_recording') }}        // → "Start recording"
-{{ $p('camera.video_count', 5) }}         // → "5 videos"
-```
-
-Translations are loaded by the frontend at startup via `GET /api/i18n` (returns merged dict from all plugins).
-
-**Fallback:** if a key is not found in the current locale → look in `en` → return the key itself.
+Business event journal (`sdk/journal.py`), folder-watching abstraction (`sdk/folder_watcher.py`) and the i18n engine (`sdk/i18n.py`) each have their own skill — see `videoreg-journal`, `videoreg-folder-watcher`, `videoreg-i18n` below for the conventions, templates and wiring rules.
 
 ## Skills
 
 The project conventions live in skills under `.claude/skills/`. They auto-load by trigger and let you apply project rules to small edits without spawning a sub-agent:
 
-- `videoreg-architecture` — three-layer flow, method-to-plugin assignment, naming, videoreg-api response format, plugin/HTTP layer structure, command pattern, review checklist
-- `videoreg-backend` — templates for `Method<Name>(ApiMethod)`, HTTP handlers (system vs plugin, parallel aggregation), interface commands, Python i18n
+- `videoreg-architecture` — high-level rules: three-layer request flow, method/command-to-plugin assignment, cross-layer naming, response format convention, planning algorithm, review checklist. Delegates implementation details to the four skills below
+- `videoreg-plugin` — plugin folder layout, `plugin_builder.py` assembly order, lifecycle, manifest registration
+- `videoreg-api` — `Method<Name>(ApiMethod)` template, response format `{status, data/error}`, registration, calling via `api_client.exec`
+- `videoreg-http-backend` — HTTP handler templates (system vs plugin), naming, parsing api responses, parallel aggregation, route registration
+- `videoreg-command` — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, replying via `interface.send_*`, entry vs internal commands
+- `videoreg-journal` — `JournalRecord` / `JournalClient` (`sdk/journal.py`), wiring `init_journal_client()`, business-event names and file format
+- `videoreg-folder-watcher` — `FolderWatcher` subclass template (`sdk/folder_watcher.py`), `async on_file_created`, start/stop lifecycle wiring
+- `videoreg-i18n` — `sdk/i18n.py` engine, translation file layout (`ru.yaml` / `en.yaml`), key format, CLDR plural forms, Python `t/p` and JS `$t/$p`, fallback chain
 - `videoreg-frontend` — Vue 3 SPA navigation, page component template, settings sub-page registration, Icon component, JS i18n
 - `videoreg-design-system` — `style.css` rules, allowed/forbidden modifications, responsiveness, keeping `docs/CSS.md` in sync
 

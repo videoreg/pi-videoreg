@@ -1,31 +1,38 @@
 ---
 name: videoreg-architecture
-description: videoreg architecture rules — three-layer request flow (HTTP handler → api_client → ApiMethod), method-to-plugin assignment, naming conventions (HTTP route ↔ handler ↔ api-method), videoreg-api response format {status, data/error}, plugin pattern, command pattern, HTTP layer structure. Trigger when planning a videoreg feature, deciding where a method should live, reviewing a handler/method, or any architectural question about plugins, services, or videoreg-api.
+description: videoreg high-level architecture — three-layer request flow (HTTP path and command path), planning algorithm for a new feature, review checklist, principle that logic lives in the plugin owning the state, names must match across layers, response format convention {status, data/error}. Trigger when planning a feature, deciding where a method or command should live, reviewing a handler/method/module, or any cross-cutting architectural question. Implementation templates live in videoreg-plugin / videoreg-api / videoreg-http-backend / videoreg-command.
 ---
 
 # videoreg architecture conventions
 
-These rules are the source of truth for how the videoreg codebase is organised. Apply them when planning a feature, deciding where a method belongs, or reviewing a handler/method/module.
+The source of truth for how the videoreg codebase is organised at a high level. Apply when planning a feature, deciding where a method or command belongs, or reviewing a handler/method/module.
 
-**Important:** Never read `plugins/org_vrg_http/static/vue.global.js` — it is huge.
+For implementation templates and step-by-step rules, defer to the specialized skills:
+
+- **`videoreg-plugin`** — plugin folder layout, `plugin_builder.py` assembly, lifecycle, manifest registration
+- **`videoreg-api`** — `Method<Name>(ApiMethod)` template, response format, method registration
+- **`videoreg-http-backend`** — HTTP handler template, route registration, system vs plugin handlers, naming
+- **`videoreg-command`** — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, manifest entries
 
 System overview, plugin/service list and event-bus layers are described in the project `CLAUDE.md`.
+
+**Important:** Never read `plugins/org_vrg_http/static/vue.global.js` — it is huge.
 
 ---
 
 ## Request architecture
 
-The system has two entry paths into a plugin's logic — both end in the same place (a videoreg-api method):
+The system has two entry paths into a plugin's logic — both end in the same place (a videoreg-api method or an interface command).
 
 **HTTP request flow** (web UI):
 ```
 HTTP request
     ↓
-handle_*(request)         ← transport: parsing, auth, response
+handle_*(request)         ← transport: parsing, auth, response   → videoreg-http-backend
     ↓
 api_client.exec(...)      ← videoreg-api method call
     ↓
-MethodXxx.exec(args)      ← all business logic here
+MethodXxx.exec(args)      ← business logic                       → videoreg-api
 ```
 
 **User-command flow** (interfaces — bot, sms, …):
@@ -36,125 +43,78 @@ Interface plugin → api_client.exec("<plugin>.command", {command, interface, pa
     ↓
 InterfaceCommandMethod (in the target plugin)
     ↓
-Command<Name>.exec(interface, payload, args)   ← business logic; replies via interface.send_*
+Command<Name>.exec(interface, payload, args)   ← business logic   → videoreg-command
+                                                   reply via interface.send_*
 ```
 
-**Rules:**
+**Cross-cutting rules:**
 - HTTP handlers are a thin transport layer — no business logic.
-- Commands are the user-facing counterpart of api-methods: same plugin ownership rules apply (logic lives where the state lives), but commands reply asynchronously through `interface.send_*` instead of returning data.
-- Both paths converge on the same plugin — never duplicate logic between a method and a command; have the command call the method (or share a helper inside the plugin).
-
-See the **Interfaces and commands** section below for details.
+- Both paths converge on the same plugin: **never duplicate logic between an api-method and a command**. Have the command call the method, or share a helper inside the plugin.
 
 ---
 
-## Method-to-plugin assignment
+## Method- and command-to-plugin assignment
 
 The default plugin → logic mapping is in `CLAUDE.md` (camera, net, gps, bot, stat, power, sms, http, core, bus).
 
-**Rule:** a method must live in the plugin that owns the state and dependencies it accesses.
+**Rule (applies to both api-methods and commands):** logic must live in the plugin that owns the state and dependencies it accesses.
 
-To list existing methods of a plugin, read `plugins/<plugin>/plugin_builder.py` — all registered methods are there.
-
----
-
-## API naming conventions
-
-| Layer | Style | Example |
-|-------|-------|---------|
-| HTTP route | `kebab-case` | `GET /api/net/modem_info` |
-| handler function | `handle_<verb>_<resource>` | `handle_modem_info` |
-| videoreg-api method | `snake_case`, no prefix | `modem_info` |
-| Call | `"<plugin>.<method>"` | `"net.modem_info"` |
-
-Names must match semantically: `modem_info` → `/api/net/modem_info` → `net.modem_info`.
+To list existing methods or commands of a plugin, read `plugins/<plugin>/plugin_builder.py` — they're all registered there.
 
 ---
 
-## videoreg-api data format
+## Cross-layer naming
 
-All methods return strictly one of two formats:
+Names must match semantically across layers:
+
+```
+GET /api/net/modem_info   ↔   handle_get_modem_info   ↔   net.modem_info
+```
+
+Per-layer style rules (kebab/snake casing, function naming) live in `videoreg-http-backend` (HTTP route + handler) and `videoreg-api` (method key).
+
+---
+
+## videoreg-api response format
+
+All methods return strictly one of two shapes:
 
 ```python
-# Success
 {"status": "ok", "data": { ... }}
-
-# Error
 {"status": "error", "error": "error description"}
 ```
 
-Working with responses in handlers:
-```python
-response = await api_client.exec("plugin.method", args)
-if response.is_ok():
-    data = response.get_data()   # → dict from the "data" field
-else:
-    err = response.get_error()   # → string from the "error" field
-```
+Producer details (templates, error logging) → `videoreg-api`.
+Consumer details (`is_ok` / `get_data` / `get_error`, mapping to HTTP status) → `videoreg-http-backend`.
 
 ---
 
-## Plugin pattern
+## Plugin pattern (high level)
 
-Each plugin has:
+Each plugin is a folder under `plugins/<plugin_id>/` with a `plugin.py` (state and lifecycle) and a `plugin_builder.py` (assembly: socket, api-client, api-server, journal, methods, commands).
 
-```
-plugins/<plugin>/
-  plugin.py              — main <Name>Plugin class
-  plugin_builder.py      — plugin assembly, method registration
-  method/                — one file per method
-    <method_name>.py     — class Method<MethodName>(ApiMethod)
-```
-
-Method is registered in `plugin_builder.py`:
-```python
-from plugins.<plugin>.method.<method_name> import Method<MethodName>
-
-# in init_api_server(methods={...}):
-"<method_key>": Method<MethodName>(plugin),
-```
+Detailed structure, helper init order and lifecycle rules → `videoreg-plugin`.
 
 ---
 
-## HTTP layer structure
+## HTTP layer (high level)
 
-```
-plugins/org_vrg_http/
-├── plugin.py              — route registration in _start_server()
-└── handlers/
-    ├── <resource>_handlers.py          — system handlers (auth, media, static, dashboard)
-    └── plugins/
-        └── <plugin_id>/
-            └── <resource>_handlers.py  — handlers for a specific plugin
-```
+Two flavours of handler live under `plugins/org_vrg_http/handlers/`:
 
-- **System handlers** — do not use videoreg-api: `handlers/<resource>_handlers.py`
-- **Plugin handlers** — interact with other plugins via videoreg-api: `handlers/plugins/<plugin_id>/<resource>_handlers.py`
+- **System handlers** (auth, media, static, dashboard) — no api-client calls.
+- **Plugin handlers** under `handlers/plugins/<plugin_id>/` — call other plugins via api-client.
 
 Public paths: `/`, `/api/auth/*`, `/static/*`. All other `/api/*` paths are protected by middleware automatically.
 
+Templates, registration, parallel aggregation, error mapping → `videoreg-http-backend`.
+
 ---
 
-## Interfaces and commands
+## Interfaces and commands (high level)
 
-In addition to videoreg-api, plugins can handle user commands from interfaces (bot, sms, etc.).
+In addition to videoreg-api, plugins can handle user commands from interfaces (bot, sms, …). A command lives in the plugin whose state it operates on; "entry" commands (typed by the user, e.g. `/photo`) are also registered in `videoreg.manifest.yaml`, internal commands are not.
 
-**Call flow:**
-```
-Interface (bot/sms) → api_client.exec("<plugin>.command", {command, interface, payload, args})
-    ↓
-InterfaceCommandMethod → command.exec(interface, payload, args)
-    ↓
-InterfaceCommand → interface.send_text/send_image/... (reply to user)
-```
-
-**Rules:**
-- A command lives in the plugin whose logic it implements
-- Commands are registered via `InterfaceCommandMethod` in `plugin_builder.py`
-- Commands reply to the user asynchronously via `interface.send_*`, not via return value
-- "Entry" commands (invoked directly by the user) are registered in the manifest; internal commands — only in `plugin_builder.py`
-
-**Where to look:** `plugins/<plugin>/commands/`, `sdk/interface.py`, `videoreg.manifest.json`.
+Templates, reply primitives (`interface.send_*`), capability check → `videoreg-command`.
 
 ---
 
@@ -162,22 +122,22 @@ InterfaceCommand → interface.send_text/send_image/... (reply to user)
 
 When reviewing code, check:
 
-1. **Is the handler thin?** — only body parsing, `api_client.exec` call, response formation
-2. **Is the method in the right plugin?** — per the assignment table
-3. **Does the response format match the convention?** — `{"status": "ok", "data": ...}` / `{"status": "error", "error": ...}`
-4. **Are names consistent?** — HTTP ↔ handler ↔ api-method names match semantically
-5. **No duplication?** — if a similar method already exists, prefer extending it
-6. **Parallel calls?** — if a handler aggregates multiple plugins, uses `asyncio.gather`
-7. **Command follows the pattern?** — inherits `InterfaceCommand`, replies via `interface.send_*`, lives in `commands/`
+1. **Is the handler thin?** — only body parsing, `api_client.exec` call, response formation. (See `videoreg-http-backend`.)
+2. **Is the method or command in the right plugin?** — per the assignment table in `CLAUDE.md`.
+3. **Does the response format match the convention?** — `{"status": "ok", "data": ...}` / `{"status": "error", "error": ...}`. (See `videoreg-api`.)
+4. **Are names consistent across layers?** — HTTP ↔ handler ↔ api-method names match semantically.
+5. **No duplication?** — if a similar method exists, prefer extending it; if a command and a method need the same logic, the command calls the method (or a shared helper).
+6. **Parallel calls?** — if a handler aggregates multiple plugins, uses `asyncio.gather(..., return_exceptions=True)`. (See `videoreg-http-backend`.)
+7. **Command follows the pattern?** — inherits `InterfaceCommand`, replies via `interface.send_*`, lives in `commands/`. (See `videoreg-command`.)
 
 ---
 
 ## Algorithm for planning a new feature
 
-1. Determine what data the frontend needs and in what format
-2. Determine which plugin owns that data → create the videoreg-api method there
-3. Describe the HTTP endpoint: method, path, request/response schema
-4. Split tasks: backend implements the method + handler, frontend implements the component
+1. Determine what data the frontend (or user) needs and in what format.
+2. Determine which plugin owns that data → create the videoreg-api method there (`videoreg-api`).
+3. Describe the HTTP endpoint (or command): method/path/schema for HTTP (`videoreg-http-backend`); command name and entry registration for interfaces (`videoreg-command`).
+4. Split tasks: backend implements the method + handler/command, frontend implements the component.
 
 ---
 

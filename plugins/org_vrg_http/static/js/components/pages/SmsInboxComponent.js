@@ -125,7 +125,7 @@ const SmsInboxComponent = {
       try {
         const normalized = timestamp.replace(/([+-]\d{2})$/, '$1:00');
         const d = new Date(normalized);
-        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return d.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       } catch (e) {
         return timestamp;
       }
@@ -134,7 +134,7 @@ const SmsInboxComponent = {
     formatDateTab(dateStr) {
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' });
+        return d.toLocaleDateString(VrgI18n.locale, { day: 'numeric', month: 'short', weekday: 'short' });
       } catch (e) {
         return dateStr;
       }

@@ -162,7 +162,7 @@ const { createApp } = Vue;
 
     statusLastUpdatedLabel() {
       if (!this.statusLastUpdated) return null;
-      return this.statusLastUpdated.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return this.statusLastUpdated.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     },
 
     statusLastMediaItem() {

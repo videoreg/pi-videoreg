@@ -162,7 +162,7 @@ const MediaFeedComponent = {
     formatDateTab(dateStr) {
       try {
         const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' });
+        return d.toLocaleDateString(VrgI18n.locale, { day: 'numeric', month: 'short', weekday: 'short' });
       } catch (e) {
         return dateStr;
       }

@@ -229,7 +229,7 @@ const TripsComponent = {
       if (!dateStr) return '—';
       try {
         const d = new Date(dateStr);
-        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+        return d.toLocaleDateString(VrgI18n.locale, { day: 'numeric', month: 'long' });
       } catch (e) {
         return '';
       }
@@ -239,7 +239,7 @@ const TripsComponent = {
       if (!dateStr) return '—';
       try {
         const d = new Date(dateStr);
-        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit' });
       } catch (e) {
         return dateStr;
       }

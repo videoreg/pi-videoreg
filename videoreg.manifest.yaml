@@ -8,28 +8,42 @@ path:
   h264_fave: /mnt/data/videoreg/h264_fave
 
 services:
-  - vrg-core
-  - vrg-camera
-  - vrg-modem
-  - vrg-http
-  - vrg-bot
-  - vrg-pisugar-watchdog
-  - vrg-mediamtx
+  - name: vrg-core
+    plugins:
+      - org_vrg_core
+      - org_vrg_bus
+      - org_vrg_net
+      - org_vrg_power
+      - org_vrg_stat
+  - name: vrg-camera
+    plugins:
+      - org_vrg_camera
+  - name: vrg-modem
+    plugins:
+      - org_vrg_gps
+      - org_vrg_sms
+  - name: vrg-http
+    plugins:
+      - org_vrg_http
+  - name: vrg-bot
+    plugins:
+      - org_vrg_bot
+  - name: vrg-pisugar-watchdog
+    plugins: []
+  - name: vrg-mediamtx
+    plugins: []
 
 plugins:
   - id: org_vrg_core
     name: core
-    service: vrg-core
     enabled: true
 
   - id: org_vrg_bus
     name: bus
-    service: vrg-core
     enabled: true
 
   - id: org_vrg_net
     name: net
-    service: vrg-core
     enabled: true
     commands:
       - name: net
@@ -43,7 +57,6 @@ plugins:
 
   - id: org_vrg_power
     name: power
-    service: vrg-core
     enabled: true
     commands:
       - name: keep
@@ -58,7 +71,6 @@ plugins:
 
   - id: org_vrg_stat
     name: stat
-    service: vrg-core
     enabled: true
     commands:
       - name: stat
@@ -69,7 +81,6 @@ plugins:
 
   - id: org_vrg_camera
     name: camera
-    service: vrg-camera
     enabled: true
     commands:
       - name: photo
@@ -95,17 +106,14 @@ plugins:
 
   - id: org_vrg_bot
     name: bot
-    service: vrg-bot
     enabled: true
 
   - id: org_vrg_http
     name: http
-    service: vrg-http
     enabled: true
 
   - id: org_vrg_gps
     name: gps
-    service: vrg-modem
     enabled: true
     commands:
       - name: gps
@@ -113,7 +121,6 @@ plugins:
 
   - id: org_vrg_sms
     name: sms
-    service: vrg-modem
     enabled: true
     commands:
       - name: sms
@@ -128,8 +135,7 @@ interfaces:
       image: bot.send_image
       video: bot.send_video
       document: bot.send_document
-  
+
   - name: sms
     interactions:
       text: sms.send_text
-

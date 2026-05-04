@@ -4,10 +4,14 @@ from pathlib import Path
 
 @dataclass
 class Manifest:
-  """Parsed content of videoreg.manifest.yaml."""
+  """Parsed content of videoreg.manifest.yaml.
+
+  Each service is a dict with `name: str` and `plugins: list[str]` (plugin ids).
+  Each plugin is a dict keyed by `id`; the service is determined by the services list.
+  """
 
   path: dict
-  services: list[str]
+  services: list[dict]
   plugins: list[dict]
   interfaces: list[dict]
   locale: str = "ru"

@@ -22,6 +22,110 @@ from sdk.state import State
 from sdk.videoreg import Manifest, Videoreg
 
 
+def _load_manifest_dict(manifest_path: pathlib.Path) -> dict:
+  """Load a manifest yaml, resolving `extends` recursively and merging.
+
+  Merge rules (child overrides parent):
+  - `plugins`: merged by `id` (shallow per-field override; new ids appended).
+  - `services`: merged by `name` (child entry replaces parent entry; new names appended).
+    A plugin id can appear in at most one service — if a child-defined service
+    references a plugin, it is removed from any parent-inherited service.
+  - `interfaces`: merged by `name` (child entry replaces parent entry; new names appended).
+  - `path`, `locale`: child replaces parent entirely.
+  """
+  with open(manifest_path) as f:
+    data = yaml.safe_load(f) or {}
+
+  parent_ref = data.pop("extends", None)
+  if parent_ref is None:
+    return data
+
+  parent_path = (manifest_path.parent / parent_ref).resolve()
+  parent = _load_manifest_dict(parent_path)
+
+  merged = dict(parent)
+
+  if "locale" in data:
+    merged["locale"] = data["locale"]
+  if "path" in data:
+    merged["path"] = data["path"]
+
+  merged["plugins"] = _merge_by_key(parent.get("plugins", []), data.get("plugins", []), "id")
+  merged["services"] = _merge_services(parent.get("services", []), data.get("services", []))
+  merged["interfaces"] = _merge_by_key(
+    parent.get("interfaces", []), data.get("interfaces", []), "name", replace=True
+  )
+
+  return merged
+
+
+def _merge_services(parent: list[dict], child: list[dict]) -> list[dict]:
+  """Merge service lists with child-priority deduplication of plugin ids.
+
+  - Service entries are merged by `name`; a child entry replaces the parent entry whole.
+  - A plugin id may appear in at most one service. Plugins listed in any
+    child-defined service (overridden or new) are removed from parent-inherited services.
+  """
+  child_names = {entry.get("name") for entry in child}
+  child_plugin_ids: set[str] = set()
+  for entry in child:
+    for pid in entry.get("plugins", []) or []:
+      child_plugin_ids.add(pid)
+
+  result: list[dict] = []
+  index: dict[str, int] = {}
+
+  for entry in parent:
+    name = entry.get("name")
+    if name in child_names:
+      result.append(dict(entry))
+    else:
+      filtered = dict(entry)
+      filtered["plugins"] = [
+        pid for pid in (entry.get("plugins", []) or []) if pid not in child_plugin_ids
+      ]
+      result.append(filtered)
+    index[name] = len(result) - 1
+
+  for entry in child:
+    name = entry.get("name")
+    if name in index:
+      result[index[name]] = dict(entry)
+    else:
+      index[name] = len(result)
+      result.append(dict(entry))
+
+  return result
+
+
+def _merge_by_key(parent: list[dict], child: list[dict], key: str, replace: bool = False) -> list[dict]:
+  """Merge two lists of dicts using `key` as identity.
+
+  When `replace=True`, a matching child entry replaces the parent entry as-is.
+  When `replace=False`, child fields are merged on top of parent fields (shallow).
+  New entries are appended in the order they appear in child.
+  """
+  result: list[dict] = []
+  index: dict[str, int] = {}
+  for entry in parent:
+    k = entry.get(key)
+    index[k] = len(result)
+    result.append(dict(entry))
+
+  for entry in child:
+    k = entry.get(key)
+    if k in index:
+      if replace:
+        result[index[k]] = dict(entry)
+      else:
+        result[index[k]] = {**result[index[k]], **entry}
+    else:
+      index[k] = len(result)
+      result.append(dict(entry))
+
+  return result
+
+
 class PluginConnectionListener(DefaultConnectionListener):
   """Default connection listener bound to a plugin instance."""
 
@@ -224,8 +328,7 @@ class ServiceRunner:
 
     manifest_file_path = args.project_home / manifest_file_name
 
-    with open(manifest_file_path) as f:
-      manifest_dict = yaml.safe_load(f)
+    manifest_dict = _load_manifest_dict(manifest_file_path)
 
     manifest = Manifest(**manifest_dict)
 
@@ -242,12 +345,18 @@ class ServiceRunner:
     self.i18n = I18n(locale=manifest.locale)
     self.i18n.load_global(sdk_path)
 
-    if args.service not in manifest.services:
+    service_entry = next((s for s in manifest.services if s.get("name") == args.service), None)
+    if service_entry is None:
       raise ValueError(f"Missing systemd service in manifest: {args.service}")
 
-    plugins = [
-      vrg_plugin for vrg_plugin in manifest.plugins if vrg_plugin.get("service") == args.service
-    ]
+    plugin_ids = service_entry.get("plugins", []) or []
+    plugins_by_id = {p.get("id"): p for p in manifest.plugins}
+    plugins = []
+    for plugin_id in plugin_ids:
+      plugin_manifest = plugins_by_id.get(plugin_id)
+      if plugin_manifest is None:
+        raise ValueError(f"Plugin '{plugin_id}' referenced in service '{args.service}' is not defined in manifest.plugins")
+      plugins.append(plugin_manifest)
 
     for plugin_manifest in plugins:
       id = plugin_manifest.get("id")

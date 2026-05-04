@@ -1,107 +1,16 @@
-locale: en
+extends: videoreg.manifest.yaml
 
 path: {}
 
 services:
-  - vrg-core
-
-plugins:
-  - id: org_vrg_core
-    name: core
-    service: vrg-core
-    enabled: true
-
-  - id: org_vrg_bus
-    name: bus
-    service: vrg-core
-    enabled: true
-
-  - id: org_vrg_net
-    name: net
-    service: vrg-core
-    enabled: true
-    commands:
-      - name: net
-        title: Network commands
-      - name: wifi_block
-        title: Disable WiFi module
-        hidden: true
-      - name: wifi_unblock
-        title: Enable WiFi module
-        hidden: true
-
-  - id: org_vrg_power
-    name: power
-    service: vrg-core
-    enabled: true
-    commands:
-      - name: keep
-        title: Keep alive for N min.
-        args: 5
-      - name: power
-        title: Power commands
-      # - name: bat
-      #   title: Get battery level
-      - name: reboot
-        title: Reboot
-      - name: shutdown
-        title: Shutdown
-
-  - id: org_vrg_http
-    name: http
-    service: vrg-core
-    enabled: true
-
-  - id: org_vrg_camera
-    name: camera
-    service: vrg-core
-    enabled: true
-    commands:
-      - name: photo
-        title: Take photo
-      - name: video
-        title: Take short video
-      - name: camera
-        title: Camera commands
-      - name: video_pause
-        title: Pause video recording
-        hidden: true
-      - name: video_start
-        title: Start video recording
-        hidden: true
-
-  - id: org_vrg_bot
-    name: bot
-    service: vrg-core
-    enabled: true
-
-  - id: org_vrg_sms
-    name: sms
-    service: vrg-core
-    enabled: true
-    commands:
-      - name: sms
-        title: SMS commands
-
-  - id: org_vrg_gps
-    name: gps
-    service: vrg-core
-    enabled: true
-    commands:
-      - name: gps
-        title: GPS commands
-
-interfaces:
-  - name: bot
-    interactions:
-      text: bot.send_text
-      edit_text: bot.edit_message
-      status: bot.send_status
-      image: bot.send_image
-      video: bot.send_video
-      document: bot.send_document
-  
-  - name: sms
-    interactions:
-      text: sms.send_text
-
+  - name: vrg-core
+    plugins:
+      - org_vrg_core
+      - org_vrg_bus
+      - org_vrg_net
+      - org_vrg_power
+      - org_vrg_http
+      - org_vrg_camera
+      - org_vrg_bot
+      - org_vrg_sms
+      - org_vrg_gps

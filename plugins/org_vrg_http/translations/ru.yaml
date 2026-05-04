@@ -226,6 +226,7 @@ http.sms_inbox.no_messages: "Сообщений нет"
 http.sms_inbox.confirm_delete: "Удалить SMS от {{number}}?"
 http.sms_inbox.error_load: "Ошибка загрузки"
 http.sms_inbox.error_delete: "Ошибка удаления"
+http.sms_inbox.more: "Ещё.."
 
 http.storage.title: "Хранилище"
 http.storage.partitions_title: "Разделы диска"

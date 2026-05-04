@@ -226,6 +226,7 @@ http.sms_inbox.no_messages: "No messages"
 http.sms_inbox.confirm_delete: "Delete SMS from {{number}}?"
 http.sms_inbox.error_load: "Load error"
 http.sms_inbox.error_delete: "Delete error"
+http.sms_inbox.more: "More.."
 
 http.storage.title: "Storage"
 http.storage.partitions_title: "Disk partitions"

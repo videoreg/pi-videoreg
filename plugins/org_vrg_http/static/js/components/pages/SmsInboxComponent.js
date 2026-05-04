@@ -17,11 +17,20 @@ const SmsInboxComponent = {
       </div>
 
       <template v-if="messages.length > 0">
-        <tab-switch
-          v-model="activeDate"
-          :tabs="dateTabs"
-          style="margin-bottom: var(--spacing-lg);"
-        />
+        <div class="tab-switch" style="margin-bottom: var(--spacing-lg);">
+          <button
+            v-for="tab in visibleDateTabs"
+            :key="tab.value"
+            class="tab-button"
+            :class="{ 'active': activeDate === tab.value }"
+            @click="activeDate = tab.value"
+          >{{ tab.label }}</button>
+          <button
+            v-if="!tabsExpanded && dateTabs.length > tabsLimit"
+            class="tab-button"
+            @click="tabsExpanded = true"
+          >{{ $t('http.sms_inbox.more') }}</button>
+        </div>
 
         <div
           v-for="msg in activeMessages"
@@ -54,7 +63,9 @@ const SmsInboxComponent = {
       messages: [],
       activeDate: null,
       error: '',
-      loading: false
+      loading: false,
+      tabsExpanded: false,
+      tabsLimit: 4
     };
   },
 
@@ -69,6 +80,18 @@ const SmsInboxComponent = {
 
     dateTabs() {
       return this.dates.map(d => ({ value: d, label: this.formatDateTab(d) }));
+    },
+
+    visibleDateTabs() {
+      if (this.tabsExpanded || this.dateTabs.length <= this.tabsLimit) {
+        return this.dateTabs;
+      }
+      const head = this.dateTabs.slice(0, this.tabsLimit);
+      const activeTab = this.dateTabs.find(t => t.value === this.activeDate);
+      if (activeTab && !head.includes(activeTab)) {
+        head.push(activeTab);
+      }
+      return head;
     },
 
     activeMessages() {

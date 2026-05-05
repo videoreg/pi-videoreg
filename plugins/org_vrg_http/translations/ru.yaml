@@ -210,6 +210,8 @@ http.power.error_load_settings: "Ошибка загрузки настроек"
 http.power.error_save: "Ошибка сохранения"
 http.power.error_reboot: "Ошибка перезагрузки"
 http.power.error_shutdown: "Ошибка выключения"
+http.power.charging_protection_label: "Щадящий режим зарядки"
+http.power.charging_protection_hint: "Заряжать батарею только до 80% — продлевает срок службы"
 
 http.sms.title: "Настройка SMS"
 http.sms.tab_users: "Пользователи"

@@ -7,8 +7,10 @@ from plugins.org_vrg_power.commands.keep_alive import CommandKeepAlive
 from plugins.org_vrg_power.commands.reboot import CommandReboot
 from plugins.org_vrg_power.commands.set_wakeup import CommandSetWakeup
 from plugins.org_vrg_power.commands.shutdown import CommandShutdown
+from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
 from plugins.org_vrg_power.methods.get_status import MethodGetStatus
 from plugins.org_vrg_power.methods.get_wakeup_config import MethodGetWakeupConfig
+from plugins.org_vrg_power.methods.set_charging_protection import MethodSetChargingProtection
 from plugins.org_vrg_power.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_power.methods.keep_alive import MethodKeepAlive
 from plugins.org_vrg_power.methods.pisugar_generic import MethodPisugarGeneric
@@ -32,7 +34,12 @@ async def build_plugin(
   plugin.init_socket(client_id=name, channels=[], socket_path=None)
   plugin.init_api_client()
 
-  plugin.state.set_defaults(defaults={const.STATE_KEY_WAKEUP: "on-power-restore"})
+  plugin.state.set_defaults(
+    defaults={
+      const.STATE_KEY_WAKEUP: "on-power-restore",
+      const.STATE_KEY_CHARGING_PROTECTION: True,
+    }
+  )
 
   previous_shutdown_config = ShutdownConfig.from_json(
     plugin.state.get(const.STATE_KEY_LAST_SHUTDOWN_CONFIG, None)
@@ -85,6 +92,8 @@ async def build_plugin(
       # "get_temp": MethodPisugarGeneric(runner.pisugar, "get_temp"),
       "get_wakeup_config": MethodGetWakeupConfig(plugin),
       "set_wakeup": MethodSetWakeup(plugin, runner.pisugar),
+      "get_charging_protection": MethodGetChargingProtection(plugin),
+      "set_charging_protection": MethodSetChargingProtection(plugin, runner.pisugar),
       "shutdown": MethodShutdown(
         plugin, shutdown_controller, force_wakeup_config="on-power-restore"
       ),

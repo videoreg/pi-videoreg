@@ -33,7 +33,19 @@ class PowerPlugin(Plugin):
       self.keep_alive.have_to_wait("initial_power", 60)
     asyncio.create_task(self.runner.pisugar.set_alarm_wakeup_enabled(False))
     asyncio.create_task(self.runner.pisugar.set_wakeup_on_power_restore(True))
+    asyncio.create_task(self._apply_charging_protection())
     asyncio.create_task(self._start_check_charging_loop())
+
+  async def _apply_charging_protection(self):
+    enabled = bool(self.state.get(const.STATE_KEY_CHARGING_PROTECTION, True))
+    try:
+      ok = await self.runner.pisugar.set_charging_protection(enabled)
+      if ok:
+        self.logger.info(f"charging protection applied: {enabled}")
+      else:
+        self.logger.warning(f"PiSugar rejected charging protection={enabled}")
+    except Exception as e:
+      self.logger.error(f"failed to apply charging protection: {e}", exc_info=True)
 
   async def delayed_shutdown(self):
     self.logger.info("shutdown")

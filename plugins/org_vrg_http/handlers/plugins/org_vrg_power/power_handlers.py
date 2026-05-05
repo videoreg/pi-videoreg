@@ -64,6 +64,48 @@ async def handle_set_power_wakeup(request: web.Request):
     return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_get_power_charging_protection(request: web.Request):
+  """Get battery charge protection setting (limit charge to 80%)"""
+  from sdk.socket.requests import RequestTimeoutError
+
+  logger = request.app["logger"]
+  api_client = request.app["api_client"]
+
+  try:
+    response = await api_client.exec("power.get_charging_protection", {})
+    if not response.is_ok():
+      return web.json_response({"error": response.get_error()}, status=500)
+    return web.json_response(response.get_data())
+  except RequestTimeoutError:
+    return web.json_response({"error": "timeout"}, status=504)
+  except Exception as e:
+    logger.error(f"Error in handle_get_power_charging_protection: {e}", exc_info=True)
+    return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_post_power_charging_protection(request: web.Request):
+  """Toggle battery charge protection"""
+  from sdk.socket.requests import RequestTimeoutError
+
+  logger = request.app["logger"]
+  api_client = request.app["api_client"]
+
+  try:
+    body = await request.json()
+    enabled = body.get("enabled")
+    if not isinstance(enabled, bool):
+      return web.json_response({"error": "Missing or invalid field: enabled"}, status=400)
+    response = await api_client.exec("power.set_charging_protection", enabled)
+    if not response.is_ok():
+      return web.json_response({"error": response.get_error()}, status=500)
+    return web.json_response(response.get_data())
+  except RequestTimeoutError:
+    return web.json_response({"error": "timeout"}, status=504)
+  except Exception as e:
+    logger.error(f"Error in handle_post_power_charging_protection: {e}", exc_info=True)
+    return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_post_power_reboot(request: web.Request):
   """System reboot"""
   from sdk.socket.requests import RequestTimeoutError

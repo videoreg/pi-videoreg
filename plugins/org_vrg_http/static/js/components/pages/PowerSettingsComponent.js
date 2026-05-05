@@ -1,6 +1,6 @@
 // Компонент страницы питания (PiSugar UPS)
 const PowerSettingsComponent = {
-  components: { TabSwitch, ProgressBar, Icon },
+  components: { TabSwitch, ProgressBar, Icon, ToggleSwitch },
   emits: ['navigate'],
 
   template: `
@@ -92,6 +92,18 @@ const PowerSettingsComponent = {
         <div v-if="settingsError" class="alert alert-error">{{ settingsError }}</div>
         <div v-if="settingsSuccess" class="alert alert-success">{{ settingsSuccess }}</div>
 
+        <div class="info-block">
+          <div class="section-title">{{ $t('http.power.charging_protection_label') }}</div>
+          <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
+            {{ $t('http.power.charging_protection_hint') }}
+          </p>
+          <toggle-switch
+            v-model="chargingProtection"
+            :disabled="chargingProtectionLoading"
+            @update:modelValue="onChargingProtectionToggle"
+          ></toggle-switch>
+        </div>
+
         <div v-if="selectedWakeup !== null" class="info-block">
           <div class="section-title">{{ $t('http.power.wakeup_label') }}</div>
           <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
@@ -148,6 +160,9 @@ const PowerSettingsComponent = {
       settingsSuccess: '',
       settingsLoading: false,
       saving: false,
+
+      chargingProtection: true,
+      chargingProtectionLoading: false,
     };
   },
 
@@ -221,18 +236,53 @@ const PowerSettingsComponent = {
       this.settingsError = '';
       this.settingsLoading = true;
       try {
-        const response = await fetch('/api/power/wakeup', { credentials: 'same-origin' });
-        const result = await response.json();
-        if (!response.ok) {
-          this.settingsError = result.error || this.$t('http.power.error_load_settings');
+        const [wakeupRes, protRes] = await Promise.all([
+          fetch('/api/power/wakeup', { credentials: 'same-origin' }),
+          fetch('/api/power/charging-protection', { credentials: 'same-origin' }),
+        ]);
+        const wakeupResult = await wakeupRes.json();
+        if (!wakeupRes.ok) {
+          this.settingsError = wakeupResult.error || this.$t('http.power.error_load_settings');
           return;
         }
-        this.wakeupOptions = result.options || [];
-        this.selectedWakeup = result.current || 'disabled';
+        this.wakeupOptions = wakeupResult.options || [];
+        this.selectedWakeup = wakeupResult.current || 'disabled';
+
+        const protResult = await protRes.json();
+        if (protRes.ok) {
+          this.chargingProtection = !!protResult.enabled;
+        }
       } catch (err) {
         this.settingsError = this.$t('http.common.error_connection');
       } finally {
         this.settingsLoading = false;
+      }
+    },
+
+    async onChargingProtectionToggle(value) {
+      this.settingsError = '';
+      this.settingsSuccess = '';
+      this.chargingProtectionLoading = true;
+      try {
+        const response = await fetch('/api/power/charging-protection', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: value })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.settingsError = result.error || this.$t('http.power.error_save');
+          this.chargingProtection = !value;
+          return;
+        }
+        this.chargingProtection = !!result.enabled;
+        this.settingsSuccess = this.$t('http.power.settings_saved');
+      } catch (err) {
+        this.settingsError = this.$t('http.common.error_connection');
+        this.chargingProtection = !value;
+      } finally {
+        this.chargingProtectionLoading = false;
       }
     },
 

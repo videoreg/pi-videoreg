@@ -171,6 +171,12 @@ class HttpPlugin(Plugin):
     app.router.add_get("/api/power/status", power_handlers.handle_get_power_status)
     app.router.add_get("/api/power/wakeup", power_handlers.handle_get_power_wakeup)
     app.router.add_post("/api/power/wakeup", power_handlers.handle_set_power_wakeup)
+    app.router.add_get(
+      "/api/power/charging-protection", power_handlers.handle_get_power_charging_protection
+    )
+    app.router.add_post(
+      "/api/power/charging-protection", power_handlers.handle_post_power_charging_protection
+    )
     app.router.add_post("/api/power/keep_alive", power_handlers.handle_post_power_keep_alive)
     app.router.add_post("/api/power/reboot", power_handlers.handle_post_power_reboot)
     app.router.add_post("/api/power/shutdown", power_handlers.handle_post_power_shutdown)

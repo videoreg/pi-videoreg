@@ -242,7 +242,7 @@ if [[ "${MODE}" == "file" ]]; then
   CHILDREN+=($!)
 
 else
-  # Stream mode: rpicam-vid stdout → ffmpeg → RTSP (mediamtx) + HLS (browser)
+  # Stream mode: rpicam-vid stdout piped directly into ffmpeg → RTSP (mediamtx) + HLS (browser)
   mkdir -p "$HLS_DIR"
   rm -f "$HLS_DIR"/*.m3u8 "$HLS_DIR"/*.ts 2>/dev/null
 
@@ -266,28 +266,28 @@ else
     $POST_PROCESS_FILE_ARG \
     $HFLIP_ARG \
     $VFLIP_ARG \
-    -o - &
+    -o - \
+    | ffmpeg -hide_banner -loglevel warning \
+        -fflags +genpts+nobuffer -flags low_delay \
+        -probesize 32 -analyzeduration 0 \
+        -f h264 -i - \
+        -map 0:v -c:v copy -f rtsp -rtsp_transport tcp rtsp://localhost:8554/videoreg \
+        -map 0:v -c:v copy -f hls \
+          -hls_time 1 -hls_list_size 4 \
+          -hls_flags delete_segments+independent_segments+omit_endlist \
+          -hls_segment_type mpegts \
+          -hls_segment_filename "$HLS_DIR/seg%05d.ts" \
+          "$HLS_DIR/stream.m3u8" &
 
-  RPICAM_PID=$!
-  CHILDREN+=($RPICAM_PID)
-
-  # Small delay so /proc/$RPICAM_PID/fd/1 is open
-  sleep 0.2
-
-  ffmpeg -hide_banner -loglevel warning \
-    -fflags +genpts+nobuffer -flags low_delay \
-    -probesize 32 -analyzeduration 0 \
-    -f h264 -i /proc/$RPICAM_PID/fd/1 \
-    -map 0:v -c:v copy -f rtsp -rtsp_transport tcp rtsp://localhost:8554/videoreg \
-    -map 0:v -c:v copy -f hls \
-      -hls_time 1 -hls_list_size 4 \
-      -hls_flags delete_segments+independent_segments+omit_endlist \
-      -hls_segment_type mpegts \
-      -hls_segment_filename "$HLS_DIR/seg%05d.ts" \
-      "$HLS_DIR/stream.m3u8" &
-
+  # $! returns the PID of the last command in the pipeline (ffmpeg).
+  # rpicam-vid is also a direct child of the script — find it via pgrep.
   FFMPEG_PID=$!
   CHILDREN+=($FFMPEG_PID)
+  sleep 0.2
+  RPICAM_PID=$(pgrep -P $$ rpicam-vid 2>/dev/null | head -1 || true)
+  if [[ -n "$RPICAM_PID" ]]; then
+    CHILDREN+=($RPICAM_PID)
+  fi
 
 fi
 

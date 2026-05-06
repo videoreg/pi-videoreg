@@ -58,6 +58,7 @@ class CameraPlugin(Plugin):
     self._h264_watcher: H264FolderWatcher = None
     self._jpeg_watcher: JpegFolderWatcher = None
     self._streaming = False
+    self.HLS_DIR = runner.videoreg.plugin_private_path(id, "hls")
 
   @property
   def video_state(self) -> VideoState:

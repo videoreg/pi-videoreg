@@ -1,10 +1,8 @@
-"""HLS file handler — serves live stream segments from tmpfs"""
+"""HLS file handler — serves live stream segments from the camera plugin's private dir"""
 
 import os
 
 from aiohttp import web
-
-HLS_DIR = "/run/videoreg/hls"
 
 
 async def handle_get_hls(request: web.Request):
@@ -19,7 +17,8 @@ async def handle_get_hls(request: web.Request):
   else:
     raise web.HTTPForbidden()
 
-  path = os.path.join(HLS_DIR, filename)
+  hls_dir = request.app["videoreg"].plugin_private_path("org_vrg_camera", "hls")
+  path = os.path.join(str(hls_dir), filename)
   if not os.path.isfile(path):
     raise web.HTTPNotFound()
 

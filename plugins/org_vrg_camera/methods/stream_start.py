@@ -11,4 +11,4 @@ class MethodStreamStart(ApiMethod):
 
   async def exec(self, args):
     await self._plugin.stream_start()
-    return {"status": "ok"}
+    return {"status": "ok", "data": self._plugin.stream_status()}

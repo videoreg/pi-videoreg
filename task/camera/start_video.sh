@@ -268,14 +268,12 @@ else
     $VFLIP_ARG \
     -o - \
     | ffmpeg -hide_banner -loglevel warning \
-        -fflags +genpts+nobuffer -flags low_delay \
-        -probesize 32 -analyzeduration 0 \
+        -fflags +genpts+nobuffer \
         -f h264 -i - \
         -map 0:v -c:v copy -f rtsp -rtsp_transport tcp rtsp://localhost:8554/videoreg \
         -map 0:v -c:v copy -f hls \
           -hls_time 1 -hls_list_size 4 \
           -hls_flags delete_segments+independent_segments+omit_endlist \
-          -hls_segment_type mpegts \
           -hls_segment_filename "$HLS_DIR/seg%05d.ts" \
           "$HLS_DIR/stream.m3u8" &
 

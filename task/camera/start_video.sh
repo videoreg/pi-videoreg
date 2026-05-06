@@ -2,12 +2,13 @@
 #
 # Starts video recording from the camera using rpicam-vid.
 #
-# Supports three output modes (--mode):
-#   file   — segments H.264 stream into 120-second files saved to --h264-dir
-#   stream — re-streams video via RTSP at rtsp://0.0.0.0:8554/videoreg
-#   both   — file + stream simultaneously (default)
+# Supports two output modes (--mode):
+#   file   — segments H.264 stream into 120-second files saved to --h264-dir (default)
+#   stream — pipes video through ffmpeg: RTSP to mediamtx (rtsp://localhost:8554/videoreg)
+#            and HLS playlist to --hls-dir for browser playback
 #
-# Optional --screenshot triggers periodic JPEG snapshot output to --screenshots-dir.
+# Optional --screenshot triggers periodic JPEG snapshot output to --screenshots-dir
+# (file mode only; ignored in stream mode).
 # Optional --duration N limits recording to N seconds; without it recording runs until
 # the process receives SIGTERM/SIGINT, which triggers a clean shutdown forwarded to all
 # child processes.
@@ -21,7 +22,8 @@
 #
 # Optional:
 #   --fps N                 Frame rate (default: 30)
-#   --mode MODE             Output mode: file | stream | both (default: both)
+#   --mode MODE             Output mode: file | stream (default: file)
+#   --hls-dir DIR           Directory for HLS playlist/segments (required for stream mode)
 #   --camera-mode WxH       Sensor mode (default: 1296:972)
 #   --width N               Output width in pixels (default: 1296)
 #   --height N              Output height in pixels (default: 729)
@@ -29,14 +31,15 @@
 #   --post-process-file F   rpicam post-processing JSON config file
 #   --hflip                 Flip image horizontally
 #   --vflip                 Flip image vertically
-#   --screenshot INTERVAL   Save a JPEG every INTERVAL milliseconds
+#   --screenshot INTERVAL   Save a JPEG every INTERVAL milliseconds (file mode only)
 #   --duration N            Stop after N seconds (default: run indefinitely)
-#   --path PATH             Override the default output file path template
+#   --path PATH             Override the default output file path template (file mode only)
 
 H264_DIR=""
 SCREENSHOTS_DIR=""
 FPS=30
-MODE="both"
+MODE="file"
+HLS_DIR=""
 CAMERA_MODE="1296:972"
 WIDTH=1296
 HEIGHT=729
@@ -67,6 +70,10 @@ function parse_and_validate_arguments() {
       ;;
     --mode)
       MODE="$2"
+      shift 2
+      ;;
+    --hls-dir)
+      HLS_DIR="$2"
       shift 2
       ;;
     --camera-mode)
@@ -140,8 +147,12 @@ function parse_and_validate_arguments() {
     echo "Error: fps should be a number."
     exit 1
   fi
-  if [[ "${MODE}" != "file" && "${MODE}" != "stream" && "${MODE}" != "both" ]]; then
-    echo "Error: --mode should be 'file', 'stream' or 'both'."
+  if [[ "${MODE}" != "file" && "${MODE}" != "stream" ]]; then
+    echo "Error: --mode should be 'file' or 'stream'."
+    exit 1
+  fi
+  if [[ "${MODE}" == "stream" && -z "${HLS_DIR}" ]]; then
+    echo "Error: --hls-dir is required when --mode is 'stream'."
     exit 1
   fi
   if ! [[ "${WIDTH}" =~ ^[0-9]+$ ]]; then
@@ -190,63 +201,95 @@ trap 'forward_signal USR2' USR2
 
 parse_and_validate_arguments "$@"
 
-# Build ffmpeg command based on mode
-FFMPEG_OUTPUTS=""
-
-if [[ "${MODE}" == "file" || "${MODE}" == "both" ]]; then
-  FFMPEG_OUTPUTS="${FFMPEG_OUTPUTS} -map 0:v -c:v copy -f segment -segment_time 120 -reset_timestamps 1 -strftime 1 ${H264_DIR}/%Y-%m-%d_%H-%M-%S.h264"
-fi
-
-if [[ "${MODE}" == "stream" || "${MODE}" == "both" ]]; then
-  # FFMPEG_OUTPUTS="${FFMPEG_OUTPUTS} -map 0:v -c:v copy -f mpegts udp://0.0.0.0:8002/videoreg?pkt_size=1316"
-  FFMPEG_OUTPUTS="${FFMPEG_OUTPUTS} -map 0:v -c:v copy -f rtsp -rtsp_transport tcp rtsp://0.0.0.0:8554/videoreg"
-fi
-
 if [[ -n "${DURATION}" ]]; then
   TIMEOUT_ARG="--timeout $((DURATION * 1000))"
-  SEGMENT_ARG=""
 else
   TIMEOUT_ARG="--timeout 0"
-  SEGMENT_ARG="--segment 120000"
 fi
 
-rpicam-vid \
-  -v 0 \
-  --nopreview \
-  --framerate $FPS \
-  --mode $CAMERA_MODE \
-  --width $WIDTH \
-  --height $HEIGHT \
-  --bitrate $BITRATE \
-  $TIMEOUT_ARG \
-  --denoise cdn_off \
-  --autofocus-mode manual \
-  --lens-position 0.0 \
-  --codec h264 \
-  --profile main \
-  --level 4.2 \
-  --flush \
-  --inline \
-  $POST_PROCESS_FILE_ARG \
-  $HFLIP_ARG \
-  $VFLIP_ARG \
-  $SEGMENT_ARG \
-  $SCREENSHOT_ARG \
-  --output "${PATH_OVERRIDE:-${H264_DIR}/%F_%H-%M-%S.h264}" \
-  &
+if [[ "${MODE}" == "file" ]]; then
+  # File mode: rpicam-vid writes H.264 segments directly to disk
+  SEGMENT_ARG="--segment 120000"
+  if [[ -n "${DURATION}" ]]; then
+    SEGMENT_ARG=""
+  fi
 
-# -o - | \
-#   ffmpeg -loglevel error \
-#     -fflags +genpts+nobuffer \
-#     -flags low_delay \
-#     -probesize 32 \
-#     -analyzeduration 0 \
-#     -f h264 \
-#     -y \
-#     -i - \
-#     ${FFMPEG_OUTPUTS} \
+  rpicam-vid \
+    -v 0 \
+    --nopreview \
+    --framerate $FPS \
+    --mode $CAMERA_MODE \
+    --width $WIDTH \
+    --height $HEIGHT \
+    --bitrate $BITRATE \
+    $TIMEOUT_ARG \
+    --denoise cdn_off \
+    --autofocus-mode manual \
+    --lens-position 0.0 \
+    --codec h264 \
+    --profile main \
+    --level 4.2 \
+    --flush \
+    --inline \
+    $POST_PROCESS_FILE_ARG \
+    $HFLIP_ARG \
+    $VFLIP_ARG \
+    $SEGMENT_ARG \
+    $SCREENSHOT_ARG \
+    --output "${PATH_OVERRIDE:-${H264_DIR}/%F_%H-%M-%S.h264}" \
+    &
 
-CHILDREN+=($!)
+  CHILDREN+=($!)
+
+else
+  # Stream mode: rpicam-vid stdout → ffmpeg → RTSP (mediamtx) + HLS (browser)
+  mkdir -p "$HLS_DIR"
+  rm -f "$HLS_DIR"/*.m3u8 "$HLS_DIR"/*.ts 2>/dev/null
+
+  rpicam-vid \
+    -v 0 \
+    --nopreview \
+    --framerate $FPS \
+    --mode $CAMERA_MODE \
+    --width $WIDTH \
+    --height $HEIGHT \
+    --bitrate $BITRATE \
+    $TIMEOUT_ARG \
+    --denoise cdn_off \
+    --autofocus-mode manual \
+    --lens-position 0.0 \
+    --codec h264 \
+    --profile main \
+    --level 4.2 \
+    --flush \
+    --inline \
+    $POST_PROCESS_FILE_ARG \
+    $HFLIP_ARG \
+    $VFLIP_ARG \
+    -o - &
+
+  RPICAM_PID=$!
+  CHILDREN+=($RPICAM_PID)
+
+  # Small delay so /proc/$RPICAM_PID/fd/1 is open
+  sleep 0.2
+
+  ffmpeg -hide_banner -loglevel warning \
+    -fflags +genpts+nobuffer -flags low_delay \
+    -probesize 32 -analyzeduration 0 \
+    -f h264 -i /proc/$RPICAM_PID/fd/1 \
+    -map 0:v -c:v copy -f rtsp -rtsp_transport tcp rtsp://localhost:8554/videoreg \
+    -map 0:v -c:v copy -f hls \
+      -hls_time 1 -hls_list_size 4 \
+      -hls_flags delete_segments+independent_segments+omit_endlist \
+      -hls_segment_type mpegts \
+      -hls_segment_filename "$HLS_DIR/seg%05d.ts" \
+      "$HLS_DIR/stream.m3u8" &
+
+  FFMPEG_PID=$!
+  CHILDREN+=($FFMPEG_PID)
+
+fi
 
 # Wait for all children
 for pid in "${CHILDREN[@]}"; do

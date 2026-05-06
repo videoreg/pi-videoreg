@@ -13,6 +13,7 @@ import plugins.org_vrg_http.handlers.i18n_handlers as i18n_handlers
 import plugins.org_vrg_http.handlers.media_handlers as media_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_bot.bot_handlers as bot_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.camera_handlers as camera_handlers
+import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.hls_handlers as hls_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.media_feed_handlers as media_feed_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_core.journal_handlers as journal_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_core.system_handlers as system_handlers
@@ -84,6 +85,7 @@ class HttpPlugin(Plugin):
       "trips",
       "media-feed",
       "media-fave",
+      "live-broadcast",
     ]:
       app.router.add_get(f"/{_spa_page}", static_handlers.handle_index)
     app.router.add_get("/settings/{sub:.*}", static_handlers.handle_index)
@@ -150,6 +152,9 @@ class HttpPlugin(Plugin):
     app.router.add_get("/api/bot/config", bot_handlers.handle_bot_get_config)
     app.router.add_post("/api/bot/config", bot_handlers.handle_bot_config)
 
+    # HLS live stream
+    app.router.add_get("/hls/{filename}", hls_handlers.handle_get_hls)
+
     # Camera API endpoints
     app.router.add_get("/api/camera/info", camera_handlers.handle_get_camera_info)
     app.router.add_get("/api/camera/modes", camera_handlers.handle_get_camera_modes)
@@ -166,6 +171,9 @@ class HttpPlugin(Plugin):
     app.router.add_get("/api/camera/fave_list", media_feed_handlers.handle_get_camera_fave_list)
     app.router.add_post("/api/camera/fave", media_feed_handlers.handle_post_camera_fave)
     app.router.add_delete("/api/camera/fave", media_feed_handlers.handle_delete_camera_fave)
+    app.router.add_get("/api/camera/stream_status", camera_handlers.handle_get_camera_stream_status)
+    app.router.add_post("/api/camera/stream_start", camera_handlers.handle_post_camera_stream_start)
+    app.router.add_post("/api/camera/stream_stop", camera_handlers.handle_post_camera_stream_stop)
 
     # Power API endpoints
     app.router.add_get("/api/power/status", power_handlers.handle_get_power_status)

@@ -22,6 +22,9 @@ from plugins.org_vrg_camera.methods.list_media import MethodListMedia
 from plugins.org_vrg_camera.methods.photo import MethodPhoto
 from plugins.org_vrg_camera.methods.remove_from_fave import MethodRemoveFromFave
 from plugins.org_vrg_camera.methods.set_video_settings import MethodSetVideoSettings
+from plugins.org_vrg_camera.methods.stream_start import MethodStreamStart
+from plugins.org_vrg_camera.methods.stream_status import MethodStreamStatus
+from plugins.org_vrg_camera.methods.stream_stop import MethodStreamStop
 from plugins.org_vrg_camera.methods.video import MethodVideo
 from plugins.org_vrg_camera.methods.video_pause import MethodVideoPause
 from plugins.org_vrg_camera.methods.video_start import MethodVideoStart
@@ -111,6 +114,9 @@ async def build_plugin(
       "check_video_ready": MethodCheckVideoReady(plugin),
       "get_camera_modes": MethodGetCameraModes(plugin),
       "set_video_settings": MethodSetVideoSettings(plugin),
+      "stream_start": MethodStreamStart(plugin),
+      "stream_stop": MethodStreamStop(plugin),
+      "stream_status": MethodStreamStatus(plugin),
       "add_to_fave": MethodAddToFave(plugin),
       "remove_from_fave": MethodRemoveFromFave(plugin),
     }

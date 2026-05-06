@@ -132,7 +132,10 @@ class CameraControlsImpl(CameraControls):
       cmd.append("--hflip")
     if params.vflip:
       cmd.append("--vflip")
-    if params.screenshot:
+    if mode == VideoMode.TO_STREAM:
+      if params.hls_dir:
+        cmd.extend(["--hls-dir", params.hls_dir])
+    elif params.screenshot:
       cmd.extend(["--screenshot", str(photo_dir) + "/%V.jpg"])
 
     process: Process = await asyncio.create_subprocess_exec(

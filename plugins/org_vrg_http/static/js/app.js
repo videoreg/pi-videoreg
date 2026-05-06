@@ -30,7 +30,8 @@ const { createApp } = Vue;
     GpsTracksComponent,
     TripsComponent,
     SettingsComponent,
-    TripsMediaItem
+    TripsMediaItem,
+    LiveBroadcastComponent,
   },
   data() {
     return {
@@ -109,6 +110,8 @@ const { createApp } = Vue;
           return 'TripsComponent';
         case 'settings':
           return 'SettingsComponent';
+        case 'live-broadcast':
+          return 'LiveBroadcastComponent';
         default:
           return 'TripsComponent';
       }
@@ -354,7 +357,7 @@ const { createApp } = Vue;
     },
 
     pathToPage(path) {
-      const topPages = ['home', 'change-password', 'settings', 'stat', 'sms-inbox', 'gps-tracks', 'trips', 'media-feed', 'media-fave'];
+      const topPages = ['home', 'change-password', 'settings', 'stat', 'sms-inbox', 'gps-tracks', 'trips', 'media-feed', 'media-fave', 'live-broadcast'];
       const settingsPages = ['camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
       if (path === '/') return 'trips';
       if (path === '/settings') return 'settings';

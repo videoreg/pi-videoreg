@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from datetime import datetime
 from enum import Enum
@@ -39,12 +40,15 @@ _VIDEO_STATE_EVENTS = {
 
 
 class CameraPlugin(Plugin):
+  HLS_DIR = "/run/videoreg/hls"
+
   _video_state: VideoState
   _camera_controls: CameraControls
   _osd: osd.OSD
   is_first_loop_done = False
   _jpeg_watcher: "JpegFolderWatcher"
   _suspended = False
+  _streaming: bool = False
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
@@ -53,6 +57,7 @@ class CameraPlugin(Plugin):
     self._converting_names: set = set()
     self._h264_watcher: H264FolderWatcher = None
     self._jpeg_watcher: JpegFolderWatcher = None
+    self._streaming = False
 
   @property
   def video_state(self) -> VideoState:
@@ -73,6 +78,7 @@ class CameraPlugin(Plugin):
 
   async def start(self):
     await super().start()
+    os.makedirs(self.HLS_DIR, exist_ok=True)
     self._osd.reset()
     asyncio.create_task(self._lifecycle_loop())
     asyncio.create_task(self._check_files_loop())
@@ -163,23 +169,26 @@ class CameraPlugin(Plugin):
     except asyncio.CancelledError:
       await self._camera_controls.shutdown()
 
+  def _build_video_params(self) -> VideoParams:
+    return VideoParams(
+      fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+      bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+      camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
+      width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
+      height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
+      hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+      vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+      screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
+      hls_dir=self.HLS_DIR,
+    )
+
   async def start_video(self):
-    if self.video_state == VideoState.START:
+    if self.video_state == VideoState.START and self._camera_controls.is_recording():
       return
     self.video_state = VideoState.START
     try:
-      params = VideoParams(
-        fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
-        bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
-        camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
-        width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
-        height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
-        hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
-        vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
-        screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
-      )
-      await self._camera_controls.start_video(VideoMode.BOTH, params)
-      # self.runner.media_manager.invalidate(MediaFileType.H264)
+      mode = VideoMode.TO_STREAM if self._streaming else VideoMode.TO_FILE
+      await self._camera_controls.start_video(mode, self._build_video_params())
     except Exception:
       self.video_state = VideoState.STOP
       raise
@@ -189,6 +198,31 @@ class CameraPlugin(Plugin):
       return
     await self.stop_video()
     await self.start_video()
+
+  async def stream_start(self):
+    if self._streaming:
+      return
+    self._streaming = True
+    if self._camera_controls.is_recording():
+      await self._camera_controls.stop_video()
+    await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_video_params())
+    self.video_state = VideoState.START
+
+  async def stream_stop(self):
+    if not self._streaming:
+      return
+    was_recording = self.video_state == VideoState.START
+    self._streaming = False
+    if self._camera_controls.is_recording():
+      await self._camera_controls.stop_video()
+    if was_recording:
+      await self._camera_controls.start_video(VideoMode.TO_FILE, self._build_video_params())
+
+  def stream_status(self) -> dict:
+    return {
+      "streaming": self._streaming,
+      "hls_url": "/hls/stream.m3u8" if self._streaming else None,
+    }
 
   async def stop_video(self, pause: bool = False):
     self.video_state = VideoState.PAUSE if pause else VideoState.STOP

@@ -16,7 +16,7 @@ const LiveBroadcastComponent = {
       </div>
       <div v-if="error" class="alert alert-error">{{ error }}</div>
       <div style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:var(--border-radius-md);overflow:hidden;">
-        <video ref="video" controls autoplay muted playsinline
+        <video ref="video" muted playsinline
                style="width:100%;height:100%;object-fit:contain;display:block;"></video>
         <div v-if="starting" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);font-size:var(--font-size-sm);">
           {{ $t('http.live.starting') }}
@@ -102,8 +102,10 @@ const LiveBroadcastComponent = {
         this._hls = new Hls({ lowLatencyMode: true, liveSyncDuration: 2 });
         this._hls.loadSource(url);
         this._hls.attachMedia(video);
+        this._hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
+        video.play();
       }
     },
 
@@ -123,9 +125,15 @@ const LiveBroadcastComponent = {
         clearTimeout(this._retryTimer);
         this._retryTimer = null;
       }
+      const video = this.$refs.video;
       if (this._hls) {
         this._hls.destroy();
         this._hls = null;
+      }
+      if (video) {
+        video.pause();
+        video.src = '';
+        video.load();
       }
       const url = '/api/camera/stream_stop';
       if (beacon && navigator.sendBeacon) {

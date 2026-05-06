@@ -34,6 +34,7 @@ const LiveBroadcastComponent = {
       _hls: null,
       _retryTimer: null,
       _unloadHandler: null,
+      _pauseHandler: null,
     };
   },
 
@@ -98,6 +99,8 @@ const LiveBroadcastComponent = {
     _attach(url) {
       const video = this.$refs.video;
       if (!video) return;
+      this._pauseHandler = () => { if (this.streaming) video.play(); };
+      video.addEventListener('pause', this._pauseHandler);
       if (window.Hls && Hls.isSupported()) {
         this._hls = new Hls({ lowLatencyMode: true, liveSyncDuration: 2 });
         this._hls.loadSource(url);
@@ -126,6 +129,10 @@ const LiveBroadcastComponent = {
         this._retryTimer = null;
       }
       const video = this.$refs.video;
+      if (video && this._pauseHandler) {
+        video.removeEventListener('pause', this._pauseHandler);
+        this._pauseHandler = null;
+      }
       if (this._hls) {
         this._hls.destroy();
         this._hls = null;

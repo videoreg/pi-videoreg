@@ -80,10 +80,8 @@ class NetControlsImpl(NetControls):
         info[response_key] = ""
 
     try:
-      print("fuck 2")
       # Check whether the connection exists
       process = await asyncio.create_subprocess_exec(
-        "sudo",
         "nmcli",
         "connection",
         "show",
@@ -140,7 +138,6 @@ class NetControlsImpl(NetControls):
   async def _get_device_ip(self, device: str):
     """Get the IP address of a device"""
     try:
-      print("fuck 3")
       process = await asyncio.create_subprocess_exec(
         "nmcli",
         "-g",
@@ -172,7 +169,6 @@ class NetControlsImpl(NetControls):
 
   async def set_connection_property(self, connection_name: str, property_name: str, value: str):
     """Set a connection property via nmcli"""
-    print("fuck 4")
     process = await asyncio.create_subprocess_exec(
       "sudo",
       "nmcli",
@@ -197,7 +193,6 @@ class NetControlsImpl(NetControls):
   def get_nm_connections(self):
     """Get a list of all NetworkManager connections with IP addresses"""
 
-    print("fuck 5")
     # Get the list of all connections
     result = subprocess.run(
       ["nmcli", "-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,DEVICE,STATE", "connection", "show"],
@@ -221,7 +216,6 @@ class NetControlsImpl(NetControls):
       if conn_name == "lo":
         continue
 
-      print("fuck 6")
       # Get detailed information about the connection
       detail_result = subprocess.run(
         ["nmcli", "-t", "-f", "IP4.ADDRESS,IP6.ADDRESS", "connection", "show", conn_uuid],

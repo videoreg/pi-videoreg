@@ -4,6 +4,7 @@ import time
 from datetime import UTC, datetime
 
 import plugins.org_vrg_power.const as const
+from plugins.org_vrg_power.power_controls import PowerControls
 from plugins.org_vrg_power.shutdown import PisugarShutdownController, ShutdownLogic
 from sdk.helper import stream_subprocess
 from sdk.keep_alive import KeepAlive
@@ -15,6 +16,7 @@ class PowerPlugin(Plugin):
   _last_charging_status: int = None
   _shutdown_logic: ShutdownLogic
   _shutdown_controller: PisugarShutdownController
+  _power_controls: PowerControls
   keep_alive: KeepAlive
 
   def __init__(self, id, name, runner):
@@ -62,6 +64,9 @@ class PowerPlugin(Plugin):
     self._shutdown_logic = shutdown_logic
     self._shutdown_controller = shutdown_controller
 
+  def init_power_controls(self, power_controls: PowerControls):
+    self._power_controls = power_controls
+
   # TODO: freq limited in config.txt
   # async def _configure_governor(self):
   #   await stream_subprocess(
@@ -99,20 +104,10 @@ class PowerPlugin(Plugin):
       if is_charging != self._last_charging_status:
         if is_charging == -1:
           self.logger.info("Charging is off: will stop vrg-charging.target")
-          await stream_subprocess(
-            cmd=["systemctl", "stop", "vrg-charging.target"],
-            start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
-            stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
-            stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
-            )
+          await self._power_controls.stop_charging_target()
         else:
           self.logger.info("Charging is on: will start vrg-charging.target")
-          await stream_subprocess(
-            cmd=["systemctl", "start", "vrg-charging.target"],
-            start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
-            stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
-            stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
-            )
+          await self._power_controls.start_charging_target()
 
       await asyncio.sleep(5)
 

@@ -112,7 +112,7 @@ const LiveBroadcastComponent = {
       this._pauseHandler = () => { if (this.streaming) video.play(); };
       video.addEventListener('pause', this._pauseHandler);
       if (window.Hls && Hls.isSupported()) {
-        this._hls = new Hls({ liveSyncDuration: 1 });
+        this._hls = new Hls({ liveSyncDuration: 3 });
         this._hls.loadSource(url);
         this._hls.attachMedia(video);
         this._hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.shutdown import PisugarShutdownController, ShutdownLogic
+from sdk.helper import stream_subprocess
 from sdk.keep_alive import KeepAlive
 from sdk.service import Plugin
 
@@ -95,23 +96,23 @@ class PowerPlugin(Plugin):
           self.keep_alive.have_to_wait("initial_power", 60)
 
       # be carefull: don't use continue here
-      # if is_charging != self._last_charging_status:
-      #   if is_charging == -1:
-      #     self.logger.info("Charging is off: will stop vrg-charging.target")
-      #     await stream_subprocess(
-      #       cmd=["systemctl", "stop", "vrg-charging.target"],
-      #       start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
-      #       stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
-      #       stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
-      #       )
-      #   else:
-      #     self.logger.info("Charging is on: will start vrg-charging.target")
-      #     await stream_subprocess(
-      #       cmd=["systemctl", "start", "vrg-charging.target"],
-      #       start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
-      #       stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
-      #       stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
-      #       )
+      if is_charging != self._last_charging_status:
+        if is_charging == -1:
+          self.logger.info("Charging is off: will stop vrg-charging.target")
+          await stream_subprocess(
+            cmd=["systemctl", "stop", "vrg-charging.target"],
+            start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
+            stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
+            stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
+            )
+        else:
+          self.logger.info("Charging is on: will start vrg-charging.target")
+          await stream_subprocess(
+            cmd=["systemctl", "start", "vrg-charging.target"],
+            start_cb=lambda pid, cmd: self.logger.debug(f"CMD (pid={pid}): {cmd}"),
+            stdout_cb=lambda pid, s: self.logger.debug(f"STDOUT (pid={pid}): {s}"),
+            stderr_cb=lambda pid, s: self.logger.debug(f"STDERR (pid={pid}): {s}")
+            )
 
       await asyncio.sleep(5)
 

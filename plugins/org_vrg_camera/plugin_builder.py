@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 from plugins.org_vrg_camera.commands.get_commands import CommandGetCommands
+from plugins.org_vrg_camera.commands.stream import CommandStream
 from plugins.org_vrg_camera.commands.list_photos import CommandListPhotos
 from plugins.org_vrg_camera.commands.list_videos import CommandListVideos
 from plugins.org_vrg_camera.commands.photo import CommandPhoto
@@ -96,6 +97,7 @@ async def build_plugin(
     "send_photo_link": CommandSendPhotoLink(plugin),
     "send_video": CommandSendVideo(plugin),
     "send_video_link": CommandSendVideoLink(plugin),
+    "stream": CommandStream(plugin),
   }
 
   plugin.init_api_servier(

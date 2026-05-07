@@ -95,6 +95,9 @@ plugins:
       - name: video_start
         title: Start video recording
         hidden: true
+      - name: stream
+        title: Start RTSP stream
+        hidden: true
     pages:
       - url: feed
         menu: Лента

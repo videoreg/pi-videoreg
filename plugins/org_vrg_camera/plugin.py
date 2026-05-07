@@ -19,23 +19,18 @@ class VideoState(Enum):
   STOP = "stop"
   START = "record"
   PAUSE = "pause"
+  STREAM = "stream"
 
   def print(self):
-    if self.value == "record":
-      emoji = "🟢 "
-    elif self.value == "pause":
-      emoji = "🟡 "
-    elif self.value == "stop":
-      emoji = "🔴 "
-    else:
-      emoji = ""
-    return f"Camera state: {emoji}{self.value}"
+    icons = {"record": "🟢 ", "pause": "🟡 ", "stop": "🔴 ", "stream": "🔵 "}
+    return f"Camera state: {icons.get(self.value, '')}{self.value}"
 
 
 _VIDEO_STATE_EVENTS = {
   VideoState.START: "video_start",
   VideoState.STOP: "video_stop",
   VideoState.PAUSE: "video_pause",
+  VideoState.STREAM: "stream_start",
 }
 
 
@@ -48,7 +43,7 @@ class CameraPlugin(Plugin):
   is_first_loop_done = False
   _jpeg_watcher: "JpegFolderWatcher"
   _suspended = False
-  _streaming: bool = False
+  _stream_timer_task: asyncio.Task = None
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
@@ -57,7 +52,7 @@ class CameraPlugin(Plugin):
     self._converting_names: set = set()
     self._h264_watcher: H264FolderWatcher = None
     self._jpeg_watcher: JpegFolderWatcher = None
-    self._streaming = False
+    self._stream_timer_task = None
     self.HLS_DIR = runner.videoreg.plugin_private_path(id, "hls")
 
   @property
@@ -125,7 +120,7 @@ class CameraPlugin(Plugin):
         )
 
         if is_charging == -1:
-          if self.video_state == VideoState.START:
+          if self.video_state in (VideoState.START, VideoState.STREAM):
             self.logger.info("Detect charging is off: will stop video")
             await self.stop_video()
           elif self.video_state == VideoState.STOP:
@@ -140,7 +135,7 @@ class CameraPlugin(Plugin):
 
               self._is_wakeup_photo_taken = True
         else:
-          if self.video_state == VideoState.START:
+          if self.video_state in (VideoState.START, VideoState.STREAM):
             if cpu_temp > 65:
               self.logger.warning("CPU temp is to hight: will stop video")
               await self.stop_video()
@@ -201,8 +196,7 @@ class CameraPlugin(Plugin):
       return
     self.video_state = VideoState.START
     try:
-      mode = VideoMode.TO_STREAM if self._streaming else VideoMode.TO_FILE
-      await self._camera_controls.start_video(mode, self._build_video_params())
+      await self._camera_controls.start_video(VideoMode.TO_FILE, self._build_video_params())
     except Exception:
       self.video_state = VideoState.STOP
       raise
@@ -214,31 +208,51 @@ class CameraPlugin(Plugin):
     await self.start_video()
 
   async def stream_start(self):
-    if self._streaming:
+    if self.video_state == VideoState.STREAM:
+      self._reset_stream_timer()
       return
-    self._streaming = True
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()
     await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_stream_video_params())
-    self.video_state = VideoState.START
+    self.video_state = VideoState.STREAM
+    self._reset_stream_timer()
 
   async def stream_stop(self):
-    if not self._streaming:
+    if self.video_state != VideoState.STREAM:
       return
-    was_recording = self.video_state == VideoState.START
-    self._streaming = False
+    self._cancel_stream_timer()
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()
-    if was_recording:
-      await self._camera_controls.start_video(VideoMode.TO_FILE, self._build_video_params())
+    self.video_state = VideoState.STOP
+    await self.start_video()
+
+  def _cancel_stream_timer(self):
+    if self._stream_timer_task and not self._stream_timer_task.done():
+      self._stream_timer_task.cancel()
+    self._stream_timer_task = None
+
+  def _reset_stream_timer(self):
+    self._cancel_stream_timer()
+    self._stream_timer_task = asyncio.create_task(self._stream_auto_stop())
+
+  async def _stream_auto_stop(self):
+    try:
+      await asyncio.sleep(60)
+      self.logger.info("Stream auto-stopped after 60s timeout")
+      await self.stream_stop()
+    except asyncio.CancelledError:
+      pass
 
   def stream_status(self) -> dict:
+    streaming = self.video_state == VideoState.STREAM
     return {
-      "streaming": self._streaming,
-      "hls_url": "/hls/stream.m3u8" if self._streaming else None,
+      "streaming": streaming,
+      "hls_url": "/hls/stream.m3u8" if streaming else None,
     }
 
   async def stop_video(self, pause: bool = False):
+    if self.video_state == VideoState.STREAM:
+      self._cancel_stream_timer()
     self.video_state = VideoState.PAUSE if pause else VideoState.STOP
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()

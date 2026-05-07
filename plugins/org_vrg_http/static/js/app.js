@@ -186,6 +186,14 @@ const { createApp } = Vue;
       return (this.statusData?.last_media ?? this.statusLastMedia)?.item?.ready === true;
     },
 
+    statusBgImageUrl() {
+      const item = this.statusLastMediaItem;
+      if (!item) return null;
+      if (item.type === 'photo') return '/photo/' + item.filename.replace(/\.[^.]+$/, '');
+      if (item.screenshot) return '/photo/' + item.screenshot.replace(/\.[^.]+$/, '');
+      return null;
+    },
+
     gpsLocation() {
       const gps = this.statusData?.location?.gps;
       const lat = parseFloat(gps?.latitude);

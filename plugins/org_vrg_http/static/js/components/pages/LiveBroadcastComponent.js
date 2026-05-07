@@ -1,6 +1,10 @@
 const LiveBroadcastComponent = {
   components: { Icon },
 
+  props: {
+    bgImageUrl: { type: String, default: null },
+  },
+
   template: `
     <div>
       <div class="page-header">
@@ -16,9 +20,11 @@ const LiveBroadcastComponent = {
       </div>
       <div v-if="error" class="alert alert-error">{{ error }}</div>
       <div style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:var(--border-radius-md);overflow:hidden;">
+        <img v-if="bgImageUrl" :src="bgImageUrl"
+             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(16px) brightness(0.35);transform:scale(1.1);" />
         <video ref="video" muted playsinline
-               style="width:100%;height:100%;object-fit:contain;display:block;"></video>
-        <div v-if="starting" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);font-size:var(--font-size-sm);">
+               style="position:relative;z-index:1;width:100%;height:100%;object-fit:contain;display:block;"></video>
+        <div v-if="starting" style="position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);font-size:var(--font-size-sm);">
           {{ $t('http.live.starting') }}
         </div>
       </div>

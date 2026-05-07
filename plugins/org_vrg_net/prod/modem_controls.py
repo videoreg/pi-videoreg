@@ -43,7 +43,7 @@ class ModemControlsImpl(ModemControls):
   async def _run_command(self, cmd):
     """Runs a command and returns the result"""
     proc = await asyncio.create_subprocess_exec(
-      "sudo", *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+      *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await proc.communicate()
 

@@ -82,7 +82,6 @@ class NetControlsImpl(NetControls):
     try:
       # Check whether the connection exists
       process = await asyncio.create_subprocess_exec(
-        "sudo",
         "nmcli",
         "connection",
         "show",

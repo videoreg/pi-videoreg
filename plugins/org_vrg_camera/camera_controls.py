@@ -5,7 +5,6 @@ from enum import Enum
 class VideoMode(Enum):
   TO_FILE = "file"
   TO_STREAM = "stream"
-  BOTH = "both"
 
 
 @dataclass
@@ -20,6 +19,7 @@ class VideoParams:
   screenshot: bool = (True,)
   path: str = None
   duration: int = 0
+  hls_dir: str = None
 
 
 class CameraControls:

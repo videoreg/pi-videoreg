@@ -39,6 +39,9 @@ class MethodGetInfo(ApiMethod):
           "hflip": self._plugin.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
           "vflip": self._plugin.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
           "screenshot": self._plugin.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
+          "stream_camera_mode_str": self._plugin.state.get(const.KEY_STREAM_CAMERA_MODE_STR, const.DEFAULT_STREAM_CAMERA_MODE_STR),
+          "stream_video_width": self._plugin.state.get(const.KEY_STREAM_VIDEO_WIDTH, const.DEFAULT_STREAM_VIDEO_WIDTH),
+          "stream_video_height": self._plugin.state.get(const.KEY_STREAM_VIDEO_HEIGHT, const.DEFAULT_STREAM_VIDEO_HEIGHT),
         },
       }
     except Exception as e:

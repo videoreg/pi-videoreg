@@ -186,6 +186,57 @@ const CameraSettingsComponent = {
             </button>
           </div>
         </div>
+
+        <!-- Live stream settings -->
+        <div class="info-block" style="margin-top: var(--spacing-lg);">
+          <div class="section-title">{{ $t('http.live.settings_title') }}</div>
+          <div style="max-width: 600px;">
+
+            <!-- Stream camera mode -->
+            <div class="form-group">
+              <label class="form-label">{{ $t('http.live.mode_select_label') }}</label>
+              <div v-if="modes.length === 0" class="info-block" style="margin-top: var(--spacing-xs);">
+                <span style="color: var(--color-text-secondary);">{{ $t('http.camera.modes_unavailable') }}</span>
+                <span v-if="streamSettings.stream_camera_mode_str">
+                  {{ $t('http.camera.current_mode') }} <strong>{{ streamSettings.stream_camera_mode_str }}</strong>
+                </span>
+              </div>
+              <select
+                v-else
+                class="form-input"
+                v-model="selectedStreamMode"
+                :disabled="savingStream"
+              >
+                <option
+                  v-for="mode in modes"
+                  :key="mode.mode_str"
+                  :value="mode"
+                >{{ mode.label }}</option>
+              </select>
+            </div>
+
+            <!-- Stream resolution -->
+            <div class="form-group">
+              <label class="form-label">{{ $t('http.live.resolution_select') }}</label>
+              <select
+                class="form-input"
+                v-model="selectedStreamResolution"
+                :disabled="savingStream"
+              >
+                <option
+                  v-for="res in resolutions"
+                  :key="res.width + 'x' + res.height"
+                  :value="res"
+                >{{ res.label }}</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" @click="saveStreamSettings" :disabled="savingStream">
+              {{ savingStream ? $t('common.saving') : $t('common.save') }}
+            </button>
+          </div>
+        </div>
+
       </div>
 
       </template>
@@ -221,6 +272,16 @@ const CameraSettingsComponent = {
       },
       loadingSettings: false,
       saving: false,
+
+      // Stream settings
+      streamSettings: {
+        stream_camera_mode_str: '',
+        stream_video_width: 1280,
+        stream_video_height: 720,
+      },
+      selectedStreamMode: null,
+      selectedStreamResolution: null,
+      savingStream: false,
 
       error: '',
       success: '',
@@ -265,6 +326,17 @@ const CameraSettingsComponent = {
       if (res) {
         this.settings.video_width = res.width;
         this.settings.video_height = res.height;
+      }
+    },
+    selectedStreamMode(mode) {
+      if (mode) {
+        this.streamSettings.stream_camera_mode_str = mode.mode_str;
+      }
+    },
+    selectedStreamResolution(res) {
+      if (res) {
+        this.streamSettings.stream_video_width = res.width;
+        this.streamSettings.stream_video_height = res.height;
       }
     }
   },
@@ -326,6 +398,20 @@ const CameraSettingsComponent = {
           r => r.width === this.settings.video_width && r.height === this.settings.video_height
         );
         this.selectedResolution = currentRes || this.resolutions[0];
+
+        this.streamSettings.stream_camera_mode_str = infoData.stream_camera_mode_str || '';
+        this.streamSettings.stream_video_width = infoData.stream_video_width || 1280;
+        this.streamSettings.stream_video_height = infoData.stream_video_height || 720;
+
+        if (this.modes.length > 0) {
+          const currentStream = this.modes.find(m => m.mode_str === this.streamSettings.stream_camera_mode_str);
+          this.selectedStreamMode = currentStream || this.modes[0];
+        }
+
+        const currentStreamRes = this.resolutions.find(
+          r => r.width === this.streamSettings.stream_video_width && r.height === this.streamSettings.stream_video_height
+        );
+        this.selectedStreamResolution = currentStreamRes || this.resolutions.find(r => r.width === 1280) || this.resolutions[0];
       } catch (err) {
         this.error = this.$t('http.common.error_connection');
       } finally {
@@ -414,6 +500,35 @@ const CameraSettingsComponent = {
         this.error = this.$t('http.common.error_connection');
       } finally {
         this.saving = false;
+      }
+    },
+
+    async saveStreamSettings() {
+      this.error = '';
+      this.success = '';
+      this.savingStream = true;
+      try {
+        const body = {
+          stream_camera_mode_str: this.streamSettings.stream_camera_mode_str,
+          stream_video_width: this.streamSettings.stream_video_width,
+          stream_video_height: this.streamSettings.stream_video_height,
+        };
+        const response = await fetch('/api/camera/stream_settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.error = result.error || this.$t('http.live.error_save');
+          return;
+        }
+        this.success = this.$t('http.camera.settings_saved');
+      } catch (err) {
+        this.error = this.$t('http.common.error_connection');
+      } finally {
+        this.savingStream = false;
       }
     }
   },

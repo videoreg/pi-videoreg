@@ -32,5 +32,6 @@ class CommandGetCommands(InterfaceCommand):
         [{"text": "Take photo (night mode)", "callback_data": "command__camera__photo__night"}],
         [{"text": "List videos", "callback_data": "command__camera__list_videos"}],
         [{"text": "List photos", "callback_data": "command__camera__list_photos"}],
+        [{"text": "Start stream", "callback_data": "command__camera__stream"}],
       ],
     )

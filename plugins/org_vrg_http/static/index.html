@@ -180,6 +180,15 @@
                         <li>
                             <a
                                 href="#"
+                                :class="{ active: currentPage === 'live-broadcast' }"
+                                @click.prevent="navigate('live-broadcast')"
+                            >
+                                <icon name="live_tv"></icon><span>{{ $t('http.live.menu') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="#"
                                 :class="{ active: currentPage === 'media-feed' }"
                                 @click.prevent="navigate('media-feed')"
                             >
@@ -330,7 +339,7 @@
                     </template>
                 </div>
 
-                <component :is="currentComponent" @navigate="navigate"></component>
+                <component :is="currentComponent" @navigate="navigate" :bg-image-url="statusBgImageUrl"></component>
             </main>
             </div><!-- /.app-layout -->
         </template><!-- /v-else авторизованный -->
@@ -366,6 +375,7 @@
     <script src="/static/js/components/pages/TripsComponent.js"></script>
     <script src="/static/js/components/pages/UsersSettingsComponent.js"></script>
     <script src="/static/js/components/pages/SettingsComponent.js"></script>
+    <script src="/static/js/components/pages/LiveBroadcastComponent.js"></script>
     <!-- i18n движок (до app.js) -->
     <script src="/static/js/i18n.js"></script>
     <!-- Главное приложение -->

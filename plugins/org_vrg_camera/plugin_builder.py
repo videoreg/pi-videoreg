@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 from plugins.org_vrg_camera.commands.get_commands import CommandGetCommands
+from plugins.org_vrg_camera.commands.stream import CommandStream
 from plugins.org_vrg_camera.commands.list_photos import CommandListPhotos
 from plugins.org_vrg_camera.commands.list_videos import CommandListVideos
 from plugins.org_vrg_camera.commands.photo import CommandPhoto
@@ -21,7 +22,11 @@ from plugins.org_vrg_camera.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_camera.methods.list_media import MethodListMedia
 from plugins.org_vrg_camera.methods.photo import MethodPhoto
 from plugins.org_vrg_camera.methods.remove_from_fave import MethodRemoveFromFave
+from plugins.org_vrg_camera.methods.set_stream_settings import MethodSetStreamSettings
 from plugins.org_vrg_camera.methods.set_video_settings import MethodSetVideoSettings
+from plugins.org_vrg_camera.methods.stream_start import MethodStreamStart
+from plugins.org_vrg_camera.methods.stream_status import MethodStreamStatus
+from plugins.org_vrg_camera.methods.stream_stop import MethodStreamStop
 from plugins.org_vrg_camera.methods.video import MethodVideo
 from plugins.org_vrg_camera.methods.video_pause import MethodVideoPause
 from plugins.org_vrg_camera.methods.video_start import MethodVideoStart
@@ -92,6 +97,7 @@ async def build_plugin(
     "send_photo_link": CommandSendPhotoLink(plugin),
     "send_video": CommandSendVideo(plugin),
     "send_video_link": CommandSendVideoLink(plugin),
+    "stream": CommandStream(plugin),
   }
 
   plugin.init_api_servier(
@@ -111,6 +117,10 @@ async def build_plugin(
       "check_video_ready": MethodCheckVideoReady(plugin),
       "get_camera_modes": MethodGetCameraModes(plugin),
       "set_video_settings": MethodSetVideoSettings(plugin),
+      "set_stream_settings": MethodSetStreamSettings(plugin),
+      "stream_start": MethodStreamStart(plugin),
+      "stream_stop": MethodStreamStop(plugin),
+      "stream_status": MethodStreamStatus(plugin),
       "add_to_fave": MethodAddToFave(plugin),
       "remove_from_fave": MethodRemoveFromFave(plugin),
     }

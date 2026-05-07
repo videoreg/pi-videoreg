@@ -47,6 +47,7 @@ async def build_plugin(
 
   if args.env == "dev":
     from plugins.org_vrg_power.dev.shutdown import PisugarShutdownControllerImpl, ShutdownLogicImpl
+    from plugins.org_vrg_power.dev.power_controls import PowerControlsImpl
 
     shutdown_logic = ShutdownLogicImpl()
     shutdown_controller = PisugarShutdownControllerImpl(
@@ -56,8 +57,10 @@ async def build_plugin(
       shutdown_logic=shutdown_logic,
       previous_config=previous_shutdown_config,
     )
+    power_controls = PowerControlsImpl(plugin.logger)
   else:
     from plugins.org_vrg_power.prod.shutdown import PisugarShutdownControllerImpl, ShutdownLogicImpl
+    from plugins.org_vrg_power.prod.power_controls import PowerControlsImpl
 
     shutdown_logic = ShutdownLogicImpl(
       plugin.runner.videoreg, plugin.logger, plugin.runner.pisugar, plugin.api_client
@@ -65,8 +68,10 @@ async def build_plugin(
     shutdown_controller = PisugarShutdownControllerImpl(
       plugin=plugin, shutdown_logic=shutdown_logic, previous_config=previous_shutdown_config
     )
+    power_controls = PowerControlsImpl(plugin.logger)
 
   plugin.init_shutdown(shutdown_logic, shutdown_controller)
+  plugin.init_power_controls(power_controls)
 
   interfaces = Interface.parse_interfaces(
     runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client

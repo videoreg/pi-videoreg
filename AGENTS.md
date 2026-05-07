@@ -62,7 +62,7 @@ Media (video, photos, GPS tracks) is stored in `/mnt/data/videoreg`.
 |---------|------------|-------|
 | `org_vrg_core` | `core` | General purpose logic |
 | `org_vrg_bus` | `bus` | Event bus (central event bus), Unix socket |
-| `org_vrg_camera` | `camera` | Video, photos, OSD, RTSP |
+| `org_vrg_camera` | `camera` | Video, photos, OSD, RTSP, Live stream |
 | `org_vrg_net` | `net` | WiFi, WireGuard, modem, networking |
 | `org_vrg_gps` | `gps` | GPS tracking, location |
 | `org_vrg_bot` | `bot` | Telegram bot, receiving commands from user, sending text and media (photo, video, documents) |

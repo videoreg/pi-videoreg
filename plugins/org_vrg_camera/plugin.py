@@ -227,9 +227,10 @@ class CameraPlugin(Plugin):
     await self.start_video()
 
   def _cancel_stream_timer(self):
-    if self._stream_timer_task and not self._stream_timer_task.done():
-      self._stream_timer_task.cancel()
+    task = self._stream_timer_task
     self._stream_timer_task = None
+    if task and not task.done() and task is not asyncio.current_task():
+      task.cancel()
 
   def _reset_stream_timer(self):
     self._cancel_stream_timer()

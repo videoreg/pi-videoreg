@@ -183,6 +183,19 @@ class CameraPlugin(Plugin):
       hls_dir=self.HLS_DIR,
     )
 
+  def _build_stream_video_params(self) -> VideoParams:
+    return VideoParams(
+      fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+      bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+      camera_mode_str=self.state.get(const.KEY_STREAM_CAMERA_MODE_STR, const.DEFAULT_STREAM_CAMERA_MODE_STR),
+      width=self.state.get(const.KEY_STREAM_VIDEO_WIDTH, const.DEFAULT_STREAM_VIDEO_WIDTH),
+      height=self.state.get(const.KEY_STREAM_VIDEO_HEIGHT, const.DEFAULT_STREAM_VIDEO_HEIGHT),
+      hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+      vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+      screenshot=False,
+      hls_dir=self.HLS_DIR,
+    )
+
   async def start_video(self):
     if self.video_state == VideoState.START and self._camera_controls.is_recording():
       return
@@ -206,7 +219,7 @@ class CameraPlugin(Plugin):
     self._streaming = True
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()
-    await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_video_params())
+    await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_stream_video_params())
     self.video_state = VideoState.START
 
   async def stream_stop(self):

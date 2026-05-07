@@ -21,6 +21,7 @@ from plugins.org_vrg_camera.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_camera.methods.list_media import MethodListMedia
 from plugins.org_vrg_camera.methods.photo import MethodPhoto
 from plugins.org_vrg_camera.methods.remove_from_fave import MethodRemoveFromFave
+from plugins.org_vrg_camera.methods.set_stream_settings import MethodSetStreamSettings
 from plugins.org_vrg_camera.methods.set_video_settings import MethodSetVideoSettings
 from plugins.org_vrg_camera.methods.stream_start import MethodStreamStart
 from plugins.org_vrg_camera.methods.stream_status import MethodStreamStatus
@@ -114,6 +115,7 @@ async def build_plugin(
       "check_video_ready": MethodCheckVideoReady(plugin),
       "get_camera_modes": MethodGetCameraModes(plugin),
       "set_video_settings": MethodSetVideoSettings(plugin),
+      "set_stream_settings": MethodSetStreamSettings(plugin),
       "stream_start": MethodStreamStart(plugin),
       "stream_stop": MethodStreamStop(plugin),
       "stream_status": MethodStreamStatus(plugin),

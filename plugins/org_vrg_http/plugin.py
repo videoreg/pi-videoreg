@@ -174,6 +174,7 @@ class HttpPlugin(Plugin):
     app.router.add_get("/api/camera/stream_status", camera_handlers.handle_get_camera_stream_status)
     app.router.add_post("/api/camera/stream_start", camera_handlers.handle_post_camera_stream_start)
     app.router.add_post("/api/camera/stream_stop", camera_handlers.handle_post_camera_stream_stop)
+    app.router.add_post("/api/camera/stream_settings", camera_handlers.handle_post_camera_stream_settings)
 
     # Power API endpoints
     app.router.add_get("/api/power/status", power_handlers.handle_get_power_status)

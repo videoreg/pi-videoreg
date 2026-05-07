@@ -142,7 +142,7 @@ const LiveBroadcastComponent = {
           if (r.ok) {
             const body = await r.json();
             const d = body.data || body;
-            if (!d.streaming) await this.stop();
+            if (!d.streaming && this.streaming) await this.stop();
           }
         } catch (e) {}
       }, 10000);

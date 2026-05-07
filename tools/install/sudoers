@@ -1,6 +1,10 @@
 # /etc/sudoers.d/99-videoreg
 # sudo visudo /etc/sudoers.d/99-videoreg
 
+Defaults:VIDEOREG_USER !syslog
+Defaults:VIDEOREG_USER !log_allowed
+Defaults:VIDEOREG_USER !log_denied
+
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/nmcli
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/rfkill list wifi
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/rfkill block wifi

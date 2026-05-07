@@ -20,8 +20,10 @@ const LiveBroadcastComponent = {
       </div>
       <div v-if="error" class="alert alert-error">{{ error }}</div>
       <div style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:var(--border-radius-md);overflow:hidden;">
-        <img v-if="bgImageUrl" :src="bgImageUrl"
-             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(16px) brightness(0.35);transform:scale(1.1);" />
+        <div v-if="bgImageUrl" style="position:absolute;inset:0;border-radius:var(--radius-md);overflow:hidden;">
+          <img :src="bgImageUrl"
+               style="width:100%;height:100%;object-fit:cover;filter:blur(16px) brightness(0.9);transform:scale(1.1);display:block;" />
+        </div>
         <video ref="video" muted playsinline
                style="position:relative;z-index:1;width:100%;height:100%;object-fit:contain;display:block;"></video>
         <div v-if="starting" style="position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);font-size:var(--font-size-sm);">
@@ -39,6 +41,7 @@ const LiveBroadcastComponent = {
       error: '',
       _hls: null,
       _retryTimer: null,
+      _statusTimer: null,
       _unloadHandler: null,
       _pauseHandler: null,
     };
@@ -69,7 +72,7 @@ const LiveBroadcastComponent = {
         });
         if (!r.ok) {
           this.error = this.$t('http.live.error_start');
-          this.starting = false;
+          await this.stop();
           return;
         }
         this.streaming = true;
@@ -88,6 +91,7 @@ const LiveBroadcastComponent = {
           const h = await fetch(url, { method: 'HEAD', credentials: 'same-origin' });
           if (h.ok) {
             this._attach(url);
+            this._startStatusPoll();
             this.starting = false;
             return;
           }
@@ -96,7 +100,7 @@ const LiveBroadcastComponent = {
           this._retryTimer = setTimeout(tick, 500);
         } else {
           this.error = this.$t('http.live.error_no_stream');
-          this.starting = false;
+          await this.stop();
         }
       };
       tick();
@@ -129,7 +133,31 @@ const LiveBroadcastComponent = {
       });
     },
 
+    _startStatusPoll() {
+      this._stopStatusPoll();
+      this._statusTimer = setInterval(async () => {
+        if (!this.streaming) { this._stopStatusPoll(); return; }
+        try {
+          const r = await fetch('/api/camera/stream_status', { credentials: 'same-origin' });
+          if (r.ok) {
+            const body = await r.json();
+            const d = body.data || body;
+            if (!d.streaming) await this.stop();
+          }
+        } catch (e) {}
+      }, 10000);
+    },
+
+    _stopStatusPoll() {
+      if (this._statusTimer) {
+        clearInterval(this._statusTimer);
+        this._statusTimer = null;
+      }
+    },
+
     async stop(beacon = false) {
+      this.starting = false;
+      this._stopStatusPoll();
       if (this._retryTimer) {
         clearTimeout(this._retryTimer);
         this._retryTimer = null;
@@ -171,6 +199,7 @@ const LiveBroadcastComponent = {
         if (d.streaming && d.hls_url) {
           this.streaming = true;
           this._attach(d.hls_url);
+          this._startStatusPoll();
         }
       }
     } catch (e) {}

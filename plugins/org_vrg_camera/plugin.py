@@ -213,9 +213,21 @@ class CameraPlugin(Plugin):
       return
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()
+    self._clear_hls_dir()
     await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_stream_video_params())
     self.video_state = VideoState.STREAM
     self._reset_stream_timer()
+
+  def _clear_hls_dir(self):
+    try:
+      for name in os.listdir(self.HLS_DIR):
+        if name.endswith(('.m3u8', '.ts')):
+          try:
+            os.unlink(os.path.join(self.HLS_DIR, name))
+          except OSError:
+            pass
+    except OSError:
+      pass
 
   async def stream_stop(self):
     if self.video_state != VideoState.STREAM:

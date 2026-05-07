@@ -112,10 +112,17 @@ const LiveBroadcastComponent = {
       this._pauseHandler = () => { if (this.streaming) video.play(); };
       video.addEventListener('pause', this._pauseHandler);
       if (window.Hls && Hls.isSupported()) {
-        this._hls = new Hls({ lowLatencyMode: true, liveSyncDuration: 2 });
+        this._hls = new Hls({ liveSyncDuration: 1 });
         this._hls.loadSource(url);
         this._hls.attachMedia(video);
         this._hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+        this._hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal && this.streaming) {
+            this._hls.destroy();
+            this._hls = null;
+            this._retryTimer = setTimeout(() => this._waitForPlaylist(url), 2000);
+          }
+        });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
         video.play();

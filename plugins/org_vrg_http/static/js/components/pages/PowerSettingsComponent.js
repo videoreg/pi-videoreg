@@ -8,7 +8,6 @@ const PowerSettingsComponent = {
       <div class="page-header">
         <button class="btn-back" @click="$emit('navigate', 'settings')" :title="$t('common.back')"><icon name="chevron-left" :size="28"></icon></button>
         <h1 class="page-title">{{ $t('http.power.title') }}</h1>
-        <div v-if="capabilities" style="font-size: 0.875rem; color: var(--color-text-secondary); margin-left: var(--spacing-md);">{{ $t('http.power.power_source') }}: {{ capabilities.title }}</div>
         <div v-if="statusLoading" class="spinner spinner-sm"></div>
         <button v-else class="btn btn-icon" @click="loadStatus" :disabled="statusLoading" :title="$t('http.common.refresh')">↻</button>
       </div>
@@ -28,9 +27,15 @@ const PowerSettingsComponent = {
           <div class="section-title">{{ $t('http.power.battery_title') }}</div>
 
           <div class="info-rows">
+            <!-- Источник питания -->
+            <div class="info-row">
+              <span class="info-label">{{ $t('http.power.power_source') }}</span>
+              <strong>{{ capabilities ? capabilities.title : '—' }}</strong>
+            </div>
+
             <!-- Заряд батареи -->
             <div v-if="!capabilities || capabilities.battery_telemetry" class="info-row">
-              <span class="info-label">{{ $t('http.power.charge_label') }}</span>
+              <span class="info-label">{{ $t('http.power.battery_precent') }}</span>
               <progress-bar
                 :value="status ? status.battery_percent : 0"
                 :variant="batteryVariant(status ? status.battery_percent : 0)"
@@ -41,16 +46,11 @@ const PowerSettingsComponent = {
 
             <!-- Статус зарядки -->
             <div class="info-row">
-              <span class="info-label">{{ $t('http.power.power_label') }}</span>
-              <template v-if="capabilities && !capabilities.battery_telemetry">
-                <span>{{ capabilities.title }}</span>
-              </template>
-              <template v-else>
-                <span class="status-indicator" style="padding: 3px 8px;">
-                  <span class="status-dot" :class="{ active: status && status.charging }"></span>
-                  <span>{{ status ? (status.charging ? $t('http.power.charging') : $t('http.power.on_battery')) : '—' }}</span>
-                </span>
-              </template>
+              <span class="info-label">{{ $t('http.power.charging_label') }}</span>
+              <span class="status-indicator" style="padding: 3px 8px;">
+                <span class="status-dot" :class="{ active: status && status.charging }"></span>
+                <span>{{ status ? (status.charging ? $t('http.power.charging') : $t('http.power.on_battery')) : '—' }}</span>
+              </span>
             </div>
 
             <!-- Температура PiSugar -->

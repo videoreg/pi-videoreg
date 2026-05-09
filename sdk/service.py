@@ -13,7 +13,7 @@ import sdk.log as log
 from sdk.i18n import I18n
 from sdk.journal import JournalClient
 from sdk.media_manager import MediaManager
-from sdk.pisugar import PiSugar
+from sdk.power import PowerSupply, detect_power_supply
 from sdk.socket.api import ApiClient, ApiMethod, ApiServer, create_api_client, create_api_server
 from sdk.socket.client import ConnectionListener, DefaultConnectionListener, EasyConnection
 from sdk.socket.mux_connection import MuxConnection
@@ -245,7 +245,7 @@ class ServiceRunner:
 
   loop: AbstractEventLoop = None
   videoreg: Videoreg
-  pisugar: PiSugar
+  power_supply: PowerSupply
   media_manager: MediaManager
   i18n: I18n
   stop_event: asyncio.Event
@@ -338,7 +338,7 @@ class ServiceRunner:
 
     self.init_logger(args.log_level, systemd_service_name=args.service)
 
-    self.pisugar = PiSugar(self.videoreg, self.logger)
+    self.power_supply = await detect_power_supply(self.videoreg, self.logger)
     self.media_manager = MediaManager(self.videoreg)
 
     sdk_path = args.project_home / "sdk"

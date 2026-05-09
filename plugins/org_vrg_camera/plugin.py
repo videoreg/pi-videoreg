@@ -12,6 +12,7 @@ from plugins.org_vrg_camera.jpeg_watcher import JpegFolderWatcher
 from plugins.org_vrg_stat.functions import get_cpu_temp
 from sdk.journal import JournalRecord
 from sdk.media_manager import MediaFileType
+from sdk.power import ChargingStatus
 from sdk.service import Plugin
 
 
@@ -107,19 +108,19 @@ class CameraPlugin(Plugin):
 
         # 2 - do other stuff
 
-        is_charging = await self.runner.pisugar.get_charging_status_slow_but_safe()
-        bat_level = await self.runner.pisugar.get_battery_percent()
+        charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
+        bat_level = await self.runner.power_supply.get_battery_percent()
         cpu_temp = get_cpu_temp()
 
         self._osd.update(
           [
-            osd.Token(key="chrg", text=f"C:{is_charging}", weight=osd.WEIGHT_CHRG),
-            osd.Token(key="bat", text=f"B:{bat_level}", weight=osd.WEIGHT_BAT),
+            osd.Token(key="chrg", text=f"C:{charging_status.value}", weight=osd.WEIGHT_CHRG),
+            osd.Token(key="bat", text=f"B:{bat_level if bat_level is not None else '--'}", weight=osd.WEIGHT_BAT),
             osd.Token(key="cpu", text=f"T:{cpu_temp}C", weight=osd.WEIGHT_CPU),
           ]
         )
 
-        if is_charging == -1:
+        if charging_status == ChargingStatus.NOT_CHARGING:
           if self.video_state in (VideoState.START, VideoState.STREAM):
             self.logger.info("Detect charging is off: will stop video")
             await self.stop_video()

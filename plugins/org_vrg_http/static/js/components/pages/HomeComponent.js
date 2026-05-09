@@ -110,17 +110,22 @@ const HomeComponent = {
             <span class="dashboard-tile-title">{{ $t('http.settings.power') }}</span>
           </div>
           <template v-if="power !== null">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.charge_label') }}</span>
-              <strong>{{ power.battery_percent }}%</strong>
-            </div>
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.power_label') }}</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: power.charging }"></span>
-                <span>{{ power.charging ? $t('http.home.charging') : $t('http.home.on_battery') }}</span>
-              </span>
-            </div>
+            <template v-if="power.source && power.source.battery_telemetry">
+              <div class="dashboard-tile-row">
+                <span class="dashboard-tile-label">{{ $t('http.home.charge_label') }}</span>
+                <strong>{{ power.battery_percent }}%</strong>
+              </div>
+              <div class="dashboard-tile-row">
+                <span class="dashboard-tile-label">{{ $t('http.home.power_label') }}</span>
+                <span class="status-indicator" style="padding: 3px 8px;">
+                  <span class="status-dot" :class="{ active: power.charging }"></span>
+                  <span>{{ power.charging ? $t('http.home.charging') : $t('http.home.on_battery') }}</span>
+                </span>
+              </div>
+            </template>
+            <template v-else>
+              <div v-if="power.source" class="dashboard-tile-meta">{{ power.source.title }}</div>
+            </template>
           </template>
           <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
         </div>

@@ -2,7 +2,8 @@ import time
 from datetime import UTC, datetime, timedelta
 from logging import Logger
 
-from sdk.pisugar import PiSugar
+from sdk.power import ChargingStatus, PowerSupply
+from sdk.power.pisugar import PiSugar
 from sdk.videoreg import Videoreg
 
 
@@ -59,13 +60,13 @@ class ShutdownConfig:
 class ShutdownLogic:
   last_attempt_shutdown_timestamp: int
 
-  async def should_shutdown(self, is_charging: int) -> bool:
+  async def should_shutdown(self, charging_status: ChargingStatus) -> bool:
     raise NotImplementedError()
 
 
-class PisugarShutdownController:
+class ShutdownController:
   _videoreg: Videoreg
-  _pisugar: PiSugar
+  _power_supply: PowerSupply
   _logger: Logger
   _shutdown_logic: ShutdownLogic
   _previous_config: ShutdownConfig
@@ -73,13 +74,13 @@ class PisugarShutdownController:
   def __init__(
     self,
     videoreg: Videoreg,
-    pisugar: PiSugar,
+    power_supply: PowerSupply,
     logger: Logger,
     shutdown_logic: ShutdownLogic,
     previous_config: ShutdownConfig,
   ):
     self._videoreg = videoreg
-    self._pisugar = pisugar
+    self._power_supply = power_supply
     self._logger = logger
     self._shutdown_logic = shutdown_logic
     self._previous_config = previous_config
@@ -128,8 +129,7 @@ class PisugarShutdownController:
       self._logger.debug("shutdown_config not verified")
       return None
 
-    # print("DEBUG")
-    config_applied = await self._apply_shutdown_config_to_pisugar(shutdown_config)
+    config_applied = await self._apply_shutdown_config(shutdown_config)
     if not config_applied:
       return None
 
@@ -137,10 +137,12 @@ class PisugarShutdownController:
 
     return shutdown_config
 
-  async def _apply_shutdown_config_to_pisugar(self, shutdown_config: ShutdownConfig) -> bool:
+  async def _apply_shutdown_config(self, shutdown_config: ShutdownConfig) -> bool:
+    if not isinstance(self._power_supply, PiSugar):
+      return True  # no hardware alarm, just persist the state
     if shutdown_config.wakeup_alarm_time:
       wakeup_alarm_time_str = shutdown_config.wakeup_alarm_time.isoformat()
-      new_time_str = await self._pisugar.set_alarm_wakeup_time(wakeup_alarm_time_str, weekday=127)
+      new_time_str = await self._power_supply.set_alarm_wakeup_time(wakeup_alarm_time_str, weekday=127)
       if not new_time_str:
         self._logger.warning(f"pisugar bad alarm wakeup time: {new_time_str}")
         return False
@@ -152,10 +154,14 @@ class PisugarShutdownController:
         )
         return False
 
-    await self._pisugar.set_wakeup_on_power_restore(shutdown_config.wakeup_on_power_restore_enabled)
-    await self._pisugar.set_alarm_wakeup_enabled(shutdown_config.wakeup_alarm_enabled)
+    await self._power_supply.set_wakeup_on_power_restore(shutdown_config.wakeup_on_power_restore_enabled)
+    await self._power_supply.set_alarm_wakeup_enabled(shutdown_config.wakeup_alarm_enabled)
 
     return True
 
   async def _log_shutdown(self, shutdown_config: ShutdownConfig):
     pass
+
+
+# Keep old name as alias for any code that may reference it directly
+PisugarShutdownController = ShutdownController

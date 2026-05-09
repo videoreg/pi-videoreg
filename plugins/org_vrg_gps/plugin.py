@@ -7,6 +7,7 @@ from plugins.org_vrg_gps.modem import Modem
 from plugins.org_vrg_gps.tracker import GpsTracker
 from sdk.journal import JournalRecord
 from sdk.media_manager import MediaFileType
+from sdk.power import ChargingStatus
 from sdk.service import Plugin
 
 gps_token = osd.Token(key="gps", text=None, weight=osd.WEIGHT_GPS)
@@ -48,9 +49,9 @@ class GpsPlugin(Plugin):
 
   async def _start_lifecycle_loop(self):
     while self.runner.is_running():
-      is_charging = await self.runner.pisugar.get_charging_status_slow_but_safe()
+      charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
 
-      if is_charging == -1:
+      if charging_status == ChargingStatus.NOT_CHARGING:
         if self._gps_tracker:
           track_file_name = os.path.basename(self._gps_tracker._file_path)
           kept = self._gps_tracker.close()

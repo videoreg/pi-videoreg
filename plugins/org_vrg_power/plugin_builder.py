@@ -7,18 +7,19 @@ from plugins.org_vrg_power.commands.keep_alive import CommandKeepAlive
 from plugins.org_vrg_power.commands.reboot import CommandReboot
 from plugins.org_vrg_power.commands.set_wakeup import CommandSetWakeup
 from plugins.org_vrg_power.commands.shutdown import CommandShutdown
+from plugins.org_vrg_power.methods.get_capabilities import MethodGetCapabilities
 from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
 from plugins.org_vrg_power.methods.get_status import MethodGetStatus
 from plugins.org_vrg_power.methods.get_wakeup_config import MethodGetWakeupConfig
 from plugins.org_vrg_power.methods.set_charging_protection import MethodSetChargingProtection
 from plugins.org_vrg_power.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_power.methods.keep_alive import MethodKeepAlive
-from plugins.org_vrg_power.methods.pisugar_generic import MethodPisugarGeneric
+from plugins.org_vrg_power.methods.power_status_generic import MethodPowerStatusGeneric
 from plugins.org_vrg_power.methods.reboot import MethodReboot
 from plugins.org_vrg_power.methods.set_wakeup import MethodSetWakeup
 from plugins.org_vrg_power.methods.shutdown import MethodShutdown
 from plugins.org_vrg_power.plugin import PowerPlugin
-from plugins.org_vrg_power.shutdown import ShutdownConfig
+from plugins.org_vrg_power.shutdown import ShutdownController, ShutdownConfig, ShutdownLogic
 from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
 from sdk.service import ServiceRunner
 
@@ -46,26 +47,26 @@ async def build_plugin(
   )
 
   if args.env == "dev":
-    from plugins.org_vrg_power.dev.shutdown import PisugarShutdownControllerImpl, ShutdownLogicImpl
+    from plugins.org_vrg_power.dev.shutdown import ShutdownControllerImpl, ShutdownLogicImpl
     from plugins.org_vrg_power.dev.power_controls import PowerControlsImpl
 
     shutdown_logic = ShutdownLogicImpl()
-    shutdown_controller = PisugarShutdownControllerImpl(
+    shutdown_controller = ShutdownControllerImpl(
       videoreg=runner.videoreg,
-      pisugar=runner.pisugar,
+      power_supply=runner.power_supply,
       logger=plugin.logger,
       shutdown_logic=shutdown_logic,
       previous_config=previous_shutdown_config,
     )
     power_controls = PowerControlsImpl(plugin.logger)
   else:
-    from plugins.org_vrg_power.prod.shutdown import PisugarShutdownControllerImpl, ShutdownLogicImpl
+    from plugins.org_vrg_power.prod.shutdown import ShutdownControllerImpl, ShutdownLogicImpl
     from plugins.org_vrg_power.prod.power_controls import PowerControlsImpl
 
     shutdown_logic = ShutdownLogicImpl(
-      plugin.runner.videoreg, plugin.logger, plugin.runner.pisugar, plugin.api_client
+      plugin.runner.videoreg, plugin.logger, plugin.runner.power_supply, plugin.api_client
     )
-    shutdown_controller = PisugarShutdownControllerImpl(
+    shutdown_controller = ShutdownControllerImpl(
       plugin=plugin, shutdown_logic=shutdown_logic, previous_config=previous_shutdown_config
     )
     power_controls = PowerControlsImpl(plugin.logger)
@@ -77,9 +78,9 @@ async def build_plugin(
     runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
   )
   commands: dict[str, InterfaceCommand] = {
-    "power": CommandGetCommands(plugin, runner.pisugar),
+    "power": CommandGetCommands(plugin, runner.power_supply),
     "wakeup_commands": CommandGetWakeupCommands(plugin),
-    "set_wakeup": CommandSetWakeup(plugin, runner.pisugar),
+    "set_wakeup": CommandSetWakeup(plugin, runner.power_supply),
     "shutdown": CommandShutdown(
       plugin, shutdown_controller, force_wakeup_config="on-power-restore"
     ),
@@ -90,15 +91,13 @@ async def build_plugin(
   plugin.init_api_servier(
     methods={
       "command": InterfaceCommandMethod(interfaces, commands),
-      # "get_commands": MethodGetCommands(plugin, runner.pisugar),
-      "get_status": MethodGetStatus(plugin, runner.pisugar),
-      "get_charging_status": MethodPisugarGeneric(runner.pisugar, "get_charging_status"),
-      # "get_bat_level": MethodPisugarGeneric(runner.pisugar, "get_bat_level"),
-      # "get_temp": MethodPisugarGeneric(runner.pisugar, "get_temp"),
+      "get_status": MethodGetStatus(plugin, runner.power_supply),
+      "get_charging_status": MethodPowerStatusGeneric(runner.power_supply, "get_charging_status"),
       "get_wakeup_config": MethodGetWakeupConfig(plugin),
-      "set_wakeup": MethodSetWakeup(plugin, runner.pisugar),
+      "set_wakeup": MethodSetWakeup(plugin, runner.power_supply),
       "get_charging_protection": MethodGetChargingProtection(plugin),
-      "set_charging_protection": MethodSetChargingProtection(plugin, runner.pisugar),
+      "set_charging_protection": MethodSetChargingProtection(plugin, runner.power_supply),
+      "get_capabilities": MethodGetCapabilities(runner.power_supply),
       "shutdown": MethodShutdown(
         plugin, shutdown_controller, force_wakeup_config="on-power-restore"
       ),

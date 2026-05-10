@@ -30,7 +30,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   else:
     from plugins.org_vrg_stat.prod.tracker import TrackerImpl
 
-    tracker = TrackerImpl(plugin.logger, runner.pisugar, dirs)
+    tracker = TrackerImpl(plugin.logger, runner.power_supply, dirs)
 
   plugin.init_tracker(tracker)
 

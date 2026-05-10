@@ -5,27 +5,28 @@ from logging import Logger
 
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.plugin import PowerPlugin
-from plugins.org_vrg_power.shutdown import PisugarShutdownController, ShutdownConfig, ShutdownLogic
-from sdk.pisugar import PiSugar
+from plugins.org_vrg_power.shutdown import ShutdownController, ShutdownConfig, ShutdownLogic
+from sdk.power import ChargingStatus, PowerSupply
+from sdk.power.pisugar import PiSugar
 from sdk.socket.api import ApiClient, ApiResponse
 from sdk.videoreg import Videoreg
 
 
 class ShutdownLogicImpl(ShutdownLogic):
   _videoreg: Videoreg
-  _pisugar: PiSugar
+  _power_supply: PowerSupply
   _logger: Logger
   _api_client: ApiClient
 
-  def __init__(self, videoreg: Videoreg, logger: Logger, pisugar: PiSugar, api_client: ApiClient):
+  def __init__(self, videoreg: Videoreg, logger: Logger, power_supply: PowerSupply, api_client: ApiClient):
     self._videoreg = videoreg
     self._logger = logger
-    self._pisugar = pisugar
+    self._power_supply = power_supply
     self._api_client = api_client
     self.last_attempt_shutdown_timestamp = 0
 
-  async def should_shutdown(self, is_charging: int) -> bool:
-    if is_charging == -1:
+  async def should_shutdown(self, charging_status: ChargingStatus) -> bool:
+    if charging_status == ChargingStatus.NOT_CHARGING:
       plugins_ready = await asyncio.gather(
         self._is_plugin_ready_to_die("bot"),
         self._is_plugin_ready_to_die("camera"),
@@ -71,14 +72,14 @@ class ShutdownLogicImpl(ShutdownLogic):
       return True
 
 
-class PisugarShutdownControllerImpl(PisugarShutdownController):
+class ShutdownControllerImpl(ShutdownController):
   _plugin: PowerPlugin
 
   def __init__(
     self, plugin: PowerPlugin, shutdown_logic: ShutdownLogic, previous_config: ShutdownConfig
   ):
     super().__init__(
-      plugin.runner.videoreg, plugin.runner.pisugar, plugin.logger, shutdown_logic, previous_config
+      plugin.runner.videoreg, plugin.runner.power_supply, plugin.logger, shutdown_logic, previous_config
     )
     self._plugin = plugin
 
@@ -86,11 +87,19 @@ class PisugarShutdownControllerImpl(PisugarShutdownController):
     return self._plugin.state.get(const.STATE_KEY_WAKEUP)
 
   async def _log_shutdown(self, shutdown_config):
-    pisugar_bat_level = await self._plugin.runner.pisugar.get_battery_percent()
-    pisugar_alarm_wakeup_time = await self._plugin.runner.pisugar.get_alarm_wakeup_time()
+    bat_level = await self._plugin.runner.power_supply.get_battery_percent()
+    bat_str = str(bat_level) if bat_level is not None else "unknown"
+    if isinstance(self._plugin.runner.power_supply, PiSugar):
+      alarm_wakeup_time = await self._plugin.runner.power_supply.get_alarm_wakeup_time()
+    else:
+      alarm_wakeup_time = "n/a"
     shutdown_config_json_str = json.dumps(shutdown_config.to_json(), indent=2)
     self._logger.warning(f"""Will shutdown:
 shutdown_config={shutdown_config_json_str}
-bat_level={pisugar_bat_level}
-pisgar_alarm_wakeup_time={pisugar_alarm_wakeup_time}
+bat_level={bat_str}
+alarm_wakeup_time={alarm_wakeup_time}
 uptime={self._plugin.get_uptime()}""")
+
+
+# Keep old names as aliases for backward compatibility
+PisugarShutdownControllerImpl = ShutdownControllerImpl

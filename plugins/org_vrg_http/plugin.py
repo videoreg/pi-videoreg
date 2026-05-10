@@ -189,6 +189,7 @@ class HttpPlugin(Plugin):
     app.router.add_post("/api/power/keep_alive", power_handlers.handle_post_power_keep_alive)
     app.router.add_post("/api/power/reboot", power_handlers.handle_post_power_reboot)
     app.router.add_post("/api/power/shutdown", power_handlers.handle_post_power_shutdown)
+    app.router.add_get("/api/power/capabilities", power_handlers.handle_get_power_capabilities)
 
     # Stat API endpoints
     app.router.add_get("/api/stat/temp", stat_handlers.handle_get_stat_temp)

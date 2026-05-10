@@ -141,8 +141,14 @@ const { createApp } = Vue;
       return this.statusData?.wireguard?.active === true;
     },
 
+    statusPowerSource() {
+      return this.statusData?.power?.source ?? null;
+    },
+    statusPowerHasBattery() {
+      return this.statusPowerSource?.battery_telemetry === true;
+    },
     statusPowerExists() {
-      return this.statusData?.power != null && this.statusData.power.battery_percent != null;
+      return this.statusPowerSource !== null;
     },
 
     statusPowerCharging() {

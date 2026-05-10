@@ -116,16 +116,22 @@
                         <tooltip v-if="statusPowerExists" ref="powerTooltip">
                             <template #anchor="{ open }">
                                 <span class="status-item" @click="open" :title="$t('http.power.title')">
-                                    <icon v-if="statusPowerCharging" name="battery_charging"></icon>
-                                    <icon v-else name="battery"></icon>
-                                    {{ statusPowerPercent }}%
+                                    <template v-if="statusPowerHasBattery">
+                                        <icon v-if="statusPowerCharging" name="battery_charging"></icon>
+                                        <icon v-else name="battery"></icon>
+                                        {{ statusPowerPercent }}%
+                                    </template>
+                                    <template v-else>
+                                        <icon name="power_plug"></icon>
+                                    </template>
                                 </span>
                             </template>
                             <!-- Содержимое тултипа -->
                             <div style="margin-bottom: var(--spacing-sm);">
                                 <span class="status-indicator" style="width: 100%">
                                     <span class="status-dot" :class="{ active: statusPowerCharging }"></span>
-                                    <span>{{ statusPowerCharging ? $t('http.power.charging') : $t('http.power.on_battery') }}</span>
+                                    <span v-if="statusPowerHasBattery">{{ statusPowerCharging ? $t('http.power.charging') : $t('http.power.on_battery') }}</span>
+                                    <span v-else>{{ statusPowerSource ? statusPowerSource.title : '—' }}</span>
                                 </span>
                             </div>
                             <button

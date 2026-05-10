@@ -13,7 +13,7 @@ const PowerSettingsComponent = {
       </div>
 
       <tab-switch
-        v-if="status !== null"
+        v-if="status !== null && capabilities !== null"
         v-model="activeTab"
         :tabs="tabs"
         style="margin-bottom: var(--spacing-lg);"></tab-switch>
@@ -27,9 +27,15 @@ const PowerSettingsComponent = {
           <div class="section-title">{{ $t('http.power.battery_title') }}</div>
 
           <div class="info-rows">
-            <!-- Заряд батареи -->
+            <!-- Источник питания -->
             <div class="info-row">
-              <span class="info-label">{{ $t('http.power.charge_label') }}</span>
+              <span class="info-label">{{ $t('http.power.power_source') }}</span>
+              <strong>{{ capabilities ? capabilities.title : '—' }}</strong>
+            </div>
+
+            <!-- Заряд батареи -->
+            <div v-if="!capabilities || capabilities.battery_telemetry" class="info-row">
+              <span class="info-label">{{ $t('http.power.battery_precent') }}</span>
               <progress-bar
                 :value="status ? status.battery_percent : 0"
                 :variant="batteryVariant(status ? status.battery_percent : 0)"
@@ -40,7 +46,7 @@ const PowerSettingsComponent = {
 
             <!-- Статус зарядки -->
             <div class="info-row">
-              <span class="info-label">{{ $t('http.power.power_label') }}</span>
+              <span class="info-label">{{ $t('http.power.charging_label') }}</span>
               <span class="status-indicator" style="padding: 3px 8px;">
                 <span class="status-dot" :class="{ active: status && status.charging }"></span>
                 <span>{{ status ? (status.charging ? $t('http.power.charging') : $t('http.power.on_battery')) : '—' }}</span>
@@ -48,9 +54,9 @@ const PowerSettingsComponent = {
             </div>
 
             <!-- Температура PiSugar -->
-            <div class="info-row">
+            <div v-if="status && status.temp != null" class="info-row">
               <span class="info-label">{{ $t('http.power.temp_label') }}</span>
-              <strong>{{ status ? status.temp + ' °C' : '—' }}</strong>
+              <strong>{{ status.temp + ' °C' }}</strong>
             </div>
 
             <!-- Время работы -->
@@ -92,7 +98,7 @@ const PowerSettingsComponent = {
         <div v-if="settingsError" class="alert alert-error">{{ settingsError }}</div>
         <div v-if="settingsSuccess" class="alert alert-success">{{ settingsSuccess }}</div>
 
-        <div class="info-block">
+        <div v-if="capabilities && capabilities.charging_protection" class="info-block">
           <div class="section-title">{{ $t('http.power.charging_protection_label') }}</div>
           <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
             {{ $t('http.power.charging_protection_hint') }}
@@ -106,8 +112,11 @@ const PowerSettingsComponent = {
 
         <div v-if="selectedWakeup !== null" class="info-block">
           <div class="section-title">{{ $t('http.power.wakeup_label') }}</div>
-          <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
+          <p v-if="capabilities && capabilities.alarm_wakeup" style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
             {{ $t('http.power.wakeup_description') }}
+          </p>
+          <p v-else style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
+            {{ $t('http.power.wakeup_not_supported', { source: capabilities ? capabilities.title : '' }) }}
           </p>
 
           <div style="max-width: 400px;">
@@ -118,7 +127,7 @@ const PowerSettingsComponent = {
               <select
                 v-model="selectedWakeup"
                 class="form-input"
-                :disabled="saving"
+                :disabled="saving || (capabilities && !capabilities.alarm_wakeup)"
               >
                 <option
                   v-for="opt in wakeupOptions"
@@ -131,7 +140,7 @@ const PowerSettingsComponent = {
             <button
               class="btn btn-primary"
               @click="saveWakeup"
-              :disabled="saving || settingsLoading"
+              :disabled="saving || settingsLoading || (capabilities && !capabilities.alarm_wakeup)"
             >
               {{ saving ? $t('common.saving') : $t('common.save') }}
             </button>
@@ -163,6 +172,8 @@ const PowerSettingsComponent = {
 
       chargingProtection: true,
       chargingProtectionLoading: false,
+
+      capabilities: null,
     };
   },
 
@@ -355,6 +366,18 @@ const PowerSettingsComponent = {
       }
     },
 
+    async loadCapabilities() {
+      try {
+        const response = await fetch('/api/power/capabilities', { credentials: 'same-origin' });
+        const result = await response.json();
+        if (response.ok) {
+          this.capabilities = result;
+        }
+      } catch (err) {
+        // non-fatal: fall back to null (hide conditional sections)
+      }
+    },
+
     async saveWakeup() {
       this.settingsError = '';
       this.settingsSuccess = '';
@@ -385,6 +408,6 @@ const PowerSettingsComponent = {
   },
 
   async mounted() {
-    await Promise.all([this.loadStatus(), this.loadSettings()]);
+    await Promise.all([this.loadStatus(), this.loadSettings(), this.loadCapabilities()]);
   }
 };

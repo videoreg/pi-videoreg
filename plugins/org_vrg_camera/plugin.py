@@ -54,6 +54,7 @@ class CameraPlugin(Plugin):
     self._h264_watcher: H264FolderWatcher = None
     self._jpeg_watcher: JpegFolderWatcher = None
     self._stream_timer_task = None
+    self._thermal_throttled: bool = False
     self.HLS_DIR = runner.videoreg.plugin_private_path(id, "hls")
 
   @property
@@ -102,11 +103,8 @@ class CameraPlugin(Plugin):
   async def _lifecycle_loop(self):
     try:
       while self.runner.is_running():
-        # 1 - check video process dead
         if self._camera_controls.is_recording_completed():
           await self.stop_video()
-
-        # 2 - do other stuff
 
         charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
         bat_level = await self.runner.power_supply.get_battery_percent()
@@ -125,6 +123,7 @@ class CameraPlugin(Plugin):
             self.logger.info("Detect charging is off: will stop video")
             await self.stop_video()
           elif self.video_state == VideoState.STOP:
+            # One wakeup photo on first loop — device just powered on without charging
             if not self.is_first_loop_done:
               self.logger.info("Take wakeup photo")
               try:
@@ -136,12 +135,47 @@ class CameraPlugin(Plugin):
 
               self._is_wakeup_photo_taken = True
         else:
+          user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)
+          needs_throttle_capable = user_width > const.DEFAULT_STREAM_VIDEO_WIDTH
+
+          # Thermal throttle — three-stage hysteresis (only when user res > 720p):
+          #
+          #   < 57°C  │  throttled → full res  (TEMP_DOWNSCALE_OFF)
+          #   57–60°C │  stay in current state
+          #   60–65°C │  full res → 720p       (TEMP_DOWNSCALE_ON / TEMP_VIDEO_STOP)
+          #   > 65°C  │  720p → recording stop  (TEMP_VIDEO_STOP)
+          #
+          # At > 65°C the flag is set without restart because stop_video() runs right below.
+          # This ensures that after a hard stop the recording resumes at 720p, not full res,
+          # and stays there until the CPU fully cools below 57°C.
+          if (
+            cpu_temp > const.TEMP_DOWNSCALE_ON
+            and cpu_temp <= const.TEMP_VIDEO_STOP
+            and not self._thermal_throttled
+            and needs_throttle_capable
+          ):
+            self._thermal_throttled = True
+            self.logger.warning(
+              f"CPU temp {cpu_temp}C > {const.TEMP_DOWNSCALE_ON}C: downscaling video to 720p"
+            )
+            if self.video_state == VideoState.START:
+              await self.restart_video()
+          elif cpu_temp > const.TEMP_VIDEO_STOP and not self._thermal_throttled and needs_throttle_capable:
+            self._thermal_throttled = True
+          elif cpu_temp < const.TEMP_DOWNSCALE_OFF and self._thermal_throttled:
+            self._thermal_throttled = False
+            self.logger.info(
+              f"CPU temp {cpu_temp}C < {const.TEMP_DOWNSCALE_OFF}C: restoring full video resolution"
+            )
+            if self.video_state == VideoState.START:
+              await self.restart_video()
+
           if self.video_state in (VideoState.START, VideoState.STREAM):
-            if cpu_temp > 65:
-              self.logger.warning("CPU temp is to hight: will stop video")
+            if cpu_temp > const.TEMP_VIDEO_STOP:
+              self.logger.warning("CPU temp is too high: will stop video")
               await self.stop_video()
           elif self.video_state == VideoState.STOP:
-            if cpu_temp < 60:
+            if cpu_temp < const.TEMP_VIDEO_RESUME:
               self.logger.info("Detect charging is ON and CPU temp is OK: will start video")
               try:
                 await asyncio.wait_for(self.start_video(), timeout=15)
@@ -151,7 +185,7 @@ class CameraPlugin(Plugin):
                 self.logger.error(f"start video error: {type(e).__name__}: {e}")
             else:
               self.logger.warning(
-                f"Detect charging is ON but CPU temp is to high {cpu_temp}. Will take photo"
+                f"Detect charging is ON but CPU temp is too high {cpu_temp}. Will take photo"
               )
               await self.take_photo(is_screenshot=False, is_night=False)
               await asyncio.sleep(15)  # extra sleep to cooldown
@@ -167,12 +201,25 @@ class CameraPlugin(Plugin):
       await self._camera_controls.shutdown()
 
   def _build_video_params(self) -> VideoParams:
+    user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)
+    user_height = self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT)
+    user_mode = self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR)
+
+    if self._thermal_throttled and user_width > const.DEFAULT_STREAM_VIDEO_WIDTH:
+      camera_mode_str = const.DEFAULT_STREAM_CAMERA_MODE_STR
+      width = const.DEFAULT_STREAM_VIDEO_WIDTH
+      height = const.DEFAULT_STREAM_VIDEO_HEIGHT
+    else:
+      camera_mode_str = user_mode
+      width = user_width
+      height = user_height
+
     return VideoParams(
       fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
       bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
-      camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
-      width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
-      height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
+      camera_mode_str=camera_mode_str,
+      width=width,
+      height=height,
       hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
       vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
       screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),

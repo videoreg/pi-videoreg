@@ -113,7 +113,7 @@ class CameraPlugin(Plugin):
 
         self._osd.update(
           [
-            osd.Token(key="chrg", text=f"C:{charging_status.value}", weight=osd.WEIGHT_CHRG),
+            osd.Token(key="chrg", text=f"C:{charging_status.to_int()}", weight=osd.WEIGHT_CHRG),
             osd.Token(key="bat", text=f"B:{bat_level if bat_level is not None else '--'}", weight=osd.WEIGHT_BAT),
             osd.Token(key="cpu", text=f"T:{cpu_temp}C", weight=osd.WEIGHT_CPU),
           ]

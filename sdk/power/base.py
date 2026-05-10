@@ -6,6 +6,14 @@ class ChargingStatus(str, Enum):
   NOT_CHARGING = "not_charging"
   UNKNOWN = "unknown"
 
+  def to_int(self):
+    if self == ChargingStatus.CHARGING:
+      return 1
+    elif self == ChargingStatus.NOT_CHARGING:
+      return -1
+    else:
+      return 0
+
 
 class PowerSupply:
   """Abstract Pi power source. Implementations: PiSugar, GenericPowerSupply."""

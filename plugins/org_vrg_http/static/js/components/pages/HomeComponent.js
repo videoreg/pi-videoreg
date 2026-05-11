@@ -133,7 +133,10 @@ const HomeComponent = {
               <span class="dashboard-tile-label">{{ $t('http.home.type_label') }}</span>
               <span>{{ wifiType }}</span>
             </div>
-            <div v-if="wifiIp" class="dashboard-tile-meta">IP: {{ wifiIp }}</div>
+            <div v-if="wifiIp" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">IP</span>
+              <span>{{ wifiIp }}</span>
+            </div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>
@@ -159,7 +162,10 @@ const HomeComponent = {
               <span>{{ modem.model }}</span>
             </div>
             <div v-if="modem.operator" class="dashboard-tile-meta">{{ modem.operator }}<template v-if="modem.access_tech"> · {{ modem.access_tech }}</template></div>
-            <div v-if="connections && connections.modem && connections.modem.ip" class="dashboard-tile-meta">IP: {{ connections.modem.ip }}</div>
+            <div v-if="connections && connections.modem && connections.modem.ip" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">IP</span>
+              <span>{{ connections.modem.ip }}</span>
+            </div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>
@@ -178,7 +184,10 @@ const HomeComponent = {
             <span class="dashboard-tile-title">WireGuard</span>
           </div>
           <template v-if="wireguard && wireguard.active">
-            <div v-if="wireguard.ip_address" class="dashboard-tile-meta">IP: {{ wireguard.ip_address }}</div>
+            <div v-if="wireguard.ip_address" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">IP</span>
+              <span>{{ wireguard.ip_address }}</span>
+            </div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>

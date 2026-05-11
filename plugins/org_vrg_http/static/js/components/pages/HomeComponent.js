@@ -235,6 +235,10 @@ const HomeComponent = {
               <span class="dashboard-tile-label">{{ $t('http.home.charge_label') }}</span>
               <strong>{{ power.battery_percent }}%</strong>
             </div>
+            <div v-if="power.uptime != null" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">{{ $t('http.power.uptime_label') }}</span>
+              <span>{{ uptimeLabel }}</span>
+            </div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
         </div>
@@ -384,6 +388,15 @@ const HomeComponent = {
       if (!this.trip?.start) return '';
       const d = new Date(this.trip.start);
       return d.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString(VrgI18n.locale, { day: 'numeric', month: 'long' });
+    },
+
+    uptimeLabel() {
+      const sec = this.power?.uptime;
+      if (sec == null) return '—';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor(sec / 60) % 60;
+      if (h > 0) return m > 0 ? this.$t('http.trips.duration_h_m', { h, m }) : this.$t('http.trips.duration_h', { h });
+      return this.$t('http.trips.duration_min', { m: Math.max(m, 1) });
     },
   },
 

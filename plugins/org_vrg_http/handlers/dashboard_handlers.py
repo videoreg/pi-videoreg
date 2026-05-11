@@ -97,3 +97,43 @@ async def handle_get_dashboard_status(request: web.Request):
   #     result["storage"] = {"data_use_percent": data_partition["use_percent"]}
 
   return web.json_response(result)
+
+
+async def handle_get_statusbar_status(request: web.Request):
+  """Minimal status for the global status bar (camera + power only)"""
+  logger = request.app["logger"]
+  api_client = request.app["api_client"]
+
+  (
+    camera_response,
+    power_response,
+    last_media_response,
+  ) = await asyncio.gather(
+    api_client.exec("camera.get_info", {}),
+    api_client.exec("power.get_status", {}),
+    api_client.exec("camera.get_last_media", {}),
+    return_exceptions=True,
+  )
+
+  result = {
+    "camera": None,
+    "power": None,
+    "last_media": None,
+  }
+
+  if isinstance(camera_response, Exception):
+    logger.warning(f"Statusbar: camera info error: {camera_response}")
+  elif camera_response.is_ok():
+    result["camera"] = camera_response.get_data()
+
+  if isinstance(power_response, Exception):
+    logger.warning(f"Statusbar: power status error: {power_response}")
+  elif power_response.is_ok():
+    result["power"] = power_response.get_data()
+
+  if isinstance(last_media_response, Exception):
+    logger.warning(f"Statusbar: last media error: {last_media_response}")
+  elif last_media_response.is_ok():
+    result["last_media"] = last_media_response.get_data()
+
+  return web.json_response(result)

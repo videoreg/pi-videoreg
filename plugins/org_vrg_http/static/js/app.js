@@ -54,6 +54,13 @@ const { createApp } = Vue;
       shutdownSuccess: false
     };
   },
+  provide() {
+    return {
+      appStatusData: Vue.computed(() => this.statusData),
+      appStatusOffline: Vue.computed(() => this.statusOffline),
+      appStatusLastUpdated: Vue.computed(() => this.statusLastUpdated),
+    };
+  },
   computed: {
     mustChangePassword() {
       return this.isAuthenticated && this.user && this.user.password_changed === false;
@@ -113,26 +120,6 @@ const { createApp } = Vue;
 
     statusCamera() {
       return this.statusData?.camera?.video_state || 'stopped';
-    },
-
-    statusWifiAp() {
-      return this.statusData?.connections?.ap?.enabled === true;
-    },
-
-    statusWifiConnected() {
-      return this.statusData?.connections?.wifi?.enabled === true;
-    },
-
-    statusModemExists() {
-      return this.statusData?.modem?.connected === true;
-    },
-
-    statusModemConnected() {
-      return this.statusData?.connections?.modem?.enabled === true;
-    },
-
-    statusWireguard() {
-      return this.statusData?.wireguard?.active === true;
     },
 
     statusPowerSource() {
@@ -433,7 +420,7 @@ const { createApp } = Vue;
 
     async fetchStatusData() {
       try {
-        const response = await fetch('/api/dashboard/status', { credentials: 'same-origin' });
+        const response = await fetch('/api/statusbar/status', { credentials: 'same-origin' });
         if (response.ok) {
           this.statusData = await response.json();
           this.statusLoaded = true;

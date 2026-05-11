@@ -2,11 +2,16 @@
 const HomeComponent = {
   emits: ['navigate'],
   components: { Icon, TripsMediaItem },
+  inject: ['appStatusData', 'appStatusOffline', 'appStatusLastUpdated'],
 
   template: `
     <div>
       <div class="page-header">
         <h1 class="page-title">{{ $t('http.home.title') }}</h1>
+        <div style="display: flex; gap: var(--spacing-sm);">
+          <div v-if="loading" class="spinner spinner-sm"></div>
+          <button v-else class="btn btn-icon" @click="load" :title="$t('http.common.refresh')">↻</button>
+        </div>
       </div>
 
       <div v-if="error" class="alert alert-error">{{ error }}</div>
@@ -33,7 +38,7 @@ const HomeComponent = {
         <div v-else class="vrg-state-block">
           <div class="vrg-state-header">
             <span class="vrg-state-section-title">{{ $t('http.now') }}</span>
-            <span v-if="statusOffline && statusLastUpdatedLabel" class="vrg-state-last-updated">{{ $t('http.app.last_updated', {time: statusLastUpdatedLabel}) }}</span>
+            <span v-if="appStatusOffline && statusLastUpdatedLabel" class="vrg-state-last-updated">{{ $t('http.app.last_updated', {time: statusLastUpdatedLabel}) }}</span>
           </div>
           <div class="vrg-state-content">
             <div v-if="statusLastMediaItem" class="vrg-state-media">
@@ -278,17 +283,10 @@ const HomeComponent = {
       connections: null,
       modem: null,
       wireguard: null,
-      camera: null,
-      power: null,
       trip: null,
       location: null,
-      last_media: null,
       error: '',
       loading: true,
-      statusLoaded: false,
-      statusOffline: false,
-      statusLastUpdated: null,
-      statusLastMedia: null,
       takingPhoto: false,
       takenPhotos: [],
       takingShortVideo: false,
@@ -297,20 +295,30 @@ const HomeComponent = {
   },
 
   computed: {
+    camera() {
+      return this.appStatusData?.camera || null;
+    },
+
+    power() {
+      return this.appStatusData?.power || null;
+    },
+
     cameraStateLabel() {
-      if (!this.camera) return '—';
+      const camera = this.appStatusData?.camera;
+      if (!camera) return '—';
       const labels = {
         record: this.$t('http.camera.state_record'),
         pause: this.$t('http.camera.state_pause'),
         stop: this.$t('http.camera.state_stop'),
       };
-      return labels[this.camera.video_state] || '—';
+      return labels[camera.video_state] || '—';
     },
 
     powerIcon() {
-      if (!this.power) return 'battery';
-      if (!this.power?.source?.battery_telemetry) return 'power_plug';
-      return this.power.charging ? 'battery_charging' : 'battery';
+      const power = this.appStatusData?.power;
+      if (!power) return 'battery';
+      if (!power?.source?.battery_telemetry) return 'power_plug';
+      return power.charging ? 'battery_charging' : 'battery';
     },
 
     wifiIcon() {
@@ -331,7 +339,7 @@ const HomeComponent = {
     },
 
     statusLastMediaItem() {
-      const item = (this.last_media ?? this.statusLastMedia)?.item;
+      const item = this.appStatusData?.last_media?.item;
       if (!item) return null;
       const result = {
         type: item.type,
@@ -345,7 +353,7 @@ const HomeComponent = {
     },
 
     statusLastMediaReady() {
-      return (this.last_media ?? this.statusLastMedia)?.item?.ready === true;
+      return this.appStatusData?.last_media?.item?.ready === true;
     },
 
     gpsLocation() {
@@ -373,8 +381,8 @@ const HomeComponent = {
     },
 
     statusLastUpdatedLabel() {
-      if (!this.statusLastUpdated) return null;
-      return this.statusLastUpdated.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (!this.appStatusLastUpdated) return null;
+      return this.appStatusLastUpdated.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     },
 
     tripDurationLabel() {
@@ -391,7 +399,7 @@ const HomeComponent = {
     },
 
     uptimeLabel() {
-      const sec = this.power?.uptime;
+      const sec = this.appStatusData?.power?.uptime;
       if (sec == null) return '—';
       const h = Math.floor(sec / 3600);
       const m = Math.floor(sec / 60) % 60;
@@ -486,25 +494,16 @@ const HomeComponent = {
           this.connections = data.connections;
           this.modem = data.modem;
           this.wireguard = data.wireguard;
-          this.camera = data.camera;
-          this.power = data.power || null;
           this.trip = data.trip || null;
           this.location = data.location || null;
-          if (data.last_media) {
-            this.last_media = data.last_media;
-            this.statusLastMedia = data.last_media;
-          }
-          this.statusLoaded = true;
-          this.statusOffline = false;
-          this.statusLastUpdated = new Date();
         }
       } catch (err) {
         this.error = this.$t('http.common.error_connection');
-        this.statusOffline = true;
       } finally {
         this.loading = false;
       }
     },
+
   },
 
   async mounted() {

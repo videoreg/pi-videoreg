@@ -94,24 +94,6 @@
                             >{{ $t('http.settings') }}</button>
                         </tooltip>
 
-                        <!-- WiFi -->
-                        <span class="status-item" :class="{ 'status-item--dim': !statusWifiAp && !statusWifiConnected }" @click="navigate('wifi')" title="WiFi">
-                            <icon v-if="statusWifiAp" name="wifi_ap"></icon>
-                            <icon v-else-if="statusWifiConnected" name="wifi"></icon>
-                            <icon v-else name="wifi_off"></icon>
-                        </span>
-
-                        <!-- Модем -->
-                        <span class="status-item" :class="{ 'status-item--dim': !statusModemConnected }" @click="navigate('modem')" :title="$t('http.modem.title')">
-                            <icon v-if="statusModemConnected" name="modem"></icon>
-                            <icon v-else name="modem_off"></icon>
-                        </span>
-
-                        <!-- WireGuard (только если активен) -->
-                        <span v-if="statusWireguard" class="status-item" @click="navigate('wireguard')" title="WireGuard">
-                            <icon name="vpn"></icon>
-                        </span>
-
                         <!-- Питание (только если есть данные) -->
                         <tooltip v-if="statusPowerExists" ref="powerTooltip">
                             <template #anchor="{ open }">

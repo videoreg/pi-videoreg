@@ -126,9 +126,17 @@ const HomeComponent = {
         <div v-else class="dashboard-tile" @click="$emit('navigate', 'wifi')">
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon :name="wifiIcon" :size="20"></icon></span>
-            <span class="dashboard-tile-title">{{ wifiTitle }}</span>
+            <span class="dashboard-tile-title">WiFi</span>
+            <span class="status-indicator" style="margin-left: auto;">
+              <span class="status-dot" :class="{ active: !!wifiType }"></span>
+              <span>{{ wifiType ? $t('http.home.connected') : $t('http.home.disconnected') }}</span>
+            </span>
           </div>
           <template v-if="wifiType">
+            <div v-if="wifiSsid" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">SSID</span>
+              <span>{{ wifiSsid }}</span>
+            </div>
             <div class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.type_label') }}</span>
               <span>{{ wifiType }}</span>
@@ -138,7 +146,6 @@ const HomeComponent = {
               <span>{{ wifiIp }}</span>
             </div>
           </template>
-          <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>
 
         <!-- Modem -->
@@ -155,19 +162,25 @@ const HomeComponent = {
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon :name="modem && modem.connected ? 'modem' : 'modem_off'" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ $t('http.settings.modem') }}</span>
+            <span class="status-indicator" style="margin-left: auto;">
+              <span class="status-dot" :class="{ active: !!(modem && modem.connected) }"></span>
+              <span>{{ modem && modem.connected ? $t('http.home.enabled') : $t('http.home.disabled') }}</span>
+            </span>
           </div>
           <template v-if="modem && modem.connected">
             <div v-if="modem.model" class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.model_label') }}</span>
               <span>{{ modem.model }}</span>
             </div>
-            <div v-if="modem.operator" class="dashboard-tile-meta">{{ modem.operator }}<template v-if="modem.access_tech"> · {{ modem.access_tech }}</template></div>
+            <div v-if="modem.operator" class="dashboard-tile-row">
+              <span class="dashboard-tile-label">Operator:</span>
+              <span>{{ modem.operator }}<template v-if="modem.access_tech"> · {{ modem.access_tech }}</template></span>
+            </div>
             <div v-if="connections && connections.modem && connections.modem.ip" class="dashboard-tile-row">
               <span class="dashboard-tile-label">IP</span>
               <span>{{ connections.modem.ip }}</span>
             </div>
           </template>
-          <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>
 
         <!-- WireGuard -->
@@ -182,6 +195,10 @@ const HomeComponent = {
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon name="vpn" :size="20"></icon></span>
             <span class="dashboard-tile-title">WireGuard</span>
+            <span class="status-indicator" style="margin-left: auto;">
+              <span class="status-dot" :class="{ active: !!(wireguard && wireguard.active) }"></span>
+              <span>{{ wireguard && wireguard.active ? $t('http.home.wg_active') : $t('http.home.wg_inactive') }}</span>
+            </span>
           </div>
           <template v-if="wireguard && wireguard.active">
             <div v-if="wireguard.ip_address" class="dashboard-tile-row">
@@ -189,7 +206,6 @@ const HomeComponent = {
               <span>{{ wireguard.ip_address }}</span>
             </div>
           </template>
-          <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
         </div>
 
         <!-- Power -->
@@ -297,8 +313,8 @@ const HomeComponent = {
       return (this.connections?.wifi?.enabled || this.connections?.ap?.enabled) ? 'wifi' : 'wifi_off';
     },
 
-    wifiTitle() {
-      return this.connections?.wifi?.ssid || this.connections?.ap?.ssid || 'WiFi';
+    wifiSsid() {
+      return this.connections?.wifi?.ssid || this.connections?.ap?.ssid || null;
     },
 
     wifiType() {

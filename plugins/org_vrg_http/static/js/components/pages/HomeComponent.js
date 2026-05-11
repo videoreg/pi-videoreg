@@ -9,7 +9,6 @@ const HomeComponent = {
         <h1 class="page-title">{{ $t('http.home.title') }}</h1>
       </div>
 
-      <div v-if="loading" class="alert alert-info">{{ $t('http.home.loading') }}</div>
       <div v-if="error" class="alert alert-error">{{ error }}</div>
 
       <!-- Row 1: Now + Trip -->
@@ -21,7 +20,7 @@ const HomeComponent = {
             <span class="vrg-state-section-title">{{ $t('http.now') }}</span>
             <span v-if="statusOffline && statusLastUpdatedLabel" class="vrg-state-last-updated">{{ $t('http.app.last_updated', {time: statusLastUpdatedLabel}) }}</span>
           </div>
-          <template v-if="statusLoaded">
+          <template v-if="!loading">
             <div class="vrg-state-content">
               <div v-if="statusLastMediaItem" class="vrg-state-media">
                 <trips-media-item
@@ -74,8 +73,15 @@ const HomeComponent = {
               </div>
             </template>
           </template>
-          <div v-else class="vrg-state-loader">
-            <div class="spinner"></div>
+          <div v-else class="vrg-state-content">
+            <div class="vrg-state-media">
+              <shimmer class="shimmer-media"></shimmer>
+            </div>
+            <div class="vrg-state-info">
+              <shimmer height="32px" width="75%"></shimmer>
+              <shimmer height="32px" width="60%"></shimmer>
+              <shimmer height="32px" width="80%"></shimmer>
+            </div>
           </div>
         </div>
 
@@ -85,7 +91,11 @@ const HomeComponent = {
             <span class="dashboard-tile-icon"><icon name="gps_tracks" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ $t('http.home.trip_title') }}</span>
           </div>
-          <template v-if="trip && trip.state">
+          <template v-if="loading">
+            <shimmer height="14px" width="80%"></shimmer>
+            <shimmer height="12px" width="55%"></shimmer>
+          </template>
+          <template v-else-if="trip && trip.state">
             <div class="dashboard-tile-row">{{ tripDurationLabel }}</div>
             <div class="dashboard-tile-meta">{{ $t('http.trips.time_from', {time: tripStartLabel}) }}</div>
           </template>
@@ -103,7 +113,11 @@ const HomeComponent = {
             <span class="dashboard-tile-icon"><icon :name="wifiIcon" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ wifiTitle }}</span>
           </div>
-          <template v-if="wifiType">
+          <template v-if="loading">
+            <shimmer height="14px" width="65%"></shimmer>
+            <shimmer height="12px" width="45%"></shimmer>
+          </template>
+          <template v-else-if="wifiType">
             <div class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.type_label') }}</span>
               <span>{{ wifiType }}</span>
@@ -119,7 +133,12 @@ const HomeComponent = {
             <span class="dashboard-tile-icon"><icon :name="modem && modem.connected ? 'modem' : 'modem_off'" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ $t('http.settings.modem') }}</span>
           </div>
-          <template v-if="modem && modem.connected">
+          <template v-if="loading">
+            <shimmer height="14px" width="70%"></shimmer>
+            <shimmer height="12px" width="55%"></shimmer>
+            <shimmer height="12px" width="45%"></shimmer>
+          </template>
+          <template v-else-if="modem && modem.connected">
             <div v-if="modem.model" class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.model_label') }}</span>
               <span>{{ modem.model }}</span>
@@ -136,7 +155,10 @@ const HomeComponent = {
             <span class="dashboard-tile-icon"><icon name="vpn" :size="20"></icon></span>
             <span class="dashboard-tile-title">WireGuard</span>
           </div>
-          <template v-if="wireguard && wireguard.active">
+          <template v-if="loading">
+            <shimmer height="12px" width="55%"></shimmer>
+          </template>
+          <template v-else-if="wireguard && wireguard.active">
             <div v-if="wireguard.ip_address" class="dashboard-tile-meta">IP: {{ wireguard.ip_address }}</div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.disconnected') }}</div>
@@ -147,12 +169,16 @@ const HomeComponent = {
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon :name="powerIcon" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ $t('http.settings.power') }}</span>
-            <span v-if="power !== null" class="status-indicator" style="margin-left: auto;">
+            <span v-if="!loading && power !== null" class="status-indicator" style="margin-left: auto;">
               <span class="status-dot" :class="{ active: power.charging }"></span>
               <span>{{ power.charging ? $t('http.home.charging') : $t('http.home.on_battery') }}</span>
             </span>
           </div>
-          <template v-if="power !== null">
+          <template v-if="loading">
+            <shimmer height="14px" width="60%"></shimmer>
+            <shimmer height="14px" width="45%"></shimmer>
+          </template>
+          <template v-else-if="power !== null">
             <div v-if="power.source" class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.type_label') }}</span>
               <span>{{ power.source.title }}</span>
@@ -170,12 +196,15 @@ const HomeComponent = {
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon name="camera" :size="20"></icon></span>
             <span class="dashboard-tile-title">{{ $t('http.settings.camera') }}</span>
-            <span v-if="camera !== null" class="status-indicator" style="margin-left: auto;">
+            <span v-if="!loading && camera !== null" class="status-indicator" style="margin-left: auto;">
               <span class="status-dot" :class="{ active: camera.video_state === 'record' }"></span>
               <span>{{ cameraStateLabel }}</span>
             </span>
           </div>
-          <template v-if="camera !== null">
+          <template v-if="loading">
+            <shimmer height="14px" width="70%"></shimmer>
+          </template>
+          <template v-else-if="camera !== null">
             <div class="dashboard-tile-row">
               <span class="dashboard-tile-label">{{ $t('http.home.model_label') }}</span>
               <span>{{ camera.model || $t('http.home.camera_no_found_short') }}</span>
@@ -199,7 +228,7 @@ const HomeComponent = {
       location: null,
       last_media: null,
       error: '',
-      loading: false,
+      loading: true,
       statusLoaded: false,
       statusOffline: false,
       statusLastUpdated: null,

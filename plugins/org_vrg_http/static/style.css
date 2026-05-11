@@ -594,6 +594,37 @@ select.form-input:disabled {
     border-color: rgba(245, 158, 11, 0.85);
 }
 
+/* Shimmer skeleton */
+.shimmer {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        90deg,
+        var(--color-bg-tertiary) 25%,
+        var(--color-border-light) 50%,
+        var(--color-bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-sweep 1.4s infinite linear;
+}
+
+@keyframes shimmer-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.shimmer-media {
+    border-radius: var(--radius-md);
+    height: 100%;
+}
+
+@media (max-width: 480px) {
+    .shimmer-media {
+        height: auto;
+        aspect-ratio: 16 / 9;
+    }
+}
+
 .dashboard-tile-header {
     display: flex;
     align-items: center;

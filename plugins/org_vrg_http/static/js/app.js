@@ -482,6 +482,8 @@ const { createApp } = Vue;
   }
   });
 
+  app.component('Shimmer', Shimmer);
+
   app.config.globalProperties.$t = (key, vars) => VrgI18n.t(key, vars);
   app.config.globalProperties.$p = (key, n, vars) => VrgI18n.p(key, n, vars);
 

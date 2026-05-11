@@ -360,7 +360,8 @@ const HomeComponent = {
     },
 
     wifiSsid() {
-      return this.connections?.wifi?.ssid || this.connections?.ap?.ssid || null;
+      if (this.connections?.ap?.enabled) return this.connections?.ap?.ssid || null;
+      return this.connections?.wifi?.ssid || null;
     },
 
     wifiType() {

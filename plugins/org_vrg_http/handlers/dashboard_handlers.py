@@ -18,6 +18,7 @@ async def handle_get_dashboard_status(request: web.Request):
     power_response,
     last_media_response,
     location_response,
+    trip_response,
   ) = await asyncio.gather(
     api_client.exec("net.connections", None),
     api_client.exec("net.modem_info", {}),
@@ -26,6 +27,7 @@ async def handle_get_dashboard_status(request: web.Request):
     api_client.exec("power.get_status", {}),
     api_client.exec("camera.get_last_media", {}),
     api_client.exec("gps.get_location", {}),
+    api_client.exec("core.get_trip_state", {}),
     # api_client.exec("stat.storage_info", {}),
     return_exceptions=True,
   )
@@ -39,6 +41,7 @@ async def handle_get_dashboard_status(request: web.Request):
     "storage": None,
     "last_media": None,
     "location": None,
+    "trip": None,
   }
 
   if isinstance(connections_response, Exception):
@@ -75,6 +78,11 @@ async def handle_get_dashboard_status(request: web.Request):
     logger.warning(f"Dashboard: location error: {location_response}")
   elif location_response.is_ok():
     result["location"] = location_response.get_data()
+
+  if isinstance(trip_response, Exception):
+    logger.warning(f"Dashboard: trip state error: {trip_response}")
+  elif trip_response.is_ok():
+    result["trip"] = trip_response.get_data()
 
   # if isinstance(storage_response, Exception):
   #   logger.warning(f"Dashboard: storage info error: {storage_response}")

@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 from plugins.org_vrg_core.methods.get_journal_files import MethodGetJournalFiles
+from plugins.org_vrg_core.methods.get_trip_state import MethodGetTripState
 from plugins.org_vrg_core.methods.get_system import MethodGetSystem
 from plugins.org_vrg_core.methods.service_action import MethodServiceAction
 from plugins.org_vrg_core.methods.set_plugin_enabled import MethodSetPluginEnabled
@@ -47,6 +48,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "set_plugin_enabled": MethodSetPluginEnabled(plugin),
       "service_action": MethodServiceAction(plugin),
       "get_journal_files": MethodGetJournalFiles(plugin),
+      "get_trip_state": MethodGetTripState(plugin),
     }
   )
 

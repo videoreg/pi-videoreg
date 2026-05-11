@@ -392,6 +392,8 @@ http.home.type_label: "Тип"
 http.home.model_label: "Модель"
 http.home.charging_label: "Зарядка"
 http.home.camera_no_found_short: "не определена"
+http.home.system_title: "Система"
+http.home.cpu_temp_label: "Температура CPU"
 
 http.app.confirm_reboot: "Перезагрузить устройство?"
 http.app.confirm_shutdown: "Выключить устройство?"

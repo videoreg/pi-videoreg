@@ -116,8 +116,27 @@ const HomeComponent = {
 
       </div>
 
-      <!-- Row 2: 5 status tiles -->
+      <!-- Row 2: status tiles -->
       <div class="dashboard-tiles">
+
+        <!-- System -->
+        <div v-if="loading" class="dashboard-tile">
+          <div class="dashboard-tile-header">
+            <shimmer height="20px" width="20px" style="border-radius: 4px; flex-shrink: 0;"></shimmer>
+            <shimmer height="15px" width="45%"></shimmer>
+          </div>
+          <shimmer height="13px" width="60%"></shimmer>
+        </div>
+        <div v-else class="dashboard-tile" style="cursor: default;">
+          <div class="dashboard-tile-header">
+            <span class="dashboard-tile-icon"><icon name="core" :size="20"></icon></span>
+            <span class="dashboard-tile-title">{{ $t('http.home.system_title') }}</span>
+          </div>
+          <div class="dashboard-tile-row">
+            <span class="dashboard-tile-label">{{ $t('http.home.cpu_temp_label') }}</span>
+            <span>{{ cpuTempLabel }}</span>
+          </div>
+        </div>
 
         <!-- WiFi -->
         <div v-if="loading" class="dashboard-tile">
@@ -285,6 +304,7 @@ const HomeComponent = {
       wireguard: null,
       trip: null,
       location: null,
+      system: null,
       error: '',
       loading: true,
       takingPhoto: false,
@@ -406,6 +426,12 @@ const HomeComponent = {
       if (h > 0) return m > 0 ? this.$t('http.trips.duration_h_m', { h, m }) : this.$t('http.trips.duration_h', { h });
       return this.$t('http.trips.duration_min', { m: Math.max(m, 1) });
     },
+
+    cpuTempLabel() {
+      const temp = this.system?.cpu_temp;
+      if (temp == null) return '—';
+      return temp + ' °C';
+    },
   },
 
   methods: {
@@ -496,6 +522,7 @@ const HomeComponent = {
           this.wireguard = data.wireguard;
           this.trip = data.trip || null;
           this.location = data.location || null;
+          this.system = data.system || null;
         }
       } catch (err) {
         this.error = this.$t('http.common.error_connection');

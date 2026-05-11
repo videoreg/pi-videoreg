@@ -392,6 +392,8 @@ http.home.type_label: "Type"
 http.home.model_label: "Model"
 http.home.charging_label: "Charging"
 http.home.camera_no_found_short: "not detected"
+http.home.system_title: "System"
+http.home.cpu_temp_label: "CPU temperature"
 
 http.app.confirm_reboot: "Reboot device?"
 http.app.confirm_shutdown: "Shutdown device?"

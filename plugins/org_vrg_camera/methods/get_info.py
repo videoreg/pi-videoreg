@@ -27,6 +27,7 @@ class MethodGetInfo(ApiMethod):
           "model": model,
           "video_state": video_state,
           "video_size": video_size,
+          "thermal_status": self._plugin.thermal_status,
           "fps": self._plugin.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
           "bitrate": self._plugin.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
           "camera_mode_str": self._plugin.state.get(

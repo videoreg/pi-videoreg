@@ -20,9 +20,12 @@ class CommandGetCommands(InterfaceCommand):
     else:
       emoji = ""
 
+    thermal_status = self._plugin.thermal_status
+    thermal_label = self._plugin.runner.i18n.t(f"camera.thermal_status_{thermal_status}")
+
     await interface.send_text(
       payload=payload,
-      text=f"Camera state: {emoji}{camera_state}",
+      text=f"Camera state: {emoji}{camera_state}\n\nThermal status: {thermal_label}",
       keyboard=[
         [
           {"text": "Start", "callback_data": "command__camera__start"},

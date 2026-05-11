@@ -18,3 +18,6 @@ camera.video_count:
   few: "{{n}} видео"
   many: "{{n}} видео"
   other: "{{n}} видео"
+camera.thermal_status_normal: "Норма"
+camera.thermal_status_downscaled: "Снижено до 720p (высокая температура CPU)"
+camera.thermal_status_overheated: "Запись остановлена — перегрев"

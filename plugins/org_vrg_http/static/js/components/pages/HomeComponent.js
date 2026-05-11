@@ -289,6 +289,10 @@ const HomeComponent = {
               <span class="dashboard-tile-label">{{ $t('http.home.model_label') }}</span>
               <span>{{ camera.model || $t('http.home.camera_no_found_short') }}</span>
             </div>
+            <div class="dashboard-tile-row">
+              <span class="dashboard-tile-label">{{ $t('http.home.thermal_label') }}</span>
+              <span>{{ thermalStatusLabel }}</span>
+            </div>
           </template>
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
         </div>
@@ -332,6 +336,16 @@ const HomeComponent = {
         stop: this.$t('http.camera.state_stop'),
       };
       return labels[camera.video_state] || '—';
+    },
+
+    thermalStatusLabel() {
+      const status = this.appStatusData?.camera?.thermal_status;
+      const labels = {
+        normal: this.$t('http.camera.thermal_normal'),
+        downscaled: this.$t('http.camera.thermal_downscaled'),
+        overheated: this.$t('http.camera.thermal_overheated'),
+      };
+      return labels[status] || '—';
     },
 
     powerIcon() {

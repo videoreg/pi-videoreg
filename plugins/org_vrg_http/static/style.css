@@ -1573,6 +1573,54 @@ select.form-input:disabled {
     text-decoration: none;
 }
 
+.trips-thermal-log {
+    list-style: none;
+    margin: 0;
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.trips-thermal-log li {
+    --_tl-center: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    column-gap: var(--spacing-sm);
+    padding: 3px 0 3px 1.5rem;
+    position: relative;
+}
+
+.trips-thermal-log li::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--_tl-center) - 0.5px);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-text-primary);
+}
+
+.trips-thermal-log li:first-child::before { top: 50%; }
+.trips-thermal-log li:last-child::before  { bottom: 50%; }
+
+.trips-thermal-log li::after {
+    content: '';
+    position: absolute;
+    left: calc(var(--_tl-center) - 3px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-text-primary);
+}
+
+.trips-thermal-log-time {
+    color: var(--color-text-primary);
+}
+
 /* Videoreg state block */
 .vrg-state-block {
     display: flex;

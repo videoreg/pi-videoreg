@@ -55,6 +55,11 @@ const TripsComponent = {
                 @click="setPage(idx, p - 1)"
               >{{ p }}</button>
             </div>
+            <ul v-if="block.thermalLog && block.thermalLog.length > 0" class="trips-thermal-log">
+              <li v-for="(entry, eIdx) in block.thermalLog" :key="eIdx">
+                <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span> {{ entry.type }}{{ entry.data ? ' ' + JSON.stringify(entry.data) : '' }}
+              </li>
+            </ul>
           </div>
         </template>
       </div>
@@ -121,7 +126,8 @@ const TripsComponent = {
     },
 
     buildBlocks(events) {
-      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'jpeg', 'h264', 'track_created']);
+      const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
+      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES]);
       const blocks = [];
       let current = null;
 
@@ -134,7 +140,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'trip') {
-            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [] };
+            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], thermalLog: [] };
             blocks.push(current);
           }
 
@@ -144,7 +150,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'parking') {
-            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [] };
+            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], thermalLog: [] };
             blocks.push(current);
           }
 
@@ -177,6 +183,11 @@ const TripsComponent = {
         } else if (event.type === 'track_created') {
           if (current && event.data && event.data.filename) {
             current.tracks.push(event.data.filename);
+          }
+
+        } else if (THERMAL_TYPES.has(event.type)) {
+          if (current) {
+            current.thermalLog.push({ type: event.type, date: event.date, data: event.data });
           }
         }
       }

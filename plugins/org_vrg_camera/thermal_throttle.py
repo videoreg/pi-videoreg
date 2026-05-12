@@ -12,6 +12,12 @@ class ThermalAction(Enum):
     TAKE_PHOTO_AND_WAIT = "take_photo"   # too hot to start — take photo and wait
 
 
+class ThermalStatus(Enum):
+    NORMAL = "normal"
+    DOWNSCALED = "downscaled"
+    OVERHEATED = "overheated"
+
+
 class ThermalThrottle:
     # Three-stage hysteresis (only active when user resolution > 720p):
     #
@@ -26,10 +32,18 @@ class ThermalThrottle:
 
     def __init__(self) -> None:
         self._throttled = False
+        self._status = ThermalStatus.NORMAL
 
     @property
     def throttled(self) -> bool:
         return self._throttled
+
+    @property
+    def status(self) -> ThermalStatus:
+        return self._status
+
+    def reset_status(self) -> None:
+        self._status = ThermalStatus.NORMAL
 
     def update(
         self,
@@ -40,26 +54,35 @@ class ThermalThrottle:
         is_stopped: bool,     # VideoState.STOP
     ) -> ThermalAction:
         capable = user_width > const.DEFAULT_STREAM_VIDEO_WIDTH
+        action = ThermalAction.NONE
 
         if capable:
             if not self._throttled:
                 if const.TEMP_DOWNSCALE_ON < cpu_temp <= const.TEMP_VIDEO_STOP:
                     self._throttled = True
                     if is_recording:
-                        return ThermalAction.DOWNSCALE
+                        action = ThermalAction.DOWNSCALE
                 elif cpu_temp > const.TEMP_VIDEO_STOP:
                     # Set flag silently — STOP returned below; resume will use 720p
                     self._throttled = True
             elif cpu_temp < const.TEMP_DOWNSCALE_OFF:
                 self._throttled = False
                 if is_recording:
-                    return ThermalAction.RESTORE
+                    action = ThermalAction.RESTORE
 
-        if is_active and cpu_temp > const.TEMP_VIDEO_STOP:
-            return ThermalAction.STOP
-        if is_stopped:
-            if cpu_temp < const.TEMP_VIDEO_RESUME:
-                return ThermalAction.START
-            return ThermalAction.TAKE_PHOTO_AND_WAIT
+        if action == ThermalAction.NONE:
+            if is_active and cpu_temp > const.TEMP_VIDEO_STOP:
+                action = ThermalAction.STOP
+            elif is_stopped:
+                action = ThermalAction.START if cpu_temp < const.TEMP_VIDEO_RESUME else ThermalAction.TAKE_PHOTO_AND_WAIT
 
-        return ThermalAction.NONE
+        if cpu_temp > const.TEMP_VIDEO_STOP:
+            self._status = ThermalStatus.OVERHEATED
+        elif is_stopped and cpu_temp >= const.TEMP_VIDEO_RESUME:
+            self._status = ThermalStatus.OVERHEATED
+        elif self._throttled and user_width > const.DEFAULT_STREAM_VIDEO_WIDTH:
+            self._status = ThermalStatus.DOWNSCALED
+        else:
+            self._status = ThermalStatus.NORMAL
+
+        return action

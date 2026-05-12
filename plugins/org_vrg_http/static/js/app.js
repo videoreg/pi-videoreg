@@ -37,15 +37,13 @@ const { createApp } = Vue;
     return {
       isAuthenticated: false,
       user: null,
-      currentPage: 'trips',
+      currentPage: 'home',
       loading: true,
       sidebarOpen: false,
       statusData: null,
-      statusLastMedia: null,
       statusLoaded: false,
       statusOffline: false,
       statusLastUpdated: null,
-      vrgStateCollapsed: localStorage.getItem('vrgStateCollapsed') === '1',
       _statusTimeout: null,
       _statusPolling: false,
       _popstateHandler: null,
@@ -53,11 +51,14 @@ const { createApp } = Vue;
       powerActionLoading: null,
       keepAliveSuccess: false,
       rebootSuccess: false,
-      shutdownSuccess: false,
-      takingPhoto: false,
-      takenPhotos: [],
-      takingShortVideo: false,
-      takenShortVideos: []
+      shutdownSuccess: false
+    };
+  },
+  provide() {
+    return {
+      appStatusData: Vue.computed(() => this.statusData),
+      appStatusOffline: Vue.computed(() => this.statusOffline),
+      appStatusLastUpdated: Vue.computed(() => this.statusLastUpdated),
     };
   },
   computed: {
@@ -113,32 +114,12 @@ const { createApp } = Vue;
         case 'live-broadcast':
           return 'LiveBroadcastComponent';
         default:
-          return 'TripsComponent';
+          return 'HomeComponent';
       }
     },
 
     statusCamera() {
       return this.statusData?.camera?.video_state || 'stopped';
-    },
-
-    statusWifiAp() {
-      return this.statusData?.connections?.ap?.enabled === true;
-    },
-
-    statusWifiConnected() {
-      return this.statusData?.connections?.wifi?.enabled === true;
-    },
-
-    statusModemExists() {
-      return this.statusData?.modem?.connected === true;
-    },
-
-    statusModemConnected() {
-      return this.statusData?.connections?.modem?.enabled === true;
-    },
-
-    statusWireguard() {
-      return this.statusData?.wireguard?.active === true;
     },
 
     statusPowerSource() {
@@ -169,76 +150,17 @@ const { createApp } = Vue;
       return settingsPages.includes(this.currentPage);
     },
 
-    statusLastUpdatedLabel() {
-      if (!this.statusLastUpdated) return null;
-      return this.statusLastUpdated.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    },
-
-    statusLastMediaItem() {
-      const item = (this.statusData?.last_media ?? this.statusLastMedia)?.item;
-      if (!item) return null;
-      const result = {
-        type: item.type,
-        filename: item.type === 'video' ? item.name + '.h264' : item.name + '.jpg',
-        date: item.datetime,
-      };
-      if (item.type === 'video' && item.preview) {
-        result.screenshot = item.preview + '.jpg';
-      }
-      return result;
-    },
-
-    statusLastMediaReady() {
-      return (this.statusData?.last_media ?? this.statusLastMedia)?.item?.ready === true;
-    },
-
     statusBgImageUrl() {
-      const item = this.statusLastMediaItem;
+      const item = this.statusData?.last_media?.item;
       if (!item) return null;
-      if (item.type === 'photo') return '/photo/' + item.filename.replace(/\.[^.]+$/, '');
-      if (item.screenshot) return '/photo/' + item.screenshot.replace(/\.[^.]+$/, '');
+      const filename = item.type === 'video' ? item.name + '.h264' : item.name + '.jpg';
+      const screenshot = item.type === 'video' && item.preview ? item.preview + '.jpg' : null;
+      if (item.type === 'photo') return '/photo/' + filename.replace(/\.[^.]+$/, '');
+      if (screenshot) return '/photo/' + screenshot.replace(/\.[^.]+$/, '');
       return null;
-    },
-
-    gpsLocation() {
-      const gps = this.statusData?.location?.gps;
-      const lat = parseFloat(gps?.latitude);
-      const lng = parseFloat(gps?.longitude);
-      if (!isFinite(lat) || !isFinite(lng)) return null;
-      return {
-        url: `https://yandex.ru/maps/?mode=search&text=${lat}%2C${lng}`,
-        label: `GPS: ${lat.toFixed(2)}, ${lng.toFixed(2)}`,
-        coords: `${lat}, ${lng}`,
-      };
-    },
-
-    lbsLocation() {
-      const lbs = this.statusData?.location?.lbs;
-      const lat = parseFloat(lbs?.latitude);
-      const lng = parseFloat(lbs?.longitude);
-      if (!isFinite(lat) || !isFinite(lng)) return null;
-      return {
-        url: `https://yandex.ru/maps/?mode=search&text=${lat}%2C${lng}`,
-        label: `LBS: ${lat.toFixed(2)}, ${lng.toFixed(2)}`,
-        coords: `${lat}, ${lng}`,
-      };
     },
   },
   methods: {
-    async copyToClipboard(text) {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (e) {
-        // fallback for non-secure context
-        const el = document.createElement('textarea');
-        el.value = text;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-      }
-    },
-
     async checkAuth() {
       try {
         // Куки автоматически отправляются браузером
@@ -364,7 +286,7 @@ const { createApp } = Vue;
     },
     
     pageToPath(page) {
-      if (page === 'trips') return '/';
+      if (page === 'home') return '/';
       const settingsPages = ['camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
       if (settingsPages.includes(page)) return '/settings/' + page;
       return '/' + page;
@@ -373,7 +295,7 @@ const { createApp } = Vue;
     pathToPage(path) {
       const topPages = ['home', 'change-password', 'settings', 'stat', 'sms-inbox', 'gps-tracks', 'trips', 'media-feed', 'media-fave', 'live-broadcast'];
       const settingsPages = ['camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
-      if (path === '/') return 'trips';
+      if (path === '/') return 'home';
       if (path === '/settings') return 'settings';
       // /settings/<name>
       const settingsMatch = path.match(/^\/settings\/([^/]+)$/);
@@ -496,62 +418,11 @@ const { createApp } = Vue;
       }
     },
 
-    _nameToDatetime(name) {
-      const [date, time] = name.split('_');
-      return date + 'T' + time.replace(/-/g, ':');
-    },
-
-    async takePhoto(mode) {
-      if (this.takingPhoto) return;
-      this.takingPhoto = true;
-      try {
-        const body = mode ? { mode } : {};
-        const response = await fetch('/api/camera/photo', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        const data = await response.json();
-        if (!response.ok) return;
-        const datetime = this._nameToDatetime(data.name);
-        this.takenPhotos = [{ type: 'photo', filename: data.name + '.jpg', date: datetime }, ...this.takenPhotos];
-      } catch (err) {
-        console.warn('Ошибка съёмки', err);
-      } finally {
-        this.takingPhoto = false;
-      }
-    },
-
-    async takeShortVideo() {
-      if (this.takingShortVideo) return;
-      this.takingShortVideo = true;
-      try {
-        const response = await fetch('/api/camera/short_video', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const data = await response.json();
-        if (!response.ok) return;
-        const datetime = this._nameToDatetime(data.name);
-        this.takenShortVideos = [{ type: 'video', filename: data.name + '.mp4', date: datetime }, ...this.takenShortVideos];
-      } catch (err) {
-        console.warn('Ошибка съёмки видео', err);
-      } finally {
-        this.takingShortVideo = false;
-      }
-    },
-
     async fetchStatusData() {
       try {
-        const response = await fetch('/api/dashboard/status', { credentials: 'same-origin' });
+        const response = await fetch('/api/statusbar/status', { credentials: 'same-origin' });
         if (response.ok) {
           this.statusData = await response.json();
-          if (this.statusData?.last_media) {
-            this.statusLastMedia = this.statusData.last_media;
-          }
           this.statusLoaded = true;
           this.statusOffline = false;
           this.statusLastUpdated = new Date();
@@ -580,11 +451,6 @@ const { createApp } = Vue;
       }
     }
   },
-  watch: {
-    vrgStateCollapsed(val) {
-      localStorage.setItem('vrgStateCollapsed', val ? '1' : '0');
-    }
-  },
   async mounted() {
     console.log('VideoReg Pi запущен');
     await this.checkAuth();
@@ -602,6 +468,8 @@ const { createApp } = Vue;
     }
   }
   });
+
+  app.component('Shimmer', Shimmer);
 
   app.config.globalProperties.$t = (key, vars) => VrgI18n.t(key, vars);
   app.config.globalProperties.$p = (key, n, vars) => VrgI18n.p(key, n, vars);

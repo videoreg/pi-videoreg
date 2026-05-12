@@ -62,6 +62,10 @@ class CameraPlugin(Plugin):
   def video_state(self) -> VideoState:
     return self._video_state
 
+  @property
+  def thermal_status(self) -> str:
+    return self._thermal_throttle.status.value
+
   @video_state.setter
   def video_state(self, value: VideoState):
     if self._video_state == value:
@@ -120,6 +124,7 @@ class CameraPlugin(Plugin):
         )
 
         if charging_status == ChargingStatus.NOT_CHARGING:
+          self._thermal_throttle.reset_status()
           if self.video_state in (VideoState.START, VideoState.STREAM):
             self.logger.info("Detect charging is off: will stop video")
             await self.stop_video()

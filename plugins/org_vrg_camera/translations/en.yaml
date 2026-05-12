@@ -14,3 +14,6 @@ camera.photo_count:
 camera.video_count:
   one: "{{n}} video"
   other: "{{n}} videos"
+camera.thermal_status_normal: "Normal"
+camera.thermal_status_downscaled: "Throttled to 720p (high CPU temp)"
+camera.thermal_status_overheated: "Recording paused — overheated"

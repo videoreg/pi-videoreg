@@ -18,6 +18,8 @@ async def handle_get_dashboard_status(request: web.Request):
     power_response,
     last_media_response,
     location_response,
+    trip_response,
+    current_temp_response,
   ) = await asyncio.gather(
     api_client.exec("net.connections", None),
     api_client.exec("net.modem_info", {}),
@@ -26,7 +28,8 @@ async def handle_get_dashboard_status(request: web.Request):
     api_client.exec("power.get_status", {}),
     api_client.exec("camera.get_last_media", {}),
     api_client.exec("gps.get_location", {}),
-    # api_client.exec("stat.storage_info", {}),
+    api_client.exec("core.get_trip_state", {}),
+    api_client.exec("stat.get_current_temp", {}, timeout=2.0),
     return_exceptions=True,
   )
 
@@ -39,6 +42,8 @@ async def handle_get_dashboard_status(request: web.Request):
     "storage": None,
     "last_media": None,
     "location": None,
+    "trip": None,
+    "system": None,
   }
 
   if isinstance(connections_response, Exception):
@@ -76,6 +81,16 @@ async def handle_get_dashboard_status(request: web.Request):
   elif location_response.is_ok():
     result["location"] = location_response.get_data()
 
+  if isinstance(trip_response, Exception):
+    logger.warning(f"Dashboard: trip state error: {trip_response}")
+  elif trip_response.is_ok():
+    result["trip"] = trip_response.get_data()
+
+  if isinstance(current_temp_response, Exception):
+    logger.warning(f"Dashboard: current temp error: {current_temp_response}")
+  elif current_temp_response.is_ok():
+    result["system"] = current_temp_response.get_data()
+
   # if isinstance(storage_response, Exception):
   #   logger.warning(f"Dashboard: storage info error: {storage_response}")
   # elif storage_response.is_ok():
@@ -87,5 +102,45 @@ async def handle_get_dashboard_status(request: web.Request):
   #   )
   #   if data_partition:
   #     result["storage"] = {"data_use_percent": data_partition["use_percent"]}
+
+  return web.json_response(result)
+
+
+async def handle_get_statusbar_status(request: web.Request):
+  """Minimal status for the global status bar (camera + power only)"""
+  logger = request.app["logger"]
+  api_client = request.app["api_client"]
+
+  (
+    camera_response,
+    power_response,
+    last_media_response,
+  ) = await asyncio.gather(
+    api_client.exec("camera.get_info", {}),
+    api_client.exec("power.get_status", {}),
+    api_client.exec("camera.get_last_media", {}),
+    return_exceptions=True,
+  )
+
+  result = {
+    "camera": None,
+    "power": None,
+    "last_media": None,
+  }
+
+  if isinstance(camera_response, Exception):
+    logger.warning(f"Statusbar: camera info error: {camera_response}")
+  elif camera_response.is_ok():
+    result["camera"] = camera_response.get_data()
+
+  if isinstance(power_response, Exception):
+    logger.warning(f"Statusbar: power status error: {power_response}")
+  elif power_response.is_ok():
+    result["power"] = power_response.get_data()
+
+  if isinstance(last_media_response, Exception):
+    logger.warning(f"Statusbar: last media error: {last_media_response}")
+  elif last_media_response.is_ok():
+    result["last_media"] = last_media_response.get_data()
 
   return web.json_response(result)

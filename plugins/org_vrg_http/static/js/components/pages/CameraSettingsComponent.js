@@ -48,6 +48,11 @@ const CameraSettingsComponent = {
             </div>
 
             <div class="info-row">
+              <span class="info-label">{{ $t('http.camera.thermal_label') }}</span>
+              <strong>{{ thermalStatusLabel }}</strong>
+            </div>
+
+            <div class="info-row">
               <span class="info-label">{{ $t('http.camera.mode_label') }}</span>
               <strong>{{ info?.camera_mode_str || '—' }}</strong>
             </div>
@@ -313,6 +318,15 @@ const CameraSettingsComponent = {
         stop: this.$t('http.camera.state_stop')
       };
       return labels[this.videoState] || '—';
+    },
+
+    thermalStatusLabel() {
+      const labels = {
+        normal: this.$t('http.camera.thermal_normal'),
+        downscaled: this.$t('http.camera.thermal_downscaled'),
+        overheated: this.$t('http.camera.thermal_overheated'),
+      };
+      return labels[this.info?.thermal_status] || '—';
     }
   },
 

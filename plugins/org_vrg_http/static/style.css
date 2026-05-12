@@ -534,6 +534,22 @@ select.form-input:disabled {
 }
 
 /* === Dashboard Tiles === */
+
+/* Now + Trip top row */
+.dashboard-grid-now {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+@media (min-width: 1024px) {
+    .dashboard-grid-now {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
 .dashboard-tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -558,6 +574,57 @@ select.form-input:disabled {
     background: var(--color-bg-tertiary);
 }
 
+.dashboard-tile--in_trip {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.5);
+}
+
+.dashboard-tile--in_trip:hover {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.85);
+}
+
+.dashboard-tile--parked {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.5);
+}
+
+.dashboard-tile--parked:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.85);
+}
+
+/* Shimmer skeleton */
+.shimmer {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        90deg,
+        var(--color-bg-tertiary) 25%,
+        var(--color-border-light) 50%,
+        var(--color-bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-sweep 1.4s infinite linear;
+}
+
+@keyframes shimmer-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.shimmer-media {
+    border-radius: var(--radius-md);
+    height: 100%;
+}
+
+@media (max-width: 480px) {
+    .shimmer-media {
+        height: auto;
+        aspect-ratio: 16 / 9;
+    }
+}
+
 .dashboard-tile-header {
     display: flex;
     align-items: center;
@@ -566,7 +633,9 @@ select.form-input:disabled {
 }
 
 .dashboard-tile-icon {
-    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .dashboard-tile-title {
@@ -1509,11 +1578,10 @@ select.form-input:disabled {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
-    background: rgba(91, 127, 196, 0.15);
-    border: 1px solid rgba(91, 127, 196, 0.5);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
     overflow: hidden;
 }
 
@@ -1527,7 +1595,8 @@ select.form-input:disabled {
 }
 
 .vrg-state-block--collapsed:hover {
-    opacity: 0.65;
+    border-color: var(--color-primary);
+    opacity: 1;
 }
 
 .vrg-state-header {

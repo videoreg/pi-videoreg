@@ -108,6 +108,7 @@ class HttpPlugin(Plugin):
 
     app.router.add_get("/api/i18n", i18n_handlers.handle_get_i18n)
     app.router.add_get("/api/dashboard/status", dashboard_handlers.handle_get_dashboard_status)
+    app.router.add_get("/api/statusbar/status", dashboard_handlers.handle_get_statusbar_status)
 
     # Users API endpoints
     app.router.add_get("/api/users", user_handlers.handle_get_users)

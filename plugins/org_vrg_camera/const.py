@@ -37,3 +37,5 @@ TEMP_VIDEO_STOP = 65
 TEMP_VIDEO_RESUME = 60
 TEMP_DOWNSCALE_ON = 60
 TEMP_DOWNSCALE_OFF = 57
+
+THROTTLE_VIDEO_FPS = 15  # max fps when thermal throttle is active

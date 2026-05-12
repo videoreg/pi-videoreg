@@ -151,16 +151,25 @@ class CameraPlugin(Plugin):
           )
           if action == ThermalAction.DOWNSCALE:
             self.logger.warning(
-              f"CPU temp {cpu_temp}C > {const.TEMP_DOWNSCALE_ON}C: downscaling video to 720p"
+              f"CPU temp {cpu_temp}C > {const.TEMP_DOWNSCALE_ON}C: downscaling video to 720p/{const.THROTTLE_VIDEO_FPS}fps"
             )
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_throttle_on", data={"temp": cpu_temp})
+            ))
             await self.restart_video()
           elif action == ThermalAction.RESTORE:
             self.logger.info(
               f"CPU temp {cpu_temp}C < {const.TEMP_DOWNSCALE_OFF}C: restoring full video resolution"
             )
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_throttle_off", data={"temp": cpu_temp})
+            ))
             await self.restart_video()
           elif action == ThermalAction.STOP:
             self.logger.warning("CPU temp is too high: will stop video")
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_overheated", data={"temp": cpu_temp})
+            ))
             await self.stop_video()
           elif action == ThermalAction.START:
             self.logger.info("Detect charging is ON and CPU temp is OK: will start video")
@@ -191,18 +200,21 @@ class CameraPlugin(Plugin):
     user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)
     user_height = self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT)
     user_mode = self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR)
+    user_fps = self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS)
 
     if self._thermal_throttle.throttled and user_width > const.DEFAULT_STREAM_VIDEO_WIDTH:
       camera_mode_str = const.DEFAULT_STREAM_CAMERA_MODE_STR
       width = const.DEFAULT_STREAM_VIDEO_WIDTH
       height = const.DEFAULT_STREAM_VIDEO_HEIGHT
+      fps = min(user_fps, const.THROTTLE_VIDEO_FPS)
     else:
       camera_mode_str = user_mode
       width = user_width
       height = user_height
+      fps = user_fps
 
     return VideoParams(
-      fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+      fps=fps,
       bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
       camera_mode_str=camera_mode_str,
       width=width,

@@ -365,14 +365,10 @@ class WireguardMonitorImpl(WireguardMonitor):
       # At home — stop WireGuard
       if wg_active:
         await self.stop_wireguard()
-    elif modem:
-      # Away from home with modem — start WireGuard
+    else:
+      # Away from home — start WireGuard
       if not wg_active:
         await self.start_wireguard()
-    else:
-      # No active connections — stop WireGuard
-      if wg_active:
-        await self.stop_wireguard()
 
     return True
 

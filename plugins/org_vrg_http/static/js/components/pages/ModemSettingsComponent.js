@@ -45,6 +45,7 @@ const ModemSettingsComponent = {
                   @update:modelValue="onModemToggle"
                 ></toggle-switch>
               </div>
+              <div style="margin-top: var(--spacing-sm); color: var(--color-text-secondary); font-size: 13px;">{{ $t('http.modem.enable_hint') }}</div>
             </div>
 
             <div class="info-block">

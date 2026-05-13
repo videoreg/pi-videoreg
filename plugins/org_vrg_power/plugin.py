@@ -66,7 +66,7 @@ class PowerPlugin(Plugin):
 
   async def delayed_reboot(self):
     self.logger.info("reboot")
-    subprocess.run(["sudo", "reboot"])
+    subprocess.run(["sudo", "shutdown", "-r", "now"])
 
   def init_shutdown(
     self, shutdown_logic: ShutdownLogic, shutdown_controller: ShutdownController

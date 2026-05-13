@@ -16,84 +16,43 @@ const HomeComponent = {
 
       <div v-if="error" class="alert alert-error">{{ error }}</div>
 
-      <!-- Row 1: Now + Trip -->
-      <div class="dashboard-grid-now">
+      <!-- Dashboard tiles: all blocks in one unified grid -->
+      <div class="dashboard-tiles">
 
-        <!-- Now block -->
-        <div v-if="loading" class="vrg-state-block">
-          <div class="vrg-state-header">
-            <shimmer height="14px" width="80px"></shimmer>
-          </div>
-          <div class="vrg-state-content">
-            <div class="vrg-state-media">
-              <shimmer class="shimmer-media"></shimmer>
-            </div>
-            <div class="vrg-state-info">
-              <shimmer height="32px" width="75%"></shimmer>
-              <shimmer height="32px" width="60%"></shimmer>
-              <shimmer height="32px" width="80%"></shimmer>
-            </div>
-          </div>
+        <!-- 1. Last media preview -->
+        <div v-if="loading" class="dashboard-tile dashboard-tile--media">
+          <shimmer class="shimmer-media"></shimmer>
         </div>
-        <div v-else class="vrg-state-block">
-          <div class="vrg-state-header">
-            <span class="vrg-state-section-title">{{ $t('http.now') }}</span>
-            <span v-if="appStatusOffline && statusLastUpdatedLabel" class="vrg-state-last-updated">{{ $t('http.app.last_updated', {time: statusLastUpdatedLabel}) }}</span>
-          </div>
-          <div class="vrg-state-content">
-            <div v-if="statusLastMediaItem" class="vrg-state-media">
-              <trips-media-item
-                :item="statusLastMediaItem"
-                :initial-video-ready="statusLastMediaReady"
-              ></trips-media-item>
-            </div>
-            <div class="vrg-state-info">
-              <div class="vrg-state-links">
-                <div v-if="gpsLocation" class="vrg-state-location-row">
-                  <a :href="gpsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ gpsLocation.label }}</a>
-                  <button @click="copyToClipboard(gpsLocation.coords)" class="btn btn-ghost btn-sm vrg-state-copy-btn" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
-                </div>
-                <div v-if="lbsLocation" class="vrg-state-location-row">
-                  <a :href="lbsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ lbsLocation.label }}</a>
-                  <button @click="copyToClipboard(lbsLocation.coords)" class="btn btn-ghost btn-sm vrg-state-copy-btn" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
-                </div>
-              </div>
-              <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; margin-top: var(--spacing-xs);">
-                <button class="btn btn-outline btn-sm" @click="takePhoto(null)" :disabled="takingPhoto">
-                  {{ takingPhoto ? $t('http.app.taking_photo') : $t('http.app.take_photo') }}
-                </button>
-                <button class="btn btn-outline btn-sm" @click="takePhoto('night')" :disabled="takingPhoto">
-                  {{ takingPhoto ? $t('http.app.taking_photo') : $t('http.app.take_photo_night') }}
-                </button>
-                <button class="btn btn-outline btn-sm" @click="takeShortVideo()" :disabled="takingShortVideo">
-                  {{ takingShortVideo ? $t('http.app.taking_photo') : $t('http.app.take_short_video') }}
-                </button>
-              </div>
-            </div>
-          </div>
-          <template v-if="takenPhotos.length > 0">
-            <div>
-              <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--spacing-xs);">{{ $t('http.app.taken_photos') }}</div>
-              <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
-                <div v-for="item in takenPhotos" :key="item.filename" style="width: 100px; height: 75px; flex-shrink: 0;">
-                  <trips-media-item :item="item" :initial-video-ready="true"></trips-media-item>
-                </div>
-              </div>
-            </div>
-          </template>
-          <template v-if="takenShortVideos.length > 0">
-            <div>
-              <div style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); margin-bottom: var(--spacing-xs);">{{ $t('http.app.taken_videos') }}</div>
-              <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
-                <div v-for="item in takenShortVideos" :key="item.filename" style="width: 100px; height: 75px; flex-shrink: 0;">
-                  <trips-media-item :item="item" :initial-video-ready="true"></trips-media-item>
-                </div>
-              </div>
-            </div>
-          </template>
+        <div v-else-if="statusLastMediaItem" class="dashboard-tile dashboard-tile--media">
+          <trips-media-item :item="statusLastMediaItem" :initial-video-ready="statusLastMediaReady"></trips-media-item>
+          <div class="dashboard-media-badge">{{ mediaBadgeLabel }}</div>
         </div>
 
-        <!-- Trip block -->
+        <!-- 2. Actions -->
+        <div class="dashboard-tile" style="cursor: default;">
+          <div class="dashboard-tile-header">
+            <span class="dashboard-tile-icon"><icon name="camera" :size="20"></icon></span>
+            <span class="dashboard-tile-title">{{ $t('http.home.actions_title') }}</span>
+          </div>
+          <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+            <button class="btn btn-outline btn-sm" @click="takePhoto(null)" :disabled="takingPhoto">
+              {{ takingPhoto ? $t('http.app.taking_photo') : $t('http.app.take_photo') }}
+            </button>
+            <button class="btn btn-outline btn-sm" @click="takePhoto('night')" :disabled="takingPhoto">
+              {{ $t('http.app.take_photo_night') }}
+            </button>
+            <button class="btn btn-outline btn-sm" @click="takeShortVideo()" :disabled="takingShortVideo">
+              {{ takingShortVideo ? $t('http.app.taking_photo') : $t('http.app.take_short_video') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Newly taken media — same card style as last-media preview -->
+        <div v-for="item in takenMedia" :key="item.filename" class="dashboard-tile dashboard-tile--media">
+          <trips-media-item :item="item" :initial-video-ready="true"></trips-media-item>
+        </div>
+
+        <!-- 4. Trip -->
         <div v-if="loading" class="dashboard-tile">
           <div class="dashboard-tile-header">
             <shimmer height="20px" width="20px" style="border-radius: 4px; flex-shrink: 0;"></shimmer>
@@ -114,10 +73,43 @@ const HomeComponent = {
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
         </div>
 
-      </div>
+        <!-- 5. Location -->
+        <div v-if="loading" class="dashboard-tile">
+          <div class="dashboard-tile-header">
+            <shimmer height="20px" width="20px" style="border-radius: 4px; flex-shrink: 0;"></shimmer>
+            <shimmer height="15px" width="55%"></shimmer>
+          </div>
+          <shimmer height="14px" width="80%"></shimmer>
+          <shimmer height="12px" width="55%"></shimmer>
+        </div>
+        <div v-else class="dashboard-tile" style="cursor: default;">
+          <div class="dashboard-tile-header">
+            <span class="dashboard-tile-icon"><icon name="map" :size="20"></icon></span>
+            <span class="dashboard-tile-title">{{ $t('http.home.location_title') }}</span>
+            <span class="status-indicator" style="margin-left: auto;">
+              <span class="status-dot" :class="{ active: locationOn }"></span>
+              <span>{{ locationOn ? $t('http.home.location_on') : $t('http.home.location_unknown') }}</span>
+            </span>
+          </div>
+          <div v-if="gpsLocation" class="dashboard-tile-row">
+            <span class="dashboard-tile-label">GPS</span>
+            <span style="display:flex; align-items:center; gap:4px;">
+              <a :href="gpsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ gpsLocation.label }}</a>
+              <button @click="copyToClipboard(gpsLocation.coords)" class="btn btn-ghost btn-sm" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
+            </span>
+          </div>
+          <div v-if="lbsLocation" class="dashboard-tile-row">
+            <span class="dashboard-tile-label">LBS</span>
+            <span style="display:flex; align-items:center; gap:4px;">
+              <a :href="lbsLocation.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{{ lbsLocation.label }}</a>
+              <button @click="copyToClipboard(lbsLocation.coords)" class="btn btn-ghost btn-sm" :title="$t('http.app.copy_coords')"><icon name="copy" :size="16"></icon></button>
+            </span>
+          </div>
+          <div v-if="!gpsLocation && !lbsLocation" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
+        </div>
 
-      <!-- Row 2: status tiles -->
-      <div class="dashboard-tiles">
+
+        <!-- Status tiles (continue in same grid) -->
 
         <!-- System -->
         <div v-if="loading" class="dashboard-tile">
@@ -312,9 +304,8 @@ const HomeComponent = {
       error: '',
       loading: true,
       takingPhoto: false,
-      takenPhotos: [],
+      takenMedia: [],
       takingShortVideo: false,
-      takenShortVideos: [],
     };
   },
 
@@ -420,6 +411,17 @@ const HomeComponent = {
       return this.appStatusLastUpdated.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     },
 
+    mediaBadgeLabel() {
+      if (this.appStatusOffline && this.statusLastUpdatedLabel) {
+        return this.$t('http.home.badge_last_updated', { time: this.statusLastUpdatedLabel });
+      }
+      return this.$t('http.home.badge_now');
+    },
+
+    locationOn() {
+      return !!(this.gpsLocation || this.lbsLocation);
+    },
+
     tripDurationLabel() {
       if (!this.trip?.state || !this.trip?.start) return '';
       const prefix = this.trip.state === 'in_trip' ? this.$t('http.home.trip_in_progress') : this.$t('http.home.trip_parked');
@@ -494,7 +496,7 @@ const HomeComponent = {
         const data = await response.json();
         if (!response.ok) return;
         const datetime = this._nameToDatetime(data.name);
-        this.takenPhotos = [{ type: 'photo', filename: data.name + '.jpg', date: datetime }, ...this.takenPhotos];
+        this.takenMedia = [{ type: 'photo', filename: data.name + '.jpg', date: datetime }, ...this.takenMedia];
       } catch (err) {
         console.warn('Photo capture error', err);
       } finally {
@@ -515,7 +517,7 @@ const HomeComponent = {
         const data = await response.json();
         if (!response.ok) return;
         const datetime = this._nameToDatetime(data.name);
-        this.takenShortVideos = [{ type: 'video', filename: data.name + '.mp4', date: datetime }, ...this.takenShortVideos];
+        this.takenMedia = [{ type: 'video', filename: data.name + '.mp4', date: datetime }, ...this.takenMedia];
       } catch (err) {
         console.warn('Short video capture error', err);
       } finally {

@@ -1,7 +1,7 @@
 import asyncio
 import subprocess
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.power_controls import PowerControls
@@ -89,7 +89,8 @@ class PowerPlugin(Plugin):
         return None
       alarm_time = datetime.fromisoformat(alarm_time_str)
       now = datetime.now(alarm_time.tzinfo or UTC)
-      return alarm_time if alarm_time > now else None
+      woke_up_by_alarm = alarm_time <= now or (alarm_time - now) <= timedelta(minutes=5)
+      return alarm_time if woke_up_by_alarm else None
     except Exception:
       return None
 

@@ -177,7 +177,7 @@ const HomeComponent = {
         <div v-else class="dashboard-tile" @click="$emit('navigate', 'modem')">
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon :name="modem && modem.connected ? 'modem' : 'modem_off'" :size="20"></icon></span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.modem') }}</span>
+            <span class="dashboard-tile-title">{{ $t('net.settings.modem') }}</span>
             <span class="status-indicator" style="margin-left: auto;">
               <span class="status-dot" :class="{ active: !!(modem && modem.connected) }"></span>
               <span>{{ modem && modem.connected ? $t('http.home.enabled') : $t('http.home.disabled') }}</span>
@@ -236,7 +236,7 @@ const HomeComponent = {
         <div v-else class="dashboard-tile" @click="$emit('navigate', 'power')">
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon :name="powerIcon" :size="20"></icon></span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.power') }}</span>
+            <span class="dashboard-tile-title">{{ $t('power.settings.power') }}</span>
             <span v-if="power !== null" class="status-indicator" style="margin-left: auto;">
               <span class="status-dot" :class="{ active: power.charging }"></span>
               <span>{{ power.charging ? $t('http.home.charging') : $t('http.home.on_battery') }}</span>
@@ -252,7 +252,7 @@ const HomeComponent = {
               <strong>{{ power.battery_percent }}%</strong>
             </div>
             <div v-if="power.uptime != null" class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.power.uptime_label') }}</span>
+              <span class="dashboard-tile-label">{{ $t('power.power.uptime_label') }}</span>
               <span>{{ uptimeLabel }}</span>
             </div>
           </template>
@@ -270,7 +270,7 @@ const HomeComponent = {
         <div v-else class="dashboard-tile" @click="$emit('navigate', 'camera')">
           <div class="dashboard-tile-header">
             <span class="dashboard-tile-icon"><icon name="camera" :size="20"></icon></span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.camera') }}</span>
+            <span class="dashboard-tile-title">{{ $t('camera.settings.camera') }}</span>
             <span v-if="camera !== null" class="status-indicator" style="margin-left: auto;">
               <span class="status-dot" :class="{ active: camera.video_state === 'record' }"></span>
               <span>{{ cameraStateLabel }}</span>
@@ -322,9 +322,9 @@ const HomeComponent = {
       const camera = this.appStatusData?.camera;
       if (!camera) return '—';
       const labels = {
-        record: this.$t('http.camera.state_record'),
-        pause: this.$t('http.camera.state_pause'),
-        stop: this.$t('http.camera.state_stop'),
+        record: this.$t('camera.camera.state_record'),
+        pause: this.$t('camera.camera.state_pause'),
+        stop: this.$t('camera.camera.state_stop'),
       };
       return labels[camera.video_state] || '—';
     },
@@ -332,9 +332,9 @@ const HomeComponent = {
     thermalStatusLabel() {
       const status = this.appStatusData?.camera?.thermal_status;
       const labels = {
-        normal: this.$t('http.camera.thermal_normal'),
-        downscaled: this.$t('http.camera.thermal_downscaled'),
-        overheated: this.$t('http.camera.thermal_overheated'),
+        normal: this.$t('camera.camera.thermal_normal'),
+        downscaled: this.$t('camera.camera.thermal_downscaled'),
+        overheated: this.$t('camera.camera.thermal_overheated'),
       };
       return labels[status] || '—';
     },
@@ -486,7 +486,7 @@ const HomeComponent = {
       if (this.takingPhoto) return;
       this.takingPhoto = true;
       try {
-        const body = mode ? { mode } : {};
+        const body = mode ? { mode, is_sync: true } : { is_sync: true };
         const response = await fetch('/api/camera/photo', {
           method: 'POST',
           credentials: 'same-origin',
@@ -512,7 +512,7 @@ const HomeComponent = {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ is_sync: true }),
         });
         const data = await response.json();
         if (!response.ok) return;

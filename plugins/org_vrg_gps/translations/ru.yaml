@@ -6,3 +6,10 @@ gps.track_count:
   other: "{{n}} трека"
 gps.delete_track: "Удалить трек"
 gps.no_tracks: "Нет треков"
+
+gps.gps_tracks.title: "GPS Треки"
+gps.gps_tracks.no_tracks: "Треков нет"
+gps.gps_tracks.download: "Скачать"
+gps.gps_tracks.confirm_delete: "Удалить трек {{time}}?"
+gps.gps_tracks.error_load: "Ошибка загрузки"
+gps.gps_tracks.error_delete: "Ошибка удаления"

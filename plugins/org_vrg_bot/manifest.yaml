@@ -1,0 +1,19 @@
+http:
+  menu_settings:
+    - url: telegram
+      title: $bot.telegram.menu
+      icon: tg
+      component: TelegramBotSettingsComponent
+
+  components:
+    - BotIcons.js
+    - TelegramBotSettingsComponent.js
+
+  api:
+    - url: bot/config
+      method: get
+      plugin: bot.get_settings
+
+    - url: bot/config
+      method: post
+      plugin: bot.set_settings

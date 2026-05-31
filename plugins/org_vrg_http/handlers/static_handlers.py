@@ -1,10 +1,56 @@
 """Static file handlers"""
 
+import json
 import os
 import re
 
 import aiofiles
 from aiohttp import web
+
+from plugins.org_vrg_http.bundle import build_bundle
+
+
+def _build_bootstrap_script(http_manifests: list) -> str:
+  """Build the inline bootstrap `<script>` injected into index.html.
+
+  Emits `window.__vrgMenu` (menu data from the manifests) and
+  `window.__vrgComponents` — a string→object bridge written with literal Vue
+  component identifiers, resolved lexically from bundle.js.
+  """
+  menu: list = []
+  menu_settings: list = []
+  component_names: list[str] = []
+
+  def _collect(items, dst):
+    for item in items or []:
+      dst.append(item)
+      name = item.get("component")
+      if name and name not in component_names:
+        component_names.append(name)
+
+  for config in http_manifests or []:
+    http = config["http"]
+    _collect(http.get("menu"), menu)
+    _collect(http.get("menu_settings"), menu_settings)
+
+  menu_json = json.dumps({"menu": menu, "menu_settings": menu_settings}, ensure_ascii=False)
+
+  # Bridge string component name → object using the identifiers defined in
+  # bundle.js (or still-present static scripts). Each assignment is guarded so a
+  # not-yet-loaded component cannot break the rest of the bootstrap.
+  bridge_lines = ["  window.__vrgComponents = {};"]
+  for name in component_names:
+    bridge_lines.append(
+      f"  try {{ window.__vrgComponents.{name} = {name}; }} catch (e) {{}}"
+    )
+  bridge = "\n".join(bridge_lines)
+
+  return (
+    "<script>\n"
+    f"  window.__vrgMenu = {menu_json};\n"
+    f"{bridge}\n"
+    "</script>"
+  )
 
 
 async def handle_index(request: web.Request):
@@ -20,6 +66,10 @@ async def handle_index(request: web.Request):
 
   version = request.app["static_version"]
   content = re.sub(r'(/static/[^"]+)"', rf'\1?v={version}"', content)
+
+  # Inject the manifest-driven bootstrap (menu + component bridge)
+  bootstrap = _build_bootstrap_script(request.app.get("http_manifests"))
+  content = content.replace("<!-- VRG_BOOTSTRAP -->", bootstrap)
 
   return web.Response(text=content, content_type="text/html", charset="utf-8")
 
@@ -38,6 +88,13 @@ async def handle_static(request: web.Request):
   # Ensure the file is inside the static directory
   if not os.path.abspath(file_path).startswith(os.path.abspath(static_dir)):
     raise web.HTTPForbidden()
+
+  # bundle.js is generated on demand (cold start) from plugin components
+  if filename == "js/bundle.js" and not os.path.isfile(file_path):
+    plugins_dir = request.app["videoreg"].app_path("plugins")
+    build_bundle(plugins_dir, request.app["videoreg"].app_path(
+      "plugins/org_vrg_http/static/js/bundle.js"
+    ))
 
   if not os.path.isfile(file_path):
     raise web.HTTPNotFound(text="File not found")
@@ -65,10 +122,20 @@ async def handle_static(request: web.Request):
   if content_type.startswith("text/") or content_type == "application/javascript":
     async with aiofiles.open(file_path, encoding="utf-8") as f:
       content = await f.read()
-    return web.Response(
+    response = web.Response(
       text=content, content_type=content_type, charset="utf-8", headers=cache_headers
     )
   else:
     async with aiofiles.open(file_path, "rb") as f:
       content = await f.read()
-    return web.Response(body=content, content_type=content_type, headers=cache_headers)
+    response = web.Response(
+      body=content, content_type=content_type, headers=cache_headers
+    )
+
+  # The largest assets (~220 KB bundle.js, ~hundreds-of-KB vue.global.js) are
+  # highly compressible text; compress them on the fly (rarely requested thanks
+  # to immutable caching).
+  if filename in ("js/bundle.js", "vue.global.js"):
+    response.enable_compression()
+
+  return response

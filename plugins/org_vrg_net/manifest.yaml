@@ -1,0 +1,68 @@
+http:
+  menu_settings:
+    - url: wifi
+      title: WiFi
+      icon: wifi
+      component: WiFiSettingsComponent
+
+    - url: modem
+      title: $net.settings.modem
+      icon: modem
+      component: ModemSettingsComponent
+
+    - url: wireguard
+      title: WireGuard
+      icon: vpn
+      component: WireguardSettingsComponent
+
+  components:
+    - WiFiSettingsComponent.js
+    - ModemSettingsComponent.js
+    - WireguardSettingsComponent.js
+
+  api:
+    - url: net/wireguard_status
+      method: get
+      plugin: net.wg_show
+
+    - url: net/wireguard_config
+      method: get
+      plugin: net.get_wireguard_config
+
+    - url: net/wireguard_config
+      method: post
+      plugin: net.save_wireguard_config
+
+    - url: net/generate_wireguard_key
+      method: post
+      plugin: net.generate_wireguard_key
+
+    - url: net/modem_info
+      method: get
+      plugin: net.modem_info
+
+    - url: net/connection_config
+      method: get
+      plugin: net.connections
+
+    - url: net/connection_config
+      method: post
+      plugin: net.connection_update
+
+    # Component sends {"type": <name>}; enable/disable are separate endpoints
+    - url: net/connection_enable
+      method: post
+      plugin: net.connection_up
+
+    - url: net/connection_disanable
+      method: post
+      plugin: net.connection_down
+
+    # Block/unblock are separate endpoints (no parameter)
+    - url: net/wifi_block
+      method: post
+      plugin: net.wifi_block
+
+    - url: net/wifi_unblock
+      method: post
+      plugin: net.wifi_unblock

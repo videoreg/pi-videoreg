@@ -715,6 +715,19 @@ select.form-input:disabled {
     color: var(--color-text-primary);
 }
 
+.settings-rebuild {
+    margin-top: var(--spacing-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.settings-rebuild-error {
+    font-size: 0.875rem;
+    color: var(--color-error);
+}
+
 /* === Login Page === */
 .login-container {
     display: flex;

@@ -4,3 +4,4 @@
 .DS_Store
 .videoreg-draft
 __pycache__
+plugins/org_vrg_http/static/js/bundle.js

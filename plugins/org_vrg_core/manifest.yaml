@@ -1,0 +1,23 @@
+http:
+  menu:
+    - url: trips
+      title: $http.trips
+      icon: gps_tracks
+      component: TripsComponent
+
+  menu_settings:
+    - url: system
+      title: $http.settings.system
+      icon: core
+      component: SystemSettingsComponent
+
+  components:
+    - TripsComponent.js
+    - SystemSettingsComponent.js
+
+  api:
+    # Было: "/api/core/journal" -> handle_get_journal
+    # TODO: логику чтения из файла переместить из хендлера в core.get_journal_files
+    - url: core/journal
+      method: get
+      plugin: core.get_journal_files

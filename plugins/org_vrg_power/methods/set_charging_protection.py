@@ -15,6 +15,10 @@ class MethodSetChargingProtection(ApiMethod):
     self._power_supply = power_supply
 
   async def exec(self, args):
+    # Accept {"enabled": bool} (http generic handler) or a bare bool
+    if isinstance(args, dict):
+      args = args.get("enabled")
+
     if not isinstance(args, bool):
       return {"status": "error", "error": "Wrong argument: expected bool"}
 

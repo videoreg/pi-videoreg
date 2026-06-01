@@ -12,26 +12,15 @@ const { createApp } = Vue;
     ProgressBar,
     LoginComponent,
     HomeComponent,
-    WireguardSettingsComponent,
-    ModemSettingsComponent,
-    TelegramBotSettingsComponent,
-    SmsSettingsComponent,
-    WiFiSettingsComponent,
     ChangePasswordComponent,
-    CameraSettingsComponent,
-    PowerSettingsComponent,
-    MediaFeedComponent,
-    MediaFaveComponent,
-    StorageSettingsComponent,
     SystemSettingsComponent,
-    StatComponent,
     UsersSettingsComponent,
-    SmsInboxComponent,
-    GpsTracksComponent,
     TripsComponent,
     SettingsComponent,
     TripsMediaItem,
-    LiveBroadcastComponent,
+    // Plugin page components migrated out of org_vrg_http (provided via bundle.js
+    // + the server-injected window.__vrgComponents bridge).
+    ...(window.__vrgComponents || {}),
   },
   data() {
     return {
@@ -66,53 +55,60 @@ const { createApp } = Vue;
       return this.isAuthenticated && this.user && this.user.password_changed === false;
     },
 
+    // --- Manifest-driven menu/routing (from window.__vrgMenu) ---
+    manifestMenu() {
+      return (window.__vrgMenu && window.__vrgMenu.menu) || [];
+    },
+    manifestSettings() {
+      return (window.__vrgMenu && window.__vrgMenu.menu_settings) || [];
+    },
+    manifestSettingsUrls() {
+      return this.manifestSettings.map((i) => i.url);
+    },
+    manifestTopUrls() {
+      return this.manifestMenu.map((i) => i.url);
+    },
+    manifestComponentByPage() {
+      const map = {};
+      this.manifestMenu.concat(this.manifestSettings).forEach((i) => {
+        map[i.url] = i.component;
+      });
+      return map;
+    },
+    // Main-menu items contributed by plugin manifests, excluding pages already
+    // rendered by the hardcoded sidebar (transitional dedup).
+    pluginMenuItems() {
+      const hardcoded = [
+        'home', 'trips', 'settings', 'change-password',
+      ];
+      return this.manifestMenu.filter((i) => !hardcoded.includes(i.url));
+    },
+
     currentComponent() {
       if (!this.isAuthenticated) {
         return 'LoginComponent';
       }
-      
+
+      // Manifest-driven pages resolve first
+      const manifestComponent = this.manifestComponentByPage[this.currentPage];
+      if (manifestComponent) {
+        return manifestComponent;
+      }
+
       // Роутинг между страницами
       switch (this.currentPage) {
         case 'home':
           return 'HomeComponent';
-        case 'wireguard':
-          return 'WireguardSettingsComponent';
-        case 'modem':
-          return 'ModemSettingsComponent';
-        case 'telegram':
-          return 'TelegramBotSettingsComponent';
-        case 'sms':
-          return 'SmsSettingsComponent';
-        case 'wifi':
-          return 'WiFiSettingsComponent';
         case 'change-password':
           return 'ChangePasswordComponent';
-        case 'camera':
-          return 'CameraSettingsComponent';
-        case 'power':
-          return 'PowerSettingsComponent';
-        case 'media-feed':
-          return 'MediaFeedComponent';
-        case 'media-fave':
-          return 'MediaFaveComponent';
-        case 'storage':
-          return 'StorageSettingsComponent';
         case 'system':
           return 'SystemSettingsComponent';
-        case 'stat':
-          return 'StatComponent';
         case 'users':
           return 'UsersSettingsComponent';
-        case 'sms-inbox':
-          return 'SmsInboxComponent';
-        case 'gps-tracks':
-          return 'GpsTracksComponent';
         case 'trips':
           return 'TripsComponent';
         case 'settings':
           return 'SettingsComponent';
-        case 'live-broadcast':
-          return 'LiveBroadcastComponent';
         default:
           return 'HomeComponent';
       }
@@ -141,12 +137,12 @@ const { createApp } = Vue;
     },
 
     statusCameraLabel() {
-      const labels = { record: this.$t('http.camera.state_record'), pause: this.$t('http.camera.state_pause'), stop: this.$t('http.camera.state_stop') };
-      return labels[this.statusCamera] || this.$t('http.camera.state_stop');
+      const labels = { record: this.$t('camera.camera.state_record'), pause: this.$t('camera.camera.state_pause'), stop: this.$t('camera.camera.state_stop') };
+      return labels[this.statusCamera] || this.$t('camera.camera.state_stop');
     },
 
     isSettingsActive() {
-      const settingsPages = ['settings', 'camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
+      const settingsPages = ['settings', 'system', 'users', ...this.manifestSettingsUrls];
       return settingsPages.includes(this.currentPage);
     },
 
@@ -287,14 +283,14 @@ const { createApp } = Vue;
     
     pageToPath(page) {
       if (page === 'home') return '/';
-      const settingsPages = ['camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
+      const settingsPages = ['system', 'users', ...this.manifestSettingsUrls];
       if (settingsPages.includes(page)) return '/settings/' + page;
       return '/' + page;
     },
 
     pathToPage(path) {
-      const topPages = ['home', 'change-password', 'settings', 'stat', 'sms-inbox', 'gps-tracks', 'trips', 'media-feed', 'media-fave', 'live-broadcast'];
-      const settingsPages = ['camera', 'wifi', 'modem', 'wireguard', 'telegram', 'power', 'sms', 'storage', 'system', 'users'];
+      const topPages = ['home', 'change-password', 'settings', 'trips', ...this.manifestTopUrls];
+      const settingsPages = ['system', 'users', ...this.manifestSettingsUrls];
       if (path === '/') return 'home';
       if (path === '/settings') return 'settings';
       // /settings/<name>
@@ -363,7 +359,7 @@ const { createApp } = Vue;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({})
+          body: JSON.stringify({ reason: 'manual' })
         });
         this.rebootSuccess = true;
         setTimeout(() => { this.rebootSuccess = false; }, 2000);
@@ -383,7 +379,7 @@ const { createApp } = Vue;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({})
+          body: JSON.stringify('manual')
         });
         this.shutdownSuccess = true;
         setTimeout(() => { this.shutdownSuccess = false; }, 2000);

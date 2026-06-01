@@ -15,6 +15,10 @@ class MethodSetWakeup(ApiMethod):
     self._power_supply = power_supply
 
   async def exec(self, args):
+    # Accept {"value": <v>} (http generic handler) or a bare value (commands)
+    if isinstance(args, dict):
+      args = args.get("value")
+
     verified_value = None
 
     if args == "1m":

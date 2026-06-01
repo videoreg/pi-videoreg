@@ -1,0 +1,37 @@
+http:
+  menu:
+    - url: stat
+      title: $stat.stat.title
+      icon: chart
+      component: StatComponent
+
+  menu_settings:
+    - url: storage
+      title: $stat.settings.storage
+      icon: storage
+      component: StorageSettingsComponent
+
+  components:
+    - StatIcons.js
+    - StatComponent.js
+    - StorageSettingsComponent.js
+
+  api:
+    # Date selection + file parsing moved into stat.get_temp_history.
+    - url: stat/temp
+      method: get
+      plugin: stat.get_temp_history
+
+    # Date selection + file parsing moved into stat.get_pisugar_history.
+    - url: stat/pisugar
+      method: get
+      plugin: stat.get_pisugar_history
+
+    # Date selection + file parsing moved into stat.get_traffic_hourly_history.
+    - url: stat/traffic
+      method: get
+      plugin: stat.get_traffic_hourly_history
+
+    - url: stat/storage_info
+      method: get
+      plugin: stat.storage_info

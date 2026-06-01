@@ -1,0 +1,49 @@
+http:
+  menu_settings:
+    - url: power
+      title: Power
+      icon: battery
+      component: PowerSettingsComponent
+
+  components:
+    - PowerSettingsComponent.js
+
+  api:
+    - url: power/status
+      method: get
+      plugin: power.get_status
+
+    - url: power/wakeup
+      method: get
+      plugin: power.get_wakeup_config
+
+    - url: power/wakeup
+      method: post
+      plugin: power.set_wakeup
+
+    - url: power/charging-protection
+      method: get
+      plugin: power.get_charging_protection
+
+    - url: power/charging-protection
+      method: post
+      plugin: power.set_charging_protection
+
+    # Component sends {"minutes": n}
+    - url: power/keep_alive
+      method: post
+      plugin: power.keep_alive
+
+    # Component sends {"reason": "manual"}
+    - url: power/reboot
+      method: post
+      plugin: power.reboot
+
+    # Component sends the bare string "manual"
+    - url: power/shutdown
+      method: post
+      plugin: power.shutdown
+
+    - url: power/capabilities
+      method: get
+      plugin: power.get_capabilities

@@ -3,6 +3,7 @@ from argparse import Namespace
 from plugins.org_vrg_sms.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_sms.commands.get_sms import CommandGetSms
 from plugins.org_vrg_sms.commands.list_sms import CommandListSms
+from plugins.org_vrg_sms.methods.delete_sms import MethodDeleteSms
 from plugins.org_vrg_sms.methods.get_all_sms import MethodGetAllSms
 from plugins.org_vrg_sms.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_sms.methods.send_text import MethodSendText
@@ -47,6 +48,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "send_text": MethodSendText(plugin),
       "get_all_sms": MethodGetAllSms(plugin),
+      "delete_sms": MethodDeleteSms(plugin),
     }
   )
 

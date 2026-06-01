@@ -16,7 +16,11 @@ class MethodKeepAlive(ApiMethod):
 
     Repeated calls extend the timer.
     """
-    minutes = int(args) if args else 1
+    # Accept {"minutes": n} (http generic handler) or a bare number (commands)
+    if isinstance(args, dict):
+      minutes = int(args.get("minutes", 1))
+    else:
+      minutes = int(args) if args else 1
     self._plugin.keep_alive.have_to_wait(REASON, minutes * 60)
     return {
       "status": "ok",

@@ -5,9 +5,12 @@ from plugins.org_vrg_net.commands.get_connection import CommandGetConnection
 from plugins.org_vrg_net.commands.get_connections import CommandGetConnections
 from plugins.org_vrg_net.commands.set_wifi_blocked import CommandSetWifiBlocked
 from plugins.org_vrg_net.methods.connection_update import MethodConnectionUpdate
+from plugins.org_vrg_net.methods.generate_wireguard_key import MethodGenerateWireguardKey
 from plugins.org_vrg_net.methods.get_connection import MethodGetConnection
 from plugins.org_vrg_net.methods.get_connections import MethodGetConnections
 from plugins.org_vrg_net.methods.get_modem_info import MethodGetModemInfo
+from plugins.org_vrg_net.methods.get_wireguard_config import MethodGetWireguardConfig
+from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
@@ -81,6 +84,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "connection_down": MethodSetConnectionEnabled(net_controls, enabled=False),
       "wg_auto": MethodWgAuto(plugin),
       "wg_show": MethodWgShow(plugin),
+      "get_wireguard_config": MethodGetWireguardConfig(plugin),
+      "save_wireguard_config": MethodSaveWireguardConfig(plugin),
+      "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),
       "modem_info": MethodGetModemInfo(plugin.logger, modem_controls),

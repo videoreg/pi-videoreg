@@ -12,7 +12,8 @@ class MethodWgShow(ApiMethod):
   async def exec(self, args):
     wg_info = await self._plugin.wg_monitor.get_wg_info()
 
+    # Nested under `data` so the generic http handler returns it via get_data()
     return {
       "status": "ok",
-      "wg_info": wg_info,
+      "data": wg_info,
     }

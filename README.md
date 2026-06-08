@@ -8,7 +8,7 @@
 
 ## Features
 
-- Video recording while driving
+- Video recording
 - Live stream mode
 - Parking mode (periodic photos)
 - Telegram Bot
@@ -23,10 +23,15 @@
 - RPi supported CSI camera with wide lense (OV5647, PiCamera Module 3)
 - PiSugar 3 UPS
 - 4G USB modem (e.g. SIM7600 or A7670. Consider an [A7670.md note](A7670.md))
+- Heatsink for RPi
+
+## 3D Case
+
+[Download model](https://github.com/videoreg/3d-models/tree/main/pi-videoreg)
 
 ## Installation
 
-Videoreg is a complex system that requires OS configuration and a custom build of [rpicam-apps](https://github.com/videoreg/rpicam-apps). The only supported installation method at this time is using a pre-built `.img` image based on Raspberry Pi OS.
+Pi-Videoreg is a comprehensive system that requires OS configuration and a custom build of [rpicam-apps](https://github.com/videoreg/rpicam-apps). The only supported installation method at this time is using a pre-built `.img` image based on Raspberry Pi OS.
 
 Download the `.img` image here: https://github.com/videoreg/pi-gen.
 
@@ -49,10 +54,6 @@ Web UI login credentials: username `admin`, password `videoreg`.
 ## Running with Docker
 
 To explore the system or develop locally, run `docker compose up --build` (subsequently just `docker compose up`).
-
-## License
-
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
 ## Discussion
 
@@ -111,3 +112,7 @@ Observation: with the 80% charge threshold disabled (battery-saver mode turned o
 **Factor 3:** high ambient temperature.
 
 Please do not use the device at an ambient temperature above `55°C`.
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).

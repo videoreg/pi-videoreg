@@ -31,6 +31,9 @@ class NetPlugin(Plugin):
 
     # asyncio.create_task(self._start_lifecycle_loop())
 
+    if self.wg_monitor:
+      self.wg_monitor.skip_on_wifi = self.state.get(const.KEY_WG_SKIP_ON_WIFI, True)
+
     if self.state.get(const.KEY_WG_AUTO, True):
       asyncio.create_task(self.start_wg_monitor_loop())
 

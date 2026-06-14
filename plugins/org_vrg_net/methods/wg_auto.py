@@ -13,7 +13,8 @@ class MethodWgAuto(ApiMethod):
     self._plugin = plugin
 
   async def exec(self, args):
-    enable = True if args == "enable" else False
+    # Called from the WireGuard settings page with a JSON body {"enabled": bool}.
+    enable = bool(args.get("enabled")) if isinstance(args, dict) else False
 
     self._plugin.state.save({const.KEY_WG_AUTO: enable})
 
@@ -22,4 +23,4 @@ class MethodWgAuto(ApiMethod):
     else:
       self._plugin.stop_wg_monitor_loop()
 
-    return {"status": "ok", "enabled": enable}
+    return {"status": "ok", "data": {"auto": enable}}

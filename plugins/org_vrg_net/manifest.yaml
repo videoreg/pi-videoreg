@@ -37,6 +37,22 @@ http:
       method: post
       plugin: net.generate_wireguard_key
 
+    - url: net/wireguard_settings
+      method: get
+      plugin: net.wg_settings
+
+    - url: net/wireguard_state
+      method: post
+      plugin: net.wg_set_state
+
+    - url: net/wireguard_auto
+      method: post
+      plugin: net.wg_auto
+
+    - url: net/wireguard_skip_on_wifi
+      method: post
+      plugin: net.wg_skip_on_wifi
+
     - url: net/modem_info
       method: get
       plugin: net.modem_info

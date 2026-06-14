@@ -35,6 +35,10 @@ https://{ip.get_current_ip()}:8443
           {"text": "WiFi: unblock", "callback_data": "command__net__wifi_unblock"},
           {"text": "WiFi: block", "callback_data": "command__net__wifi_block"},
         ],
+        [
+          {"text": "WG: on", "callback_data": "command__net__wg_on"},
+          {"text": "WG: off", "callback_data": "command__net__wg_off"},
+        ],
       ],
     )
 

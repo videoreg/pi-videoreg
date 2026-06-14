@@ -13,3 +13,4 @@ VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/sbin/shutdown
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/wg
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/wg-quick
 VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/systemd-run
+VIDEOREG_USER ALL=(ALL) NOPASSWD: /usr/bin/timedatectl

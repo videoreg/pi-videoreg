@@ -57,11 +57,24 @@ Web UI login credentials: username `admin`, password `videoreg`.
 >[!WARNING]
 >Change the user password and WiFi password immediately!
 
+### Date and Time
+
+On first boot, set the timezone in the Web UI (`Settings → Date & Time`).
+
+Note that the Raspberry Pi board itself cannot keep time across reboots. There are 2 ways to determine the time automatically after a reboot:
+
+1. When [connected to the internet](#-internet-connection), the RPi queries an NTP server on every start to obtain the current time.
+2. The current time is stored in the RTC of the PiSugar 3 (also updated after NTP synchronization), so on the next start the time will be correct even without an internet connection.
+
 ### Telegram Bot
 
 1. In the Web UI, under the `Telegram Bot` settings, set your bot token.
 2. On the `Users` tab, specify the Telegram user id you will use to talk to the bot.
 3. In the chat with the bot, run the `/start` command — it initializes the bot menu.
+
+### WireGuard
+
+If you plan to keep access to the Web UI over a USB modem or from outside your "home WiFi network", set up WireGuard.
 
 ### SMS
 

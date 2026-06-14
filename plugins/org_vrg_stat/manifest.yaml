@@ -35,3 +35,10 @@ http:
     - url: stat/storage_info
       method: get
       plugin: stat.storage_info
+
+commands:
+  - name: stat
+    title: Get stat commands
+    hidden: true
+  - name: temp
+    title: Get CPU temperature

@@ -47,3 +47,14 @@ http:
     - url: power/capabilities
       method: get
       plugin: power.get_capabilities
+
+commands:
+  - name: keep
+    title: Keep alive for N min.
+    args: 5
+  - name: power
+    title: Power commands
+  - name: reboot
+    title: Reboot
+  - name: shutdown
+    title: Shutdown

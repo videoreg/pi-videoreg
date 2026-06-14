@@ -19,6 +19,7 @@ from plugins.org_vrg_bot.methods.send_video import MethodSendVideo
 from plugins.org_vrg_bot.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_bot.plugin import BotPlugin
 from plugins.org_vrg_bot.telegram_api import TelegramApi
+from sdk.command_reader import read_plugin_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -103,30 +104,32 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   bot_commands: list[BotCommand] = []
   common_commands: list[CommandCommon] = []
 
-  for plugin_manifest in runner.videoreg.manifest.plugins:
-    plugin_name = plugin_manifest.get("name")
-    for manifest_command in plugin_manifest.get("commands", []):
-      name = manifest_command.get("name")
-      title = manifest_command.get("title")
-      hidden = manifest_command.get("hidden", False)
-      default_args = manifest_command.get("args", None)
+  # Commands are declared in each plugin's manifest.yaml; read_plugin_commands returns
+  # them sorted by `weigh` descending, which defines the bot menu order.
+  plugins_dir = runner.videoreg.app_path("plugins")
+  for manifest_command in read_plugin_commands(plugins_dir, runner.videoreg.manifest.plugins):
+    name = manifest_command.get("name")
+    title = manifest_command.get("title")
+    hidden = manifest_command.get("hidden", False)
+    default_args = manifest_command.get("args", None)
+    plugin_name = manifest_command.get("plugin")
 
-      if not name or not title:
-        plugin.logger.error(f"yaml wrong command format ({name}, {title}): {manifest_command}")
-        continue
+    if not name or not title:
+      plugin.logger.error(f"yaml wrong command format ({name}, {title}): {manifest_command}")
+      continue
 
-      if not hidden:
-        bot_commands.append(BotCommand(f"/{name}", title))
+    if not hidden:
+      bot_commands.append(BotCommand(f"/{name}", title))
 
-      common_commands.append(
-        CommandCommon(
-          name=name,
-          plugin_name=plugin_name,
-          default_args=default_args,
-          api_client=plugin.api_client,
-          tg_api=tg_api,
-        )
+    common_commands.append(
+      CommandCommon(
+        name=name,
+        plugin_name=plugin_name,
+        default_args=default_args,
+        api_client=plugin.api_client,
+        tg_api=tg_api,
       )
+    )
 
   commands = [
     CommandStart(plugin=plugin, tg_api=tg_api, name="start", commands=bot_commands),

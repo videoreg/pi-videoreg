@@ -106,3 +106,22 @@ http:
     - url: camera/stream_settings
       method: post
       plugin: camera.set_stream_settings
+
+commands:
+  - name: photo
+    title: Take photo
+    weigh: 100
+  - name: video
+    title: Take short video
+    weigh: 90
+  - name: camera
+    title: Camera commands
+  - name: video_pause
+    title: Pause video recording
+    hidden: true
+  - name: video_start
+    title: Start video recording
+    hidden: true
+  - name: stream
+    title: Start RTSP stream
+    hidden: true

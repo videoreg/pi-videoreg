@@ -25,3 +25,7 @@ http:
     - url: sms/delete
       method: delete
       plugin: sms.delete_sms
+
+commands:
+  - name: sms
+    title: SMS commands

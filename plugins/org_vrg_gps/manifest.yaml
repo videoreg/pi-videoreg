@@ -17,3 +17,7 @@ http:
     - url: gps/delete_track
       method: post
       plugin: gps.delete_track
+
+commands:
+  - name: gps
+    title: GPS commands

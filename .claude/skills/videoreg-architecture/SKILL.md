@@ -112,7 +112,7 @@ Templates, registration, parallel aggregation, error mapping → `videoreg-http-
 
 ## Interfaces and commands (high level)
 
-In addition to videoreg-api, plugins can handle user commands from interfaces (bot, sms, …). A command lives in the plugin whose state it operates on; "entry" commands (typed by the user, e.g. `/photo`) are also registered in `videoreg.manifest.yaml`, internal commands are not.
+In addition to videoreg-api, plugins can handle user commands from interfaces (bot, sms, …). A command lives in the plugin whose state it operates on; "entry" commands (typed by the user, e.g. `/photo`) are also registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` (optionally with `weigh` for bot-menu ordering), internal commands are not.
 
 Templates, reply primitives (`interface.send_*`), capability check → `videoreg-command`.
 

@@ -1,6 +1,6 @@
 ---
 name: videoreg-command
-description: videoreg interface command conventions — Command<Name>(InterfaceCommand) template, command-to-plugin assignment (same as api-methods — logic lives where state lives), registration via InterfaceCommandMethod in plugin_builder.py, replying via interface.send_text / send_image / send_video / send_document, capability check via interface.support, entry vs internal commands in videoreg.manifest.yaml, i18n for replies. Trigger when creating or modifying a user-facing command in plugins/<plugin>/commands/.
+description: videoreg interface command conventions — Command<Name>(InterfaceCommand) template, command-to-plugin assignment (same as api-methods — logic lives where state lives), registration via InterfaceCommandMethod in plugin_builder.py, replying via interface.send_text / send_image / send_video / send_document, capability check via interface.support, entry vs internal commands declared in the plugin's manifest.yaml (with optional weigh/hidden), i18n for replies. Trigger when creating or modifying a user-facing command in plugins/<plugin>/commands/.
 ---
 
 # videoreg interface command conventions
@@ -125,13 +125,14 @@ See `plugins/org_vrg_bot/commands/common.py` for an end-to-end example.
 
 ## Entry commands vs internal commands
 
-- **Entry commands** are invoked directly by the user (e.g. typing `/photo` in the bot). They must be registered in `videoreg.manifest.yaml` so the interface knows about them:
+- **Entry commands** are invoked directly by the user (e.g. typing `/photo` in the bot). They must be registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` so interfaces (bot, sms) know about them. Interfaces collect them via `read_plugin_commands` (`sdk/command_reader.py`):
 
   ```yaml
   commands:
-    - name: photo            # invoked as /photo
-      plugin: camera         # plugin that handles execution
+    - name: photo            # invoked as /photo (plugin is implied by file location)
       title: Take photo      # used for hints / bot menus
+      weigh: 100             # optional; higher weight sorts earlier in the bot menu (default 0)
+      hidden: true           # optional; dispatchable but hidden from the bot menu
   ```
 
 - **Internal commands** are triggered by other commands (e.g. an inline-keyboard callback) and only need to be registered in the plugin's `plugin_builder.py` `commands` dict — not in the manifest.
@@ -158,5 +159,5 @@ For key format, plural rules, translation file layout and how to add new keys �
 2. **Create the command file** at `plugins/<plugin_id>/commands/<command_name>.py`, class `Command<Name>(InterfaceCommand)`.
 3. **Implement** `async def exec(self, interface, payload, args)`; reply via `interface.send_*`; check capability for media.
 4. **Register** in `plugin_builder.py` in the `commands` dict (the `command` api-method via `InterfaceCommandMethod` is registered once per plugin).
-5. **Entry command?** Add to `videoreg.manifest.yaml` under `commands:`. Internal command? Skip the manifest.
+5. **Entry command?** Add to the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` (optionally with `weigh` for menu ordering). Internal command? Skip the manifest.
 6. **Editing existing code?** Read `plugin_builder.py` first to find the command, then the file in `commands/`.

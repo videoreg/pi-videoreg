@@ -8,6 +8,7 @@ from plugins.org_vrg_sms.methods.get_all_sms import MethodGetAllSms
 from plugins.org_vrg_sms.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_sms.methods.send_text import MethodSendText
 from plugins.org_vrg_sms.plugin import SmsPlugin
+from sdk.command_reader import read_plugin_commands
 from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
 from sdk.service import ServiceRunner
 from sdk.user_manager import UserManager
@@ -52,13 +53,13 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     }
   )
 
+  # Commands are declared in each plugin's manifest.yaml (read by read_plugin_commands).
+  plugins_dir = runner.videoreg.app_path("plugins")
   command_plugin_map: dict[str, str] = {}
-  for plugin_manifest_entry in runner.videoreg.manifest.plugins:
-    p_name = plugin_manifest_entry.get("name")
-    for cmd in plugin_manifest_entry.get("commands", []):
-      cmd_name = cmd.get("name")
-      if cmd_name:
-        command_plugin_map[cmd_name] = p_name
+  for cmd in read_plugin_commands(plugins_dir, runner.videoreg.manifest.plugins):
+    cmd_name = cmd.get("name")
+    if cmd_name:
+      command_plugin_map[cmd_name] = cmd.get("plugin")
 
   plugin.init_command_plugin_map(command_plugin_map)
 

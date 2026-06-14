@@ -121,7 +121,7 @@ Plugin methods live in `methods/`.
 ### Layer 3: Interfaces and user commands
 The system accounts for multiple interfaces (UI, entry points) through which users interact with the system. Examples of basic interfaces are the `bot` and `sms` plugins — users can execute "commands" through them.
 
-Command description format in the manifest:
+Interfaces are declared in the central `videoreg.manifest.yaml`:
 
 ```yaml
 interfaces:
@@ -129,14 +129,23 @@ interfaces:
     interactions: # Available interaction types for plugins to respond to users via this interface
       text: bot.send_text
       image: bot.send_image
-
-commands:
-  - name: photo # User can invoke this command by typing `/photo`
-    plugin: camera # plugin that will handle the command execution
-    title: Take photo # Title that can be used for hints, e.g. in the bot menu
 ```
 
-Plugins may not register commands in the manifest. Only "entry" (primary) commands are registered in the manifest.
+Commands are declared in each plugin's own `plugins/<id>/manifest.yaml` under a `commands` key (the owning plugin is implied by the file location):
+
+```yaml
+commands:
+  - name: photo # User can invoke this command by typing `/photo`
+    title: Take photo # Title that can be used for hints, e.g. in the bot menu
+    weigh: 100 # Optional. Higher weight sorts the command earlier in the bot menu (default 0)
+  - name: video_pause
+    title: Pause video recording
+    hidden: true # Optional. Hidden commands are dispatchable but not shown in the bot menu
+```
+
+Interfaces collect commands from every plugin via `read_plugin_commands` (`sdk/command_reader.py`), which scans `plugins/*/manifest.yaml` and returns them sorted by `weigh` descending.
+
+Only "entry" (primary) commands are registered in the manifest; internal commands are registered only in the plugin's `plugin_builder.py`.
 
 How an interface interacts with the plugin that handles a command:
 - The interface must invoke commands on the plugin via the videoreg-api method `<plugin>.command`, passing user arguments and `payload` (e.g. the chat id where the message was received). See example at `plugins/org_vrg_bot/commands/common.py`.

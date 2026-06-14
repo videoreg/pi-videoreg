@@ -2,7 +2,7 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import available_timezones
+from zoneinfo import ZoneInfo, available_timezones
 
 from sdk.helper import return_subprocess
 
@@ -93,6 +93,22 @@ def _read_system_timezone() -> str:
   return os.environ.get("TZ", "")
 
 
+def _now_in_zone(timezone: str) -> str:
+  """Current wall-clock time in `timezone`.
+
+  Computed from UTC (unambiguous, straight off the system clock) and converted to
+  the given zone, so the result matches what `timedatectl` reports regardless of
+  the service process's own TZ. Falls back to the process-local time if the zone
+  name is unknown.
+  """
+  if timezone:
+    try:
+      return datetime.now(ZoneInfo(timezone)).strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception:
+      pass
+  return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
 async def read_datetime_state() -> dict:
   """Current local date/time, timezone and NTP status.
 
@@ -120,7 +136,7 @@ async def read_datetime_state() -> dict:
     timezone = _read_system_timezone()
 
   return {
-    "datetime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    "datetime": _now_in_zone(timezone),
     "timezone": timezone,
     "ntp": ntp,
     "ntp_synced": ntp_synced,

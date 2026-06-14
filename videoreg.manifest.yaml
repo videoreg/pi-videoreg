@@ -54,6 +54,12 @@ plugins:
       - name: wifi_unblock
         title: Enable WiFi module
         hidden: true
+      - name: wg_on
+        title: Enable WireGuard
+        hidden: true
+      - name: wg_off
+        title: Disable WireGuard
+        hidden: true
 
   - id: org_vrg_power
     name: power

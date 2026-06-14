@@ -4,17 +4,21 @@ from plugins.org_vrg_net.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_net.commands.get_connection import CommandGetConnection
 from plugins.org_vrg_net.commands.get_connections import CommandGetConnections
 from plugins.org_vrg_net.commands.set_wifi_blocked import CommandSetWifiBlocked
+from plugins.org_vrg_net.commands.wg_set_state import CommandWgSetState
 from plugins.org_vrg_net.methods.connection_update import MethodConnectionUpdate
 from plugins.org_vrg_net.methods.generate_wireguard_key import MethodGenerateWireguardKey
 from plugins.org_vrg_net.methods.get_connection import MethodGetConnection
 from plugins.org_vrg_net.methods.get_connections import MethodGetConnections
 from plugins.org_vrg_net.methods.get_modem_info import MethodGetModemInfo
 from plugins.org_vrg_net.methods.get_wireguard_config import MethodGetWireguardConfig
+from plugins.org_vrg_net.methods.get_wireguard_settings import MethodGetWireguardSettings
 from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
+from plugins.org_vrg_net.methods.wg_set_state import MethodWgSetState
 from plugins.org_vrg_net.methods.wg_show import MethodWgShow
+from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
 from plugins.org_vrg_net.plugin import NetPlugin
 from plugins.org_vrg_net.wg import Config
 from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
@@ -72,6 +76,8 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     "connection": CommandGetConnection(plugin, net_controls),
     "wifi_block": CommandSetWifiBlocked(net_controls, plugin.state, blocked=True),
     "wifi_unblock": CommandSetWifiBlocked(net_controls, plugin.state, blocked=False),
+    "wg_on": CommandWgSetState(plugin, enable=True),
+    "wg_off": CommandWgSetState(plugin, enable=False),
   }
 
   plugin.init_api_servier(
@@ -83,6 +89,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "connection_up": MethodSetConnectionEnabled(net_controls, enabled=True),
       "connection_down": MethodSetConnectionEnabled(net_controls, enabled=False),
       "wg_auto": MethodWgAuto(plugin),
+      "wg_set_state": MethodWgSetState(plugin),
+      "wg_skip_on_wifi": MethodWgSkipOnWifi(plugin),
+      "wg_settings": MethodGetWireguardSettings(plugin),
       "wg_show": MethodWgShow(plugin),
       "get_wireguard_config": MethodGetWireguardConfig(plugin),
       "save_wireguard_config": MethodSaveWireguardConfig(plugin),

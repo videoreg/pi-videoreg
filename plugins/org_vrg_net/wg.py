@@ -11,6 +11,10 @@ class Config:
 
 
 class WireguardMonitor:
+  # When True, WireGuard is stopped while the "wifi" client connection is active.
+  # When False, WireGuard stays up regardless of the WiFi client connection.
+  skip_on_wifi: bool = True
+
   def get_active_connections(self):
     """Gets the list of active connections"""
     raise NotImplementedError()

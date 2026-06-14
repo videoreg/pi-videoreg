@@ -1,6 +1,6 @@
 // Компонент настройки WireGuard
 const WireguardSettingsComponent = {
-  components: { TabSwitch, Icon },
+  components: { TabSwitch, Icon, ToggleSwitch },
   emits: ['navigate'],
 
   template: `
@@ -79,6 +79,50 @@ const WireguardSettingsComponent = {
 
         <!-- Вкладка "Настройка" -->
         <div v-if="activeTab === 'settings'">
+          <!-- Переключатели управления -->
+          <div class="info-block">
+            <div class="section-title">{{ $t('net.wireguard.control_title') }}</div>
+
+            <!-- Состояние -->
+            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md);">
+              <div>
+                <div class="form-label" style="margin-bottom: 2px;">{{ $t('net.wireguard.state_title') }}</div>
+                <span class="form-hint">{{ $t('net.wireguard.state_hint') }}</span>
+              </div>
+              <toggle-switch
+                v-model="settings.active"
+                :disabled="settingsLoading || togglingState"
+                @update:modelValue="onToggleState"
+              ></toggle-switch>
+            </div>
+
+            <!-- Автоподключение -->
+            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md);">
+              <div>
+                <div class="form-label" style="margin-bottom: 2px;">{{ $t('net.wireguard.auto_title') }}</div>
+                <span class="form-hint">{{ $t('net.wireguard.auto_hint') }}</span>
+              </div>
+              <toggle-switch
+                v-model="settings.auto"
+                :disabled="settingsLoading"
+                @update:modelValue="onToggleAuto"
+              ></toggle-switch>
+            </div>
+
+            <!-- Не подключать для WiFi Client -->
+            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin-bottom: 0;">
+              <div>
+                <div class="form-label" style="margin-bottom: 2px;">{{ $t('net.wireguard.skip_on_wifi_title') }}</div>
+                <span class="form-hint">{{ $t('net.wireguard.skip_on_wifi_hint') }}</span>
+              </div>
+              <toggle-switch
+                v-model="settings.skip_on_wifi"
+                :disabled="settingsLoading"
+                @update:modelValue="onToggleSkipOnWifi"
+              ></toggle-switch>
+            </div>
+          </div>
+
           <!-- Генерация ключей -->
           <div style="margin-bottom: var(--spacing-lg);">
             <button
@@ -167,6 +211,13 @@ const WireguardSettingsComponent = {
       activeTab: 'status',
       wgStatus: null,
       statusLoading: true,
+      settings: {
+        active: false,
+        auto: true,
+        skip_on_wifi: true
+      },
+      settingsLoading: true,
+      togglingState: false,
       config: '',
       generatedKeys: null,
       error: '',
@@ -194,6 +245,101 @@ const WireguardSettingsComponent = {
   },
 
   methods: {
+    async loadSettings() {
+      this.settingsLoading = true;
+      try {
+        const response = await fetch('/api/net/wireguard_settings', { credentials: 'same-origin' });
+        const data = await response.json();
+        if (!response.ok) {
+          this.error = data.error || this.$t('net.wireguard.error_load_settings');
+          return;
+        }
+        this.settings.active = !!data.active;
+        this.settings.auto = !!data.auto;
+        this.settings.skip_on_wifi = !!data.skip_on_wifi;
+      } catch (err) {
+        this.error = this.$t('http.common.error_connection');
+      } finally {
+        this.settingsLoading = false;
+      }
+    },
+
+    async onToggleState(value) {
+      this.error = '';
+      this.success = '';
+      this.togglingState = true;
+      try {
+        const response = await fetch('/api/net/wireguard_state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ enabled: value })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          this.error = data.error || this.$t('net.wireguard.error_set_state');
+          this.settings.active = !value;
+          return;
+        }
+        this.settings.active = !!data.active;
+        this.success = value ? this.$t('net.wireguard.state_enabled') : this.$t('net.wireguard.state_disabled');
+        this.loadStatus();
+      } catch (err) {
+        this.error = this.$t('http.common.error_server');
+        this.settings.active = !value;
+      } finally {
+        this.togglingState = false;
+      }
+    },
+
+    async onToggleAuto(value) {
+      this.error = '';
+      this.success = '';
+      try {
+        const response = await fetch('/api/net/wireguard_auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ enabled: value })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          this.error = data.error || this.$t('net.wireguard.error_save_settings');
+          this.settings.auto = !value;
+          return;
+        }
+        this.settings.auto = data.auto !== undefined ? !!data.auto : value;
+        this.success = this.$t('net.wireguard.settings_saved');
+      } catch (err) {
+        this.error = this.$t('http.common.error_server');
+        this.settings.auto = !value;
+      }
+    },
+
+    async onToggleSkipOnWifi(value) {
+      this.error = '';
+      this.success = '';
+      try {
+        const response = await fetch('/api/net/wireguard_skip_on_wifi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ enabled: value })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          this.error = data.error || this.$t('net.wireguard.error_save_settings');
+          this.settings.skip_on_wifi = !value;
+          return;
+        }
+        this.settings.skip_on_wifi = data.skip_on_wifi !== undefined ? !!data.skip_on_wifi : value;
+        this.success = this.$t('net.wireguard.settings_saved');
+      } catch (err) {
+        this.error = this.$t('http.common.error_server');
+        this.settings.skip_on_wifi = !value;
+      }
+    },
+
     async loadStatus() {
       this.statusLoading = true;
       try {
@@ -302,6 +448,6 @@ const WireguardSettingsComponent = {
   },
 
   async mounted() {
-    await Promise.all([this.loadStatus(), this.loadConfig()]);
+    await Promise.all([this.loadStatus(), this.loadConfig(), this.loadSettings()]);
   }
 };

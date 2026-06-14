@@ -82,6 +82,10 @@ If you use a SIM7600 USB modem, you can set up command execution and SMS forward
 
 SMS features are not yet supported on the A7670 modem.
 
+### SSH
+
+For SSH access, use the `vrg` user with the password `videoreg123`
+
 ## Running with Docker
 
 To explore the system or develop locally, run `docker compose up --build` (subsequently just `docker compose up`).

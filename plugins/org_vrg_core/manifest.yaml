@@ -10,10 +10,16 @@ http:
       title: $http.settings.system
       icon: core
       component: SystemSettingsComponent
+    - url: datetime
+      title: $core.datetime.title
+      icon: schedule
+      component: DateTimeSettingsComponent
 
   components:
     - TripsComponent.js
     - SystemSettingsComponent.js
+    - CoreIcons.js
+    - DateTimeSettingsComponent.js
 
   api:
     # Было: "/api/core/journal" -> handle_get_journal
@@ -21,3 +27,15 @@ http:
     - url: core/journal
       method: get
       plugin: core.get_journal_files
+
+    - url: core/datetime
+      method: get
+      plugin: core.get_datetime
+
+    - url: core/datetime
+      method: post
+      plugin: core.set_datetime
+
+    - url: core/ntp
+      method: post
+      plugin: core.set_ntp

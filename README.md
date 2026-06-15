@@ -46,7 +46,7 @@ Flash the image using the official Raspberry Pi Imager:
 1. Select "Raspberry Pi Zero 2W" or "No filtering"
 2. At the bottom of the list, choose to install from a local `.img` file
 
-## First Boot
+## First Boot and Initial Setup
 
 By default, the device creates a WiFi network (Access Point) named `videoreg` with password `12345678`.
 
@@ -75,6 +75,10 @@ Note that the Raspberry Pi board itself cannot keep time across reboots. There a
 ### WireGuard
 
 If you plan to keep access to the Web UI over a USB modem or from outside your "home WiFi network", set up WireGuard.
+
+### Wakeup Interval
+
+When using a PiSugar 3 UPS, you can set the wakeup interval for parking mode in the power settings: `Settings → Power`.
 
 ### SMS
 

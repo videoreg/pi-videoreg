@@ -9,7 +9,7 @@ class VideoMode(Enum):
 
 @dataclass
 class VideoParams:
-  fps: int = 15
+  fps: int = 30
   bitrate: int = 4000000
   camera_mode_str: str = "1920:1080"
   width: int = 1920

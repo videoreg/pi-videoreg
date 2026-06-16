@@ -183,6 +183,7 @@ install_apt_packages() {
         "udhcpc"
         "netcat-openbsd"
         "i2c-tools"
+        "util-linux-extra"
         "resolvconf"
         "wireguard"
         "wireguard-tools"
@@ -372,6 +373,22 @@ setup_polkit_rules() {
     print_success "Polkit rules configured"
 }
 
+enable_i2c() {
+    print_info "Enabling I2C interface via raspi-config..."
+
+    if ! command -v raspi-config &> /dev/null; then
+        print_error "raspi-config not found in the system"
+        exit 1
+    fi
+
+    if raspi-config nonint do_i2c 0; then
+        print_success "I2C interface enabled"
+    else
+        print_error "Failed to enable I2C interface"
+        exit 1
+    fi
+}
+
 setup_bluetooth() {
     print_info "Setting bluetooth supervision timeout..."
     if sudo echo '500' | sudo tee /sys/kernel/debug/bluetooth/hci0/supervision_timeout > /dev/null 2>&1; then
@@ -524,16 +541,19 @@ setup_polkit_rules
 print_header "8. PISUGAR SHUTDOWN SCRIPT"
 setup_pisugar_shutdown
 
-print_header "9. BLUETOOTH"
+print_header "9. I2C INTERFACE"
+enable_i2c
+
+print_header "10. BLUETOOTH"
 setup_bluetooth
 
-print_header "10. CONFIGURATION DIRECTORY"
+print_header "11. CONFIGURATION DIRECTORY"
 create_videoreg_directory
 
-print_header "11. STORAGE PATHS"
+print_header "12. STORAGE PATHS"
 setup_storage_paths
 
-print_header "12. SUDOERS"
+print_header "13. SUDOERS"
 setup_sudoers
 
 print_success "Videoreg installed successfully!"

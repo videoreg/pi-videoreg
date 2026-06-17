@@ -8,7 +8,7 @@
 
 ## Features
 
-- Video recording
+- Video recording (dashcam mode)
 - Live stream mode
 - Parking mode (periodic photos)
 - Remote access over the internet (WiFi or USB modem)
@@ -125,14 +125,14 @@ The main reason a UPS is needed is to gracefully shut down the RPi after it is d
 
 #### Option: continuous power from the car battery without a UPS
 
-In this case we need to solve the problem of shutting down the RPi when the ignition is turned off. By default this would be an instant power cut to the board — better not even experiment with it. One direction worth trying: use dashcam power devices that plug into the fuse box and keep the 5V voltage from the battery when the ignition is off, and also provide an indicator wire signaling whether the engine is running or not.
+In this case we need to solve the problem of shutting down the RPi when the ignition is turned off. By default this would be an instant power cut to the board — better not even experiment with it. One direction worth experimenting with: use dashcam power devices that plug into the fuse box and keep the 5V voltage from the battery when the ignition is off, and also provide an indicator wire signaling whether the engine is running or not.
 
 #### Option: UPS based on lithium-ion or lithium-polymer batteries
 
 As already mentioned, [PiSugar 3](https://www.pisugar.com/products/pisugar-3-raspberry-pi-zero-battery) is the most suitable and feature-rich UPS, implementing everything that is needed:
 
 - powering off the RPi (by default `shutdown` does not cut power to the RPi);
-- RTC;
+- RTC (emulated);
 - RTC Alarm (powering on the RPi at a scheduled time);
 - I2C: controlling the UPS and reading its status.
 
@@ -157,7 +157,7 @@ Overall, this is perhaps one of the most preferable UPS options, but the market 
 
 #### Option 1: no internet connection
 
-You can use the core dashcam features: video recording and parking mode. You can access the Web UI through the WiFi access point (Access Point) that the device creates.
+You can use the core dashcam features: video recording and parking mode (only together with PiSugar 3). You can access the Web UI through the WiFi access point (Access Point) that the device creates.
 
 #### Option 2: connecting to a WiFi router
 
@@ -180,6 +180,12 @@ Connecting a modem unlocks the following capabilities (in addition to the previo
 - Remote access to the device anywhere there is mobile network coverage.
 - GPS tracking: a track of every trip is recorded automatically.
 - SMS: controlling the device via SMS commands, as well as forwarding incoming SMS to the Telegram Bot.
+
+### 📅 RTC: Date and Time
+
+Keeping the date and time across restarts is a fundamental requirement for the system to work correctly. As mentioned [above](#date-and-time), there are 2 ways to preserve the date and time after a reboot: NTP synchronization over the internet and the RTC in the PiSugar 3 UPS. For this reason, running the system without either an internet connection or an RTC is currently not supported.
+
+The specifics of the software RTC emulation based on PiSugar 3 are handled in the `vrg-hwclock-load.service` & `vrg-hwclock-save.service` systemd services.
 
 ### 🌡️ Temperature
 

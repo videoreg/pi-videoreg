@@ -10,21 +10,25 @@ ntp_synced() {
 }
 
 i=1
-while [ "$i" -le 8 ]; do
+while [ "$i" -le 12 ]; do
     if ntp_synced; then
         logger "RTC load skipped: NTP already synchronized (attempt $i)"
         exit 0
     fi
 
-    if /sbin/hwclock --hctosys --utc; then
-        logger "RTC synced to system on attempt $i"
-        exit 0
+    if [ -e /dev/rtc0 ]; then
+        if /sbin/hwclock --hctosys --utc; then
+            logger "RTC synced to system on attempt $i"
+            exit 0
+        fi
+        logger "RTC read failed (attempt $i), retrying"
+    else
+        logger "/dev/rtc0 not present yet (attempt $i), waiting"
     fi
 
-    logger "RTC read failed (attempt $i), retrying"
     sleep 2
     i=$((i + 1))
 done
 
-logger "RTC sync gave up after 8 attempts"
+logger "RTC sync gave up after 12 attempts (rtc0 missing or unreadable)"
 exit 1

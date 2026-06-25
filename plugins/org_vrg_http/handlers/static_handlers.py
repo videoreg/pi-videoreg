@@ -8,6 +8,7 @@ import aiofiles
 from aiohttp import web
 
 from plugins.org_vrg_http.bundle import build_bundle
+from plugins.org_vrg_http.manifest_reader import enabled_plugin_ids
 
 
 def _build_bootstrap_script(http_manifests: list) -> str:
@@ -89,12 +90,14 @@ async def handle_static(request: web.Request):
   if not os.path.abspath(file_path).startswith(os.path.abspath(static_dir)):
     raise web.HTTPForbidden()
 
-  # bundle.js is generated on demand (cold start) from plugin components
+  # bundle.js is generated on demand (cold start) from enabled plugin components
   if filename == "js/bundle.js" and not os.path.isfile(file_path):
-    plugins_dir = request.app["videoreg"].app_path("plugins")
-    build_bundle(plugins_dir, request.app["videoreg"].app_path(
+    videoreg = request.app["videoreg"]
+    plugins_dir = videoreg.app_path("plugins")
+    enabled_ids = enabled_plugin_ids(videoreg.manifest)
+    build_bundle(plugins_dir, videoreg.app_path(
       "plugins/org_vrg_http/static/js/bundle.js"
-    ))
+    ), enabled_ids)
 
   if not os.path.isfile(file_path):
     raise web.HTTPNotFound(text="File not found")

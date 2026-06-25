@@ -21,6 +21,7 @@ class Interface:
   """Sends user-facing responses (text, image, video, etc.) to an interface plugin via the API."""
 
   interactions: dict[InterfaceInteractions, str]
+  list_page_size: "int | None"
   _api_client: ApiClient
   _logger: Logger
 
@@ -33,18 +34,24 @@ class Interface:
     for interface_manifest in interfaces_manifest:
       name = interface_manifest.get("name")
       interactions = interface_manifest.get("interactions")
+      list_page_size = interface_manifest.get("list_page_size")
 
       if not name or not interactions:
         continue
 
-      result[name] = Interface(interactions, api_client, logger)
+      result[name] = Interface(interactions, api_client, logger, list_page_size)
 
     return result
 
   def __init__(
-    self, interactions: dict[InterfaceInteractions, str], api_client: ApiClient, logger: Logger
+    self,
+    interactions: dict[InterfaceInteractions, str],
+    api_client: ApiClient,
+    logger: Logger,
+    list_page_size: "int | None" = None,
   ):
     self.interactions = interactions
+    self.list_page_size = list_page_size
     self._api_client = api_client
     self._logger = logger
 

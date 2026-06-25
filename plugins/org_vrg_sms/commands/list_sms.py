@@ -17,8 +17,9 @@ class CommandListSms(InterfaceCommand):
     except:
       pass
 
+    per_page = interface.list_page_size or 6
     keyboard_data = await get_sms_keyboard(
-      videoreg=self._plugin.runner.videoreg, logger=self._plugin.logger, page=page
+      videoreg=self._plugin.runner.videoreg, logger=self._plugin.logger, page=page, per_page=per_page
     )
 
     if keyboard_data.count_total == 0:

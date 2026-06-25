@@ -14,8 +14,9 @@ class PhotoKeyboardData:
   buttons: list
 
 
-async def get_photos_keyboard(videoreg: Videoreg, logger: Logger, page: int) -> PhotoKeyboardData:
-  per_page = 6
+async def get_photos_keyboard(
+  videoreg: Videoreg, logger: Logger, page: int, per_page: int = 6
+) -> PhotoKeyboardData:
   offset = per_page * (page - 1)
   photo_dir = str(videoreg.jpeg_path())
 

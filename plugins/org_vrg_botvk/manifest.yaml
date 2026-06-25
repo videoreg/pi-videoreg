@@ -22,3 +22,6 @@ http:
     - url: botvk/config
       method: post
       plugin: botvk.set_settings
+
+power:
+  ask_before_shutdown: true # power calls botvk.is_ready_to_die before shutting down

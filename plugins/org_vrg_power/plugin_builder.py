@@ -62,9 +62,19 @@ async def build_plugin(
   else:
     from plugins.org_vrg_power.prod.shutdown import ShutdownControllerImpl, ShutdownLogicImpl
     from plugins.org_vrg_power.prod.power_controls import PowerControlsImpl
+    from plugins.org_vrg_power.shutdown_plugins_reader import read_ask_before_shutdown_plugins
+
+    ask_plugins = read_ask_before_shutdown_plugins(
+      runner.videoreg.app_path("plugins"), runner.videoreg.manifest.plugins
+    )
+    plugin.logger.info(f"Plugins asked before shutdown: {ask_plugins}")
 
     shutdown_logic = ShutdownLogicImpl(
-      plugin.runner.videoreg, plugin.logger, plugin.runner.power_supply, plugin.api_client
+      plugin.runner.videoreg,
+      plugin.logger,
+      plugin.runner.power_supply,
+      plugin.api_client,
+      ask_plugins,
     )
     shutdown_controller = ShutdownControllerImpl(
       plugin=plugin, shutdown_logic=shutdown_logic, previous_config=previous_shutdown_config

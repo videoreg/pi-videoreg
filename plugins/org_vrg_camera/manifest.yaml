@@ -125,3 +125,6 @@ commands:
   - name: stream
     title: Start RTSP stream
     hidden: true
+
+power:
+  ask_before_shutdown: true # power calls camera.is_ready_to_die before shutting down

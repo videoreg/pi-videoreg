@@ -58,3 +58,6 @@ commands:
     title: Reboot
   - name: shutdown
     title: Shutdown
+
+power:
+  ask_before_shutdown: true # power calls its own power.is_ready_to_die before shutting down

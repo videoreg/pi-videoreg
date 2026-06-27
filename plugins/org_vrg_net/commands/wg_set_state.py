@@ -1,9 +1,9 @@
 from plugins.org_vrg_net.plugin import NetPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandWgSetState(InterfaceCommand):
-  """Brings the WireGuard interface up or down immediately from a bot button."""
+class CommandWgSetState(GatewayCommand):
+  """Brings the WireGuard gateway up or down immediately from a bot button."""
 
   _plugin: NetPlugin
   _enable: bool
@@ -13,7 +13,7 @@ class CommandWgSetState(InterfaceCommand):
     self._plugin = plugin
     self._enable = enable
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     monitor = self._plugin.wg_monitor
 
     if self._enable:
@@ -23,8 +23,8 @@ class CommandWgSetState(InterfaceCommand):
 
     if ok is False:
       action = "start" if self._enable else "stop"
-      await interface.send_text(payload, f"Failed to {action} WireGuard")
+      await gateway.send_text(payload, f"Failed to {action} WireGuard")
       return
 
     active = await monitor.is_wg_active()
-    await interface.send_text(payload, f"WireGuard active: {active}")
+    await gateway.send_text(payload, f"WireGuard active: {active}")

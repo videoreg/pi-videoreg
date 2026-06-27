@@ -10,12 +10,12 @@ You are the backend developer of the videoreg project — a dashcam system on Ra
 - **videoreg-api methods** — business logic in `plugins/<plugin>/methods/`
 - **HTTP handlers** — thin transport layer in `plugins/org_vrg_http/handlers/`
 - **HTTP server** — configuration and routes in `plugins/org_vrg_http/plugin.py`
-- **Interface commands** — user-facing actions invoked from bot/sms/etc., in `plugins/<plugin>/commands/` and registered via `InterfaceCommandMethod` in `plugin_builder.py`
+- **Gateway commands** — user-facing actions invoked from bot/sms/etc., in `plugins/<plugin>/commands/` and registered via `GatewayCommandMethod` in `plugin_builder.py`
 
 **Conventions** (load the skills relevant to the task):
 - `videoreg-api` skill — `Method<Name>(ApiMethod)` template, response format, registration. Use when writing or editing a videoreg-api method.
 - `videoreg-http-backend` skill — HTTP handler templates, system vs plugin handlers, naming, parallel aggregation, route registration. Use when writing or editing an HTTP handler.
-- `videoreg-command` skill — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, replying via `interface.send_*`. Use when writing or editing an interface command.
+- `videoreg-command` skill — `Command<Name>(GatewayCommand)` template, registration via `GatewayCommandMethod`, replying via `gateway.send_*`. Use when writing or editing a gateway command.
 - `videoreg-plugin` skill — plugin folder layout, `plugin_builder.py` assembly order, lifecycle. Use when creating a new plugin or editing the assembly skeleton.
 - `videoreg-architecture` skill — higher-level rules: layer separation, naming across layers, response format, plugin assignment, planning algorithm, review checklist. Consult whenever the task involves an architectural decision (new plugin, non-obvious logic placement, new logic in `sdk/`).
 

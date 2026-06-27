@@ -1,17 +1,17 @@
 import plugins.org_vrg_net.const as const
 import plugins.org_vrg_net.ip as ip
 from plugins.org_vrg_net.plugin import NetPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   _plugin: NetPlugin
 
   def __init__(self, plugin: NetPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     ips = self._get_ip_map()
     wifi_blocked = self._plugin.state.get(const.KEY_WIFI_BLOCKED, False)
 
@@ -26,7 +26,7 @@ WiFi blocked: {wifi_blocked}
 https://{ip.get_current_ip()}:8443
 """
 
-    await interface.send_text(
+    await gateway.send_text(
       payload=payload,
       text=bot_message,
       keyboard=[
@@ -45,10 +45,10 @@ https://{ip.get_current_ip()}:8443
   def _get_ip_map(self):
     ips = {"wg0": None, "wlan0": None, "wwan0": None}
 
-    for interface in ips:
+    for gateway in ips:
       try:
-        ips[interface] = ip.get_interface_ip(interface)
+        ips[gateway] = ip.get_gateway_ip(gateway)
       except:
-        ips[interface] = "error"
+        ips[gateway] = "error"
 
     return ips

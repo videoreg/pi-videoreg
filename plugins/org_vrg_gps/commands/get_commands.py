@@ -1,15 +1,15 @@
 from plugins.org_vrg_gps.plugin import GpsPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   _plugin: GpsPlugin
 
   def __init__(self, plugin: GpsPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     location_gps = await self._plugin.modem.get_location_gps()
     location_lbs = await self._plugin.modem.get_location_lbs()
 
@@ -31,7 +31,7 @@ class CommandGetCommands(InterfaceCommand):
 
     bot_message = f"Location:\n\nGPS: {gps_lat},{gps_lng}\nhttps://yandex.ru/maps/?mode=search&text={gps_lat}%2C{gps_lng}\n\nLBS: {lbs_lat},{lbs_lng}\nhttps://yandex.ru/maps/?mode=search&text={lbs_lat}%2C{lbs_lng}"
 
-    await interface.send_text(
+    await gateway.send_text(
       payload=payload,
       text=bot_message,
       keyboard=[

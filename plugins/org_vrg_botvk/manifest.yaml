@@ -1,4 +1,4 @@
-# botvk is an interface plugin (VK community bot). It exposes no user-facing
+# botvk is a gateway plugin (VK community bot). It exposes no user-facing
 # commands of its own. Credentials are stored in plugin state (vk_bot_token,
 # vk_group_id) and per-user binding in plugin_fields.org_vrg_botvk.vk_user_id;
 # both are editable from the web UI (Settings -> VK Bot).

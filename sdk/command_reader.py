@@ -1,7 +1,7 @@
 """Reading the per-plugin `manifest.yaml` `commands` blocks.
 
 Each plugin declares its user-facing (entry) commands in `plugins/<id>/manifest.yaml`
-under the `commands` key. Interface plugins (`bot`, `sms`) scan every plugin directory
+under the `commands` key. Gateway plugins (`bot`, `sms`) scan every plugin directory
 to build their command lists, so this reader lives in the SDK shared by both.
 """
 

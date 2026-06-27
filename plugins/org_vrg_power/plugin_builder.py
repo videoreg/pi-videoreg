@@ -20,7 +20,7 @@ from plugins.org_vrg_power.methods.set_wakeup import MethodSetWakeup
 from plugins.org_vrg_power.methods.shutdown import MethodShutdown
 from plugins.org_vrg_power.plugin import PowerPlugin
 from plugins.org_vrg_power.shutdown import ShutdownController, ShutdownConfig, ShutdownLogic
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
 
@@ -84,10 +84,10 @@ async def build_plugin(
   plugin.init_shutdown(shutdown_logic, shutdown_controller)
   plugin.init_power_controls(power_controls)
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "power": CommandGetCommands(plugin, runner.power_supply),
     "wakeup_commands": CommandGetWakeupCommands(plugin),
     "set_wakeup": CommandSetWakeup(plugin, runner.power_supply),
@@ -100,7 +100,7 @@ async def build_plugin(
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       "get_status": MethodGetStatus(plugin, runner.power_supply),
       "get_charging_status": MethodPowerStatusGeneric(runner.power_supply, "get_charging_status"),
       "get_wakeup_config": MethodGetWakeupConfig(plugin),

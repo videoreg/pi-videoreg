@@ -5,7 +5,7 @@ description: videoreg plugin conventions — plugin id vs short name, plugin fol
 
 # videoreg plugin conventions
 
-Templates and rules for plugin-level work: plugin file structure, assembly in `plugin_builder.py`, lifecycle, service/manifest registration. Bodies of api-methods and interface commands are covered by the dedicated `videoreg-api` and `videoreg-command` skills.
+Templates and rules for plugin-level work: plugin file structure, assembly in `plugin_builder.py`, lifecycle, service/manifest registration. Bodies of api-methods and gateway commands are covered by the dedicated `videoreg-api` and `videoreg-command` skills.
 
 For higher-level architectural rules (where a plugin's logic should live, request flow, naming) see the `videoreg-architecture` skill.
 
@@ -39,7 +39,7 @@ plugins/<plugin_id>/
   plugin.py              — main <Name>Plugin class (state, lifecycle, helpers)
   plugin_builder.py      — async build_plugin(runner, args, plugin_manifest) — assembly + registration
   methods/               — one file per videoreg-api method   → see videoreg-api skill
-  commands/              — one file per interface command     → see videoreg-command skill
+  commands/              — one file per gateway command     → see videoreg-command skill
   translations/          — ru.yaml / en.yaml (plugin-scoped i18n strings)
   README.md              — plugin-specific docs
 ```
@@ -85,7 +85,7 @@ Standard assembly order:
 ```python
 from argparse import Namespace
 from sdk.service import ServiceRunner
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from plugins.<plugin_id>.plugin import <Name>Plugin
 # import methods and commands here — see videoreg-api / videoreg-command
 
@@ -114,16 +114,16 @@ async def build_plugin(
     # 4. Optional: api-client to call other plugins' methods.
     plugin.init_api_client()
 
-    # 5. Optional: api-server with this plugin's methods + interface commands.
-    interfaces = Interface.parse_interfaces(
-        runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+    # 5. Optional: api-server with this plugin's methods + gateway commands.
+    gateways = Gateway.parse_gateways(
+        runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
     )
-    commands: dict[str, InterfaceCommand] = {
+    commands: dict[str, GatewayCommand] = {
         # "<command_key>": Command<Name>(plugin),   ← see videoreg-command skill
     }
 
     plugin.init_api_servier(methods={
-        "command": InterfaceCommandMethod(interfaces, commands),  # only if the plugin handles commands
+        "command": GatewayCommandMethod(gateways, commands),  # only if the plugin handles commands
         # "<method_key>": Method<Name>(plugin),                    ← see videoreg-api skill
     })
 
@@ -204,7 +204,7 @@ For business events emitted from the plugin (`init_journal_client()`, `JournalRe
 This skill stops at plugin assembly. For:
 
 - the contents of `methods/` and how api-methods are written/registered → **`videoreg-api` skill**
-- the contents of `commands/`, `InterfaceCommandMethod`, replying via `interface.send_*` → **`videoreg-command` skill**
+- the contents of `commands/`, `GatewayCommandMethod`, replying via `gateway.send_*` → **`videoreg-command` skill**
 - HTTP handlers (these live in `org_vrg_http`, not in the plugin) → **`videoreg-http-backend` skill**
 
 ---

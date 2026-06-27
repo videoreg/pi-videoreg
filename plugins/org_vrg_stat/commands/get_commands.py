@@ -1,12 +1,12 @@
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   def __init__(self):
     super().__init__()
 
-  async def exec(self, interface: Interface, payload, args):
-    await interface.send_text(
+  async def exec(self, gateway: Gateway, payload, args):
+    await gateway.send_text(
       payload=payload,
       text="Stat commands",
       keyboard=[

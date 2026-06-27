@@ -29,7 +29,7 @@ class CommandCallback(Callback):
         "command": command_name,
         "payload": {"chat_id": chat.chat_id},
         "args": command_args,
-        "interface": "botvk",
+        "gateway": "botvk",
       }
 
       response: ApiResponse = await self._api_client.exec(f"{plugin_name}.command", args=api_args)

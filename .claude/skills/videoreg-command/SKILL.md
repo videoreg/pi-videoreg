@@ -1,11 +1,11 @@
 ---
 name: videoreg-command
-description: videoreg interface command conventions — Command<Name>(InterfaceCommand) template, command-to-plugin assignment (same as api-methods — logic lives where state lives), registration via InterfaceCommandMethod in plugin_builder.py, replying via interface.send_text / send_image / send_video / send_document, capability check via interface.support, entry vs internal commands declared in the plugin's manifest.yaml (with optional weigh/hidden), i18n for replies. Trigger when creating or modifying a user-facing command in plugins/<plugin>/commands/.
+description: videoreg gateway command conventions — Command<Name>(GatewayCommand) template, command-to-plugin assignment (same as api-methods — logic lives where state lives), registration via GatewayCommandMethod in plugin_builder.py, replying via gateway.send_text / send_image / send_video / send_document, capability check via gateway.support, entry vs internal commands declared in the plugin's manifest.yaml (with optional weigh/hidden), i18n for replies. Trigger when creating or modifying a user-facing command in plugins/<plugin>/commands/.
 ---
 
-# videoreg interface command conventions
+# videoreg gateway command conventions
 
-Templates and rules for user-facing commands triggered through interfaces (bot, sms, …). For higher-level architectural rules see `videoreg-architecture`. For plugin assembly see `videoreg-plugin`. For pure data api-methods see `videoreg-api`.
+Templates and rules for user-facing commands triggered through gateways (bot, sms, …). For higher-level architectural rules see `videoreg-architecture`. For plugin assembly see `videoreg-plugin`. For pure data api-methods see `videoreg-api`.
 
 **Important:** Never read `plugins/org_vrg_http/static/vue.global.js` — it is huge.
 
@@ -14,18 +14,18 @@ Templates and rules for user-facing commands triggered through interfaces (bot, 
 ## Command flow
 
 ```
-User input in interface (bot/sms/…)
+User input in gateway (bot/sms/…)
     ↓
-Interface plugin → api_client.exec("<plugin>.command", {command, interface, payload, args})
+Gateway plugin → api_client.exec("<plugin>.command", {command, gateway, payload, args})
     ↓
-InterfaceCommandMethod (in the target plugin)
+GatewayCommandMethod (in the target plugin)
     ↓
-Command<Name>.exec(interface, payload, args)   ← business logic
+Command<Name>.exec(gateway, payload, args)   ← business logic
     ↓
-interface.send_text / send_image / send_video / send_document   ← reply to the user
+gateway.send_text / send_image / send_video / send_document   ← reply to the user
 ```
 
-Unlike api-methods, commands **do not return data directly** — they reply asynchronously through `interface.send_*`.
+Unlike api-methods, commands **do not return data directly** — they reply asynchronously through `gateway.send_*`.
 
 ---
 
@@ -42,25 +42,25 @@ A command lives in the **plugin whose state it operates on** — same rule as ap
 **File:** `plugins/<plugin_id>/commands/<command_name>.py`
 
 ```python
-from sdk.interface import Interface, InterfaceCommand, InterfaceInteractions
+from sdk.gateway import Gateway, GatewayCommand, GatewayInteractions
 from plugins.<plugin_id>.plugin import <Name>Plugin
 
 
-class Command<Name>(InterfaceCommand):
+class Command<Name>(GatewayCommand):
     _plugin: <Name>Plugin
 
     def __init__(self, plugin: <Name>Plugin):
         super().__init__()
         self._plugin = plugin
 
-    async def exec(self, interface: Interface, payload, args):
+    async def exec(self, gateway: Gateway, payload, args):
         # ... logic via self._plugin ...
-        await interface.send_text(payload, "result text")
+        await gateway.send_text(payload, "result text")
 ```
 
 **Rules:**
 - Access plugin dependencies only via `self._plugin`.
-- Reply through `interface.send_*` — no return value.
+- Reply through `gateway.send_*` — no return value.
 - Log errors via `self._plugin.logger.error(..., exc_info=True)`.
 
 ---
@@ -68,54 +68,54 @@ class Command<Name>(InterfaceCommand):
 ## Reply primitives
 
 ```python
-await interface.send_text(payload, "text")
-await interface.send_image(payload, path)
-await interface.send_video(payload, path, width, height)
-await interface.send_document(payload, path)
+await gateway.send_text(payload, "text")
+await gateway.send_image(payload, path)
+await gateway.send_video(payload, path, width, height)
+await gateway.send_document(payload, path)
 ```
 
-**Capability check** — not every interface supports every interaction. Check before sending media:
+**Capability check** — not every gateway supports every interaction. Check before sending media:
 
 ```python
-if interface.support(InterfaceInteractions.VIDEO.value):
-    await interface.send_video(payload, path, w, h)
+if gateway.support(GatewayInteractions.VIDEO.value):
+    await gateway.send_video(payload, path, w, h)
 else:
-    await interface.send_text(payload, self._plugin.runner.i18n.t("common.video_unsupported"))
+    await gateway.send_text(payload, self._plugin.runner.i18n.t("common.video_unsupported"))
 ```
 
-The supported interaction types are declared in `videoreg.manifest.yaml` under `interfaces[].interactions`.
+The supported interaction types are declared in `videoreg.manifest.yaml` under `gateways[].interactions`.
 
 ---
 
 ## Registration in `plugin_builder.py`
 
-`InterfaceCommandMethod` is a special videoreg-api method (`<plugin>.command`) that dispatches to the right `InterfaceCommand` based on the request payload.
+`GatewayCommandMethod` is a special videoreg-api method (`<plugin>.command`) that dispatches to the right `GatewayCommand` based on the request payload.
 
 ```python
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from plugins.<plugin_id>.commands.<command_name> import Command<Name>
 
 # inside build_plugin(...):
-interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
 )
-commands: dict[str, InterfaceCommand] = {
+commands: dict[str, GatewayCommand] = {
     "<command_key>": Command<Name>(plugin),
 }
 
 plugin.init_api_servier(methods={
-    "command": InterfaceCommandMethod(interfaces, commands),
+    "command": GatewayCommandMethod(gateways, commands),
     # ... other api-methods ...
 })
 ```
 
 The full assembly skeleton is in the `videoreg-plugin` skill.
 
-**Call from the interface side:**
+**Call from the gateway side:**
 ```python
 await api_client.exec(
     "<plugin>.command",
-    {"command": "<command_key>", "interface": "bot", "payload": ..., "args": ...},
+    {"command": "<command_key>", "gateway": "bot", "payload": ..., "args": ...},
 )
 ```
 
@@ -125,7 +125,7 @@ See `plugins/org_vrg_bot/commands/common.py` for an end-to-end example.
 
 ## Entry commands vs internal commands
 
-- **Entry commands** are invoked directly by the user (e.g. typing `/photo` in the bot). They must be registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` so interfaces (bot, sms) know about them. Interfaces collect them via `read_plugin_commands` (`sdk/command_reader.py`):
+- **Entry commands** are invoked directly by the user (e.g. typing `/photo` in the bot). They must be registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` so gateways (bot, sms) know about them. Gateways collect them via `read_plugin_commands` (`sdk/command_reader.py`):
 
   ```yaml
   commands:
@@ -156,8 +156,8 @@ For key format, plural rules, translation file layout and how to add new keys �
 ## Task execution algorithm
 
 1. **Determine the owning plugin** (state + dependencies → plugin).
-2. **Create the command file** at `plugins/<plugin_id>/commands/<command_name>.py`, class `Command<Name>(InterfaceCommand)`.
-3. **Implement** `async def exec(self, interface, payload, args)`; reply via `interface.send_*`; check capability for media.
-4. **Register** in `plugin_builder.py` in the `commands` dict (the `command` api-method via `InterfaceCommandMethod` is registered once per plugin).
+2. **Create the command file** at `plugins/<plugin_id>/commands/<command_name>.py`, class `Command<Name>(GatewayCommand)`.
+3. **Implement** `async def exec(self, gateway, payload, args)`; reply via `gateway.send_*`; check capability for media.
+4. **Register** in `plugin_builder.py` in the `commands` dict (the `command` api-method via `GatewayCommandMethod` is registered once per plugin).
 5. **Entry command?** Add to the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` (optionally with `weigh` for menu ordering). Internal command? Skip the manifest.
 6. **Editing existing code?** Read `plugin_builder.py` first to find the command, then the file in `commands/`.

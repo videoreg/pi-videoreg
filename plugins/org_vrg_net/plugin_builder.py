@@ -21,7 +21,7 @@ from plugins.org_vrg_net.methods.wg_show import MethodWgShow
 from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
 from plugins.org_vrg_net.plugin import NetPlugin
 from plugins.org_vrg_net.wg import Config
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
 
@@ -67,10 +67,10 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_wg_monitor(wg_monitor)
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "net": CommandGetCommands(plugin),
     "connections": CommandGetConnections(plugin, net_controls),
     "connection": CommandGetConnection(plugin, net_controls),
@@ -82,7 +82,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       "connections": MethodGetConnections(net_controls),
       "connection": MethodGetConnection(net_controls),
       "connection_update": MethodConnectionUpdate(plugin.logger, net_controls),

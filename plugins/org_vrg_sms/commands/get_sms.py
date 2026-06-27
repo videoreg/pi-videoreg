@@ -3,17 +3,17 @@ from datetime import datetime
 
 from plugins.org_vrg_sms.plugin import SmsPlugin
 from plugins.org_vrg_sms.sms import SMS
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetSms(InterfaceCommand):
+class CommandGetSms(GatewayCommand):
   _plugin: SmsPlugin
 
   def __init__(self, plugin: SmsPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     sms_file_name = str(args)
 
     if not sms_file_name:
@@ -37,7 +37,7 @@ class CommandGetSms(InterfaceCommand):
       sms_datetime = datetime.fromisoformat(sms.timestamp)
       sms_datetime_str_for_bot = sms_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
-      await interface.send_text(
+      await gateway.send_text(
         payload=payload,
         text=f"SMS\n\n{sms_datetime_str_for_bot}\n\nFrom: {sms.number}\n\n{sms.text}\n",
       )

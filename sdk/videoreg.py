@@ -15,7 +15,7 @@ class Manifest:
   path: dict
   services: list[dict]
   plugins: list[dict]
-  interfaces: list[dict]
+  gateways: list[dict]
   locale: str = "ru"
 
 
@@ -42,7 +42,7 @@ def _load_manifest_dict(manifest_path: Path) -> dict:
   - `services`: merged by `name` (child entry replaces parent entry; new names appended).
     A plugin id can appear in at most one service — if a child-defined service
     references a plugin, it is removed from any parent-inherited service.
-  - `interfaces`: merged by `name` (child entry replaces parent entry; new names appended).
+  - `gateways`: merged by `name` (child entry replaces parent entry; new names appended).
   - `path`, `locale`: child replaces parent entirely.
   """
   with open(manifest_path) as f:
@@ -64,8 +64,8 @@ def _load_manifest_dict(manifest_path: Path) -> dict:
 
   merged["plugins"] = _merge_by_key(parent.get("plugins", []), data.get("plugins", []), "id")
   merged["services"] = _merge_services(parent.get("services", []), data.get("services", []))
-  merged["interfaces"] = _merge_by_key(
-    parent.get("interfaces", []), data.get("interfaces", []), "name", replace=True
+  merged["gateways"] = _merge_by_key(
+    parent.get("gateways", []), data.get("gateways", []), "name", replace=True
   )
 
   return merged

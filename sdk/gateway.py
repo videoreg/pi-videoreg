@@ -8,7 +8,7 @@ from sdk.socket.api import ApiClient, ApiMethod
 from sdk.socket.requests import RequestTimeoutError
 
 
-class InterfaceInteractions(Enum):
+class GatewayInteractions(Enum):
   TEXT = "text"
   EDIT_TEXT = "edit_text"
   STATUS = "status"
@@ -17,35 +17,35 @@ class InterfaceInteractions(Enum):
   DOCUMENT = "document"
 
 
-class Interface:
-  """Sends user-facing responses (text, image, video, etc.) to an interface plugin via the API."""
+class Gateway:
+  """Sends user-facing responses (text, image, video, etc.) to a gateway plugin via the API."""
 
-  interactions: dict[InterfaceInteractions, str]
+  interactions: dict[GatewayInteractions, str]
   list_page_size: "int | None"
   _api_client: ApiClient
   _logger: Logger
 
   @staticmethod
-  def parse_interfaces(
-    interfaces_manifest: list[dict], logger: Logger, api_client: ApiClient
-  ) -> dict[str, "Interface"]:
-    result: dict[str, Interface] = {}
+  def parse_gateways(
+    gateways_manifest: list[dict], logger: Logger, api_client: ApiClient
+  ) -> dict[str, "Gateway"]:
+    result: dict[str, Gateway] = {}
 
-    for interface_manifest in interfaces_manifest:
-      name = interface_manifest.get("name")
-      interactions = interface_manifest.get("interactions")
-      list_page_size = interface_manifest.get("list_page_size")
+    for gateway_manifest in gateways_manifest:
+      name = gateway_manifest.get("name")
+      interactions = gateway_manifest.get("interactions")
+      list_page_size = gateway_manifest.get("list_page_size")
 
       if not name or not interactions:
         continue
 
-      result[name] = Interface(interactions, api_client, logger, list_page_size)
+      result[name] = Gateway(interactions, api_client, logger, list_page_size)
 
     return result
 
   def __init__(
     self,
-    interactions: dict[InterfaceInteractions, str],
+    interactions: dict[GatewayInteractions, str],
     api_client: ApiClient,
     logger: Logger,
     list_page_size: "int | None" = None,
@@ -55,46 +55,46 @@ class Interface:
     self._api_client = api_client
     self._logger = logger
 
-  def support(self, interaction: InterfaceInteractions) -> bool:
+  def support(self, interaction: GatewayInteractions) -> bool:
     return interaction in self.interactions
 
   async def send_text(self, payload: Any, text: str, keyboard: Any = None) -> bool:
-    method = self.interactions[InterfaceInteractions.TEXT.value]
+    method = self.interactions[GatewayInteractions.TEXT.value]
     if not method:
       raise Exception("Unsopported interaction: text")
     args = {"payload": payload, "text": text, "keyboard": keyboard}
     return await self._interact(method, args)
 
   async def edit_message(self, payload: Any, text: str, keyboard: Any = None) -> bool:
-    method = self.interactions.get(InterfaceInteractions.EDIT_TEXT.value)
+    method = self.interactions.get(GatewayInteractions.EDIT_TEXT.value)
     if not method:
       raise Exception("Unsupported interaction: edit_text")
     args = {"payload": payload, "text": text, "keyboard": keyboard}
     return await self._interact(method, args)
 
   async def send_status(self, payload: Any, status: str):
-    method = self.interactions[InterfaceInteractions.STATUS.value]
+    method = self.interactions[GatewayInteractions.STATUS.value]
     if not method:
       raise Exception("Unsopported interaction: status")
     args = {"payload": payload, "status": status}
     return await self._interact(method, args)
 
   async def send_image(self, payload: Any, path: str):
-    method = self.interactions[InterfaceInteractions.IMAGE.value]
+    method = self.interactions[GatewayInteractions.IMAGE.value]
     if not method:
       raise Exception("Unsopported interaction: image")
     args = {"payload": payload, "path": path}
     return await self._interact(method, args)
 
   async def send_video(self, payload: Any, path: str, width: int, height: int):
-    method = self.interactions[InterfaceInteractions.VIDEO.value]
+    method = self.interactions[GatewayInteractions.VIDEO.value]
     if not method:
       raise Exception("Unsopported interaction: video")
     args = {"payload": payload, "path": path, "width": width, "height": height}
     return await self._interact(method, args)
 
   async def send_document(self, payload: Any, path: str):
-    method = self.interactions[InterfaceInteractions.DOCUMENT.value]
+    method = self.interactions[GatewayInteractions.DOCUMENT.value]
     if not method:
       raise Exception("Unsopported interaction: document")
     args = {"payload": payload, "path": path}
@@ -105,19 +105,19 @@ class Interface:
       result = await self._api_client.exec(method, args)
       return result.is_ok()
     except RequestTimeoutError:
-      self._logger.warning(f"interface: {method} timeout")
+      self._logger.warning(f"gateway: {method} timeout")
       return False
 
 
-class InterfaceCommandResponse:
-  """Base class for typed responses returned by command handlers to the interface."""
+class GatewayCommandResponse:
+  """Base class for typed responses returned by command handlers to the gateway."""
 
   def to_dict(self) -> dict:
     raise NotImplementedError()
 
 
 @dataclass
-class InterfaceCommandResponseText(InterfaceCommandResponse):
+class GatewayCommandResponseText(GatewayCommandResponse):
   text: str
   keyboard: Any = None
 
@@ -126,7 +126,7 @@ class InterfaceCommandResponseText(InterfaceCommandResponse):
 
 
 @dataclass
-class InterfaceCommandResponseStatus(InterfaceCommandResponse):
+class GatewayCommandResponseStatus(GatewayCommandResponse):
   status: str
 
   def to_dict(self):
@@ -134,7 +134,7 @@ class InterfaceCommandResponseStatus(InterfaceCommandResponse):
 
 
 @dataclass
-class InterfaceCommandResponseImage(InterfaceCommandResponse):
+class GatewayCommandResponseImage(GatewayCommandResponse):
   path: str
 
   def to_dict(self):
@@ -142,7 +142,7 @@ class InterfaceCommandResponseImage(InterfaceCommandResponse):
 
 
 @dataclass
-class InterfaceCommandResponseVideo(InterfaceCommandResponse):
+class GatewayCommandResponseVideo(GatewayCommandResponse):
   path: str
   width: int
   height: int
@@ -152,28 +152,28 @@ class InterfaceCommandResponseVideo(InterfaceCommandResponse):
 
 
 @dataclass
-class InterfaceCommandResponseDocument(InterfaceCommandResponse):
+class GatewayCommandResponseDocument(GatewayCommandResponse):
   path: str
 
   def to_dict(self):
     return {"path": self.path}
 
 
-class InterfaceCommand:
-  """Base class for user command handlers invoked through an interface."""
+class GatewayCommand:
+  """Base class for user command handlers invoked through a gateway."""
 
-  async def exec(self, interface: Interface, payload: Any, args: Any):
+  async def exec(self, gateway: Gateway, payload: Any, args: Any):
     pass
 
 
-class InterfaceCommandMethod(ApiMethod):
-  """ApiMethod that dispatches interface commands to the matching InterfaceCommand handler."""
+class GatewayCommandMethod(ApiMethod):
+  """ApiMethod that dispatches gateway commands to the matching GatewayCommand handler."""
 
-  _interfaces: dict[str, Interface]
-  _commands: dict[str, InterfaceCommand]
+  _gateways: dict[str, Gateway]
+  _commands: dict[str, GatewayCommand]
 
-  def __init__(self, interfaces: dict[str, Interface], commands: dict[str, InterfaceCommand]):
-    self._interfaces = interfaces
+  def __init__(self, gateways: dict[str, Gateway], commands: dict[str, GatewayCommand]):
+    self._gateways = gateways
     self._commands = commands
 
   async def exec(self, args):
@@ -183,22 +183,22 @@ class InterfaceCommandMethod(ApiMethod):
     command_name = args.get("command")
     command_payload = args.get("payload")
     command_args = args.get("args")
-    interface_name = args.get("interface")
+    gateway_name = args.get("gateway")
 
     if not command_name:
       return {"status": "error", "error": "command is required"}
 
-    if not interface_name:
-      return {"status": "error", "error": "interface is required"}
+    if not gateway_name:
+      return {"status": "error", "error": "gateway is required"}
 
     command = self._commands.get(command_name)
     if not command:
       return {"status": "error", "error": f"unknown command: {command_name}"}
 
-    interface = self._interfaces[interface_name]
-    if not interface:
-      return {"status": "error", "error": f"unknown interface: {interface_name}"}
+    gateway = self._gateways[gateway_name]
+    if not gateway:
+      return {"status": "error", "error": f"unknown gateway: {gateway_name}"}
 
-    asyncio.create_task(command.exec(interface, command_payload, command_args))
+    asyncio.create_task(command.exec(gateway, command_payload, command_args))
 
     return {"status": "ok"}

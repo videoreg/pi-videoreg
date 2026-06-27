@@ -1,6 +1,6 @@
 # org_vrg_botvk (`botvk`)
 
-VK (VKontakte) community bot interface. It mirrors the Telegram `org_vrg_bot` plugin: it lets an
+VK (VKontakte) community bot gateway. It mirrors the Telegram `org_vrg_bot` plugin: it lets an
 authorized user run system commands (`/photo`, `/video_start`, …) from a VK community chat and
 receives text, photos, documents and status back.
 
@@ -11,7 +11,7 @@ receives text, photos, documents and status back.
   it (`a_check`). It parses `message_new` (text commands) and `message_event` (callback buttons),
   persisting the long-poll `ts` in plugin state (`vk_ts`).
 - Commands are dispatched exactly like the Telegram bot: a typed `/cmd` (or a callback button)
-  triggers `<plugin>.command` over videoreg-api with `"interface": "botvk"`. Plugins reply through
+  triggers `<plugin>.command` over videoreg-api with `"gateway": "botvk"`. Plugins reply through
   the manifest-declared `botvk.*` interactions — no plugin command code is VK-specific.
 - `VkApi` (`vk_api.py`) wraps `messages.send` / `messages.edit` / `messages.setActivity`, the
   multi-step photo and document upload flows, and `messages.sendMessageEventAnswer`.

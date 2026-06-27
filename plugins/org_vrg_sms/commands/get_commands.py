@@ -1,16 +1,16 @@
 from plugins.org_vrg_sms.plugin import SmsPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   _plugin: SmsPlugin
 
   def __init__(self, plugin: SmsPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
-    await interface.send_text(
+  async def exec(self, gateway: Gateway, payload, args):
+    await gateway.send_text(
       payload=payload,
       text="SMS commands",
       keyboard=[

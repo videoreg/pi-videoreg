@@ -1,17 +1,17 @@
 from plugins.org_vrg_gps.plugin import GpsPlugin
-from sdk.interface import Interface, InterfaceCommand, InterfaceInteractions
+from sdk.gateway import Gateway, GatewayCommand, GatewayInteractions
 
 
-class CommandSendTrack(InterfaceCommand):
+class CommandSendTrack(GatewayCommand):
   _plugin: GpsPlugin
 
   def __init__(self, plugin: GpsPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
-    if not interface.support(InterfaceInteractions.DOCUMENT.value):
-      await interface.send_text(payload, "Sending files not supported")
+  async def exec(self, gateway: Gateway, payload, args):
+    if not gateway.support(GatewayInteractions.DOCUMENT.value):
+      await gateway.send_text(payload, "Sending files not supported")
       return
 
     file_name = str(args)
@@ -30,7 +30,7 @@ class CommandSendTrack(InterfaceCommand):
       )
       return
 
-    await interface.send_document(payload, str(file_path))
+    await gateway.send_document(payload, str(file_path))
 
     # try:
     #   response: ApiResponse = await self._plugin.api_client.exec(

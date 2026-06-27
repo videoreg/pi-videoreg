@@ -2,10 +2,10 @@ import json
 
 from plugins.org_vrg_net.net_controls import NetControls
 from plugins.org_vrg_net.plugin import NetPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetConnection(InterfaceCommand):
+class CommandGetConnection(GatewayCommand):
   _plugin: NetPlugin
   _net_controls: NetControls
 
@@ -14,7 +14,7 @@ class CommandGetConnection(InterfaceCommand):
     self._plugin = plugin
     self._net_controls = net_controls
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     connection_id = str(args)
 
     if not connection_id:
@@ -27,7 +27,7 @@ class CommandGetConnection(InterfaceCommand):
 
     for connection in connections:
       if connection_id == connection.get("id"):
-        await interface.send_text(payload, text=json.dumps(connection, indent=2))
+        await gateway.send_text(payload, text=json.dumps(connection, indent=2))
 
     self._plugin.logger.warning(
       f"Command CommandGetConnection: connection not found connection_id={connection_id}"

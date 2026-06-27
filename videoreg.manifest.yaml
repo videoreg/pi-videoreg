@@ -87,7 +87,7 @@ plugins:
     name: sms
     enabled: true
 
-interfaces:
+gateways:
   - name: bot
     interactions:
       text: bot.send_text

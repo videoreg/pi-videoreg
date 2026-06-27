@@ -118,15 +118,15 @@ print(response.get_data())
 
 Plugin methods live in `methods/`.
 
-### Layer 3: Interfaces and user commands
-The system accounts for multiple interfaces (UI, entry points) through which users interact with the system. Examples of basic interfaces are the `bot` and `sms` plugins — users can execute "commands" through them.
+### Layer 3: Gateways and user commands
+The system accounts for multiple gateways (UI, entry points) through which users interact with the system. Examples of basic gateways are the `bot` and `sms` plugins — users can execute "commands" through them.
 
-Interfaces are declared in the central `videoreg.manifest.yaml`:
+Gateways are declared in the central `videoreg.manifest.yaml`:
 
 ```yaml
-interfaces:
+gateways:
   - name: bot
-    interactions: # Available interaction types for plugins to respond to users via this interface
+    interactions: # Available interaction types for plugins to respond to users via this gateway
       text: bot.send_text
       image: bot.send_image
 ```
@@ -143,14 +143,14 @@ commands:
     hidden: true # Optional. Hidden commands are dispatchable but not shown in the bot menu
 ```
 
-Interfaces collect commands from every plugin via `read_plugin_commands` (`sdk/command_reader.py`), which scans `plugins/*/manifest.yaml` and returns them sorted by `weigh` descending.
+Gateways collect commands from every plugin via `read_plugin_commands` (`sdk/command_reader.py`), which scans `plugins/*/manifest.yaml` and returns them sorted by `weigh` descending.
 
 Only "entry" (primary) commands are registered in the manifest; internal commands are registered only in the plugin's `plugin_builder.py`.
 
-How an interface interacts with the plugin that handles a command:
-- The interface must invoke commands on the plugin via the videoreg-api method `<plugin>.command`, passing user arguments and `payload` (e.g. the chat id where the message was received). See example at `plugins/org_vrg_bot/commands/common.py`.
-- The plugin handles commands using the `InterfaceCommandMethod` method.
-- The plugin responds to the user via videoreg-api calls to the interface. Available interaction types are described in the interface manifest. See the short video recording command example at `plugins/org_vrg_camera/commands/video.py`.
+How a gateway interacts with the plugin that handles a command:
+- The gateway must invoke commands on the plugin via the videoreg-api method `<plugin>.command`, passing user arguments and `payload` (e.g. the chat id where the message was received). See example at `plugins/org_vrg_bot/commands/common.py`.
+- The plugin handles commands using the `GatewayCommandMethod` method.
+- The plugin responds to the user via videoreg-api calls to the gateway. Available interaction types are described in the gateway manifest. See the short video recording command example at `plugins/org_vrg_camera/commands/video.py`.
 
 Plugin commands live in `commands/`.
 
@@ -166,7 +166,7 @@ The project conventions live in skills under `.claude/skills/`. They auto-load b
 - `videoreg-plugin` — plugin folder layout, `plugin_builder.py` assembly order, lifecycle, manifest registration
 - `videoreg-api` — `Method<Name>(ApiMethod)` template, response format `{status, data/error}`, registration, calling via `api_client.exec`
 - `videoreg-http-backend` — HTTP handler templates (system vs plugin), naming, parsing api responses, parallel aggregation, route registration
-- `videoreg-command` — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, replying via `interface.send_*`, entry vs internal commands
+- `videoreg-command` — `Command<Name>(GatewayCommand)` template, registration via `GatewayCommandMethod`, replying via `gateway.send_*`, entry vs internal commands
 - `videoreg-journal` — `JournalRecord` / `JournalClient` (`sdk/journal.py`), wiring `init_journal_client()`, business-event names and file format
 - `videoreg-folder-watcher` — `FolderWatcher` subclass template (`sdk/folder_watcher.py`), `async on_file_created`, start/stop lifecycle wiring
 - `videoreg-i18n` — `sdk/i18n.py` engine, translation file layout (`ru.yaml` / `en.yaml`), key format, CLDR plural forms, Python `t/p` and JS `$t/$p`, fallback chain

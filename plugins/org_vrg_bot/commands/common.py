@@ -32,7 +32,7 @@ class CommandCommon(Command):
         "command": self.name,
         "payload": {"chat_id": chat.chat_id},
         "args": args if args else self._default_args,
-        "interface": "bot",
+        "gateway": "bot",
       }
 
       response: ApiResponse = await self._api_client.exec(

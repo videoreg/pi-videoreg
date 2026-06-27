@@ -12,7 +12,7 @@ For implementation templates and step-by-step rules, defer to the specialized sk
 - **`videoreg-plugin`** — plugin folder layout, `plugin_builder.py` assembly, lifecycle, manifest registration
 - **`videoreg-api`** — `Method<Name>(ApiMethod)` template, response format, method registration
 - **`videoreg-http-backend`** — HTTP handler template, route registration, system vs plugin handlers, naming
-- **`videoreg-command`** — `Command<Name>(InterfaceCommand)` template, registration via `InterfaceCommandMethod`, manifest entries
+- **`videoreg-command`** — `Command<Name>(GatewayCommand)` template, registration via `GatewayCommandMethod`, manifest entries
 
 System overview, plugin/service list and event-bus layers are described in the project `CLAUDE.md`.
 
@@ -22,7 +22,7 @@ System overview, plugin/service list and event-bus layers are described in the p
 
 ## Request architecture
 
-The system has two entry paths into a plugin's logic — both end in the same place (a videoreg-api method or an interface command).
+The system has two entry paths into a plugin's logic — both end in the same place (a videoreg-api method or a gateway command).
 
 **HTTP request flow** (web UI):
 ```
@@ -35,16 +35,16 @@ api_client.exec(...)      ← videoreg-api method call
 MethodXxx.exec(args)      ← business logic                       → videoreg-api
 ```
 
-**User-command flow** (interfaces — bot, sms, …):
+**User-command flow** (gateways — bot, sms, …):
 ```
-User input in interface (bot/sms/…)
+User input in gateway (bot/sms/…)
     ↓
-Interface plugin → api_client.exec("<plugin>.command", {command, interface, payload, args})
+Gateway plugin → api_client.exec("<plugin>.command", {command, gateway, payload, args})
     ↓
-InterfaceCommandMethod (in the target plugin)
+GatewayCommandMethod (in the target plugin)
     ↓
-Command<Name>.exec(interface, payload, args)   ← business logic   → videoreg-command
-                                                   reply via interface.send_*
+Command<Name>.exec(gateway, payload, args)   ← business logic   → videoreg-command
+                                                   reply via gateway.send_*
 ```
 
 **Cross-cutting rules:**
@@ -110,11 +110,11 @@ Templates, registration, parallel aggregation, error mapping → `videoreg-http-
 
 ---
 
-## Interfaces and commands (high level)
+## Gateways and commands (high level)
 
-In addition to videoreg-api, plugins can handle user commands from interfaces (bot, sms, …). A command lives in the plugin whose state it operates on; "entry" commands (typed by the user, e.g. `/photo`) are also registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` (optionally with `weigh` for bot-menu ordering), internal commands are not.
+In addition to videoreg-api, plugins can handle user commands from gateways (bot, sms, …). A command lives in the plugin whose state it operates on; "entry" commands (typed by the user, e.g. `/photo`) are also registered in the owning plugin's `plugins/<id>/manifest.yaml` under `commands:` (optionally with `weigh` for bot-menu ordering), internal commands are not.
 
-Templates, reply primitives (`interface.send_*`), capability check → `videoreg-command`.
+Templates, reply primitives (`gateway.send_*`), capability check → `videoreg-command`.
 
 ---
 
@@ -128,7 +128,7 @@ When reviewing code, check:
 4. **Are names consistent across layers?** — HTTP ↔ handler ↔ api-method names match semantically.
 5. **No duplication?** — if a similar method exists, prefer extending it; if a command and a method need the same logic, the command calls the method (or a shared helper).
 6. **Parallel calls?** — if a handler aggregates multiple plugins, uses `asyncio.gather(..., return_exceptions=True)`. (See `videoreg-http-backend`.)
-7. **Command follows the pattern?** — inherits `InterfaceCommand`, replies via `interface.send_*`, lives in `commands/`. (See `videoreg-command`.)
+7. **Command follows the pattern?** — inherits `GatewayCommand`, replies via `gateway.send_*`, lives in `commands/`. (See `videoreg-command`.)
 
 ---
 
@@ -136,7 +136,7 @@ When reviewing code, check:
 
 1. Determine what data the frontend (or user) needs and in what format.
 2. Determine which plugin owns that data → create the videoreg-api method there (`videoreg-api`).
-3. Describe the HTTP endpoint (or command): method/path/schema for HTTP (`videoreg-http-backend`); command name and entry registration for interfaces (`videoreg-command`).
+3. Describe the HTTP endpoint (or command): method/path/schema for HTTP (`videoreg-http-backend`); command name and entry registration for gateways (`videoreg-command`).
 4. Split tasks: backend implements the method + handler/command, frontend implements the component.
 
 ---

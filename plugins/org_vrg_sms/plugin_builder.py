@@ -9,7 +9,7 @@ from plugins.org_vrg_sms.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_sms.methods.send_text import MethodSendText
 from plugins.org_vrg_sms.plugin import SmsPlugin
 from sdk.command_reader import read_plugin_commands
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -34,10 +34,10 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_sms_manager(sms_manager)
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "sms": CommandGetCommands(plugin),
     "list_sms": CommandListSms(plugin),
     "get_sms": CommandGetSms(plugin),
@@ -45,7 +45,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "send_text": MethodSendText(plugin),
       "get_all_sms": MethodGetAllSms(plugin),

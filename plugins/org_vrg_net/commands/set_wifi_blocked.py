@@ -1,10 +1,10 @@
 import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.net_controls import NetControls
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 from sdk.state import State
 
 
-class CommandSetWifiBlocked(InterfaceCommand):
+class CommandSetWifiBlocked(GatewayCommand):
   _net_controls: NetControls
   _state: State
   _blocked: bool
@@ -15,7 +15,7 @@ class CommandSetWifiBlocked(InterfaceCommand):
     self._state = state
     self._blocked = blocked
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     self._state.save({const.KEY_WIFI_BLOCKED: self._blocked})
     await self._net_controls.set_wifi_blocked(self._blocked)
-    await interface.send_text(payload, f"Wifi blocked: {self._blocked}")
+    await gateway.send_text(payload, f"Wifi blocked: {self._blocked}")

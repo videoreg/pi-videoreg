@@ -1,11 +1,11 @@
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.plugin import PowerPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 from sdk.power import ChargingStatus, PowerSupply
 from sdk.power.pisugar import PiSugar
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   _power_supply: PowerSupply
   _plugin: PowerPlugin
 
@@ -14,7 +14,7 @@ class CommandGetCommands(InterfaceCommand):
     self._plugin = plugin
     self._power_supply = power_supply
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     wakeup_value = self._plugin.state.get(const.STATE_KEY_WAKEUP, None)
     wakeup_message = wakeup_value if wakeup_value else "disabled"
     
@@ -35,7 +35,7 @@ class CommandGetCommands(InterfaceCommand):
     else:
       uptime = f"{uptime_sec // 3600}h {uptime_sec % 3600 // 60}m"
 
-    await interface.send_text(
+    await gateway.send_text(
       payload=payload,
       text=f"Power: {self._power_supply.title}\n\nCharging: {charging_status_str}{battery_str}{temp_str}\n\nUptime: {uptime}",
       keyboard=[

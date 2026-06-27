@@ -32,7 +32,7 @@ from plugins.org_vrg_camera.methods.video_pause import MethodVideoPause
 from plugins.org_vrg_camera.methods.video_start import MethodVideoStart
 from plugins.org_vrg_camera.methods.video_stop import MethodVideoStop
 from plugins.org_vrg_camera.plugin import CameraPlugin
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ConnectionListenerFactory, PluginConnectionListener, ServiceRunner
 
 
@@ -83,10 +83,10 @@ async def build_plugin(
 
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "camera": CommandGetCommands(plugin),
     "list_photos": CommandListPhotos(plugin),
     "list_videos": CommandListVideos(plugin),
@@ -103,7 +103,7 @@ async def build_plugin(
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       "get_info": MethodGetInfo(plugin),
       # "get_commands": MethodGetCommands(plugin),
       "video_start": MethodVideoStart(plugin),

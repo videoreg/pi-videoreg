@@ -1,11 +1,11 @@
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.plugin import PowerPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 from sdk.power import PowerSupply
 from sdk.power.pisugar import PiSugar
 
 
-class CommandSetWakeup(InterfaceCommand):
+class CommandSetWakeup(GatewayCommand):
   _plugin: PowerPlugin
   _power_supply: PowerSupply
 
@@ -14,7 +14,7 @@ class CommandSetWakeup(InterfaceCommand):
     self._plugin = plugin
     self._power_supply = power_supply
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     verified_value = None
 
     if args == "1m":
@@ -39,4 +39,4 @@ class CommandSetWakeup(InterfaceCommand):
 
     self._plugin.state.save({const.STATE_KEY_WAKEUP: verified_value})
 
-    await interface.send_text(payload=payload, text=f"Did set to {verified_value}")
+    await gateway.send_text(payload=payload, text=f"Did set to {verified_value}")

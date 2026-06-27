@@ -1,16 +1,16 @@
 import plugins.org_vrg_http.functions as functions
 from plugins.org_vrg_camera.plugin import CameraPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandSendPhotoLink(InterfaceCommand):
+class CommandSendPhotoLink(GatewayCommand):
   _plugin: CameraPlugin
 
   def __init__(self, plugin: CameraPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     file_name = str(args)
 
     if not file_name:
@@ -29,4 +29,4 @@ class CommandSendPhotoLink(InterfaceCommand):
 
     link = await functions.get_link(dir="photo", file_name=file_name)
 
-    await interface.send_text(payload, link)
+    await gateway.send_text(payload, link)

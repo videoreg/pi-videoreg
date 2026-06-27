@@ -2,10 +2,10 @@ from math import ceil
 
 from plugins.org_vrg_net.net_controls import NetControls
 from plugins.org_vrg_net.plugin import NetPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetConnections(InterfaceCommand):
+class CommandGetConnections(GatewayCommand):
   _plugin: NetPlugin
   _net_controls: NetControls
 
@@ -14,7 +14,7 @@ class CommandGetConnections(InterfaceCommand):
     self._plugin = plugin
     self._net_controls = net_controls
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     page = 1
     try:
       page = int(args)
@@ -24,10 +24,10 @@ class CommandGetConnections(InterfaceCommand):
     connections = self._net_controls.get_nm_connections()
 
     if not connections:
-      await interface.send_text(payload=payload, text="There are no connections")
+      await gateway.send_text(payload=payload, text="There are no connections")
       return
 
-    per_page = interface.list_page_size or 6
+    per_page = gateway.list_page_size or 6
     count_pages = int(ceil(len(connections) / per_page))
 
     if page < 1 or page > count_pages:
@@ -82,4 +82,4 @@ class CommandGetConnections(InterfaceCommand):
     if count_pages > 1:
       text += f" (page {page} of {count_pages})"
 
-    await interface.send_text(payload=payload, text=text, keyboard=bot_buttons)
+    await gateway.send_text(payload=payload, text=text, keyboard=bot_buttons)

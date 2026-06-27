@@ -7,7 +7,7 @@ from plugins.org_vrg_gps.methods.delete_track import MethodDeleteTrack
 from plugins.org_vrg_gps.methods.get_location import MethodGetLocation
 from plugins.org_vrg_gps.methods.get_tracks import MethodGetTracks
 from plugins.org_vrg_gps.plugin import GpsPlugin
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
 
@@ -32,10 +32,10 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_journal_client()
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "gps": CommandGetCommands(plugin),
     "list_tracks": CommandListTracks(plugin),
     "send_track": CommandSendTrack(plugin),
@@ -43,7 +43,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       # "get_commands": MethodGetCommands(plugin),
       "get_location": MethodGetLocation(plugin),
       "get_tracks": MethodGetTracks(plugin),

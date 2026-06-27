@@ -114,7 +114,7 @@ class SmsPlugin(Plugin):
         f"{plugin_name}.command",
         {
           "command": name,
-          "interface": "sms",
+          "gateway": "sms",
           "payload": {"phone": sms_number},
           "args": args,
         },

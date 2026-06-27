@@ -21,8 +21,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   if args.env == "prod":
     from plugins.org_vrg_gps.prod.modem import ModemImpl
+    from sdk.at.transport import DEFAULT_MODEM_DEVICE, shared_transport
 
-    modem = ModemImpl(plugin.logger)
+    # Shared with the SMS plugin in the same vrg-modem process (one serial port).
+    device = plugin_manifest.get("modem_device") or DEFAULT_MODEM_DEVICE
+    transport = shared_transport(runner, device, logger=plugin.logger)
+    modem = ModemImpl(plugin.logger, transport)
   else:
     from plugins.org_vrg_gps.dev.modem import ModemImpl
 

@@ -17,6 +17,26 @@ from logging import Logger
 _FINAL_RE = re.compile(r"\r\n(OK|ERROR|\+CME ERROR:[^\r]*|\+CMS ERROR:[^\r]*)\r\n")
 _ERROR_PREFIXES = ("+CME ERROR", "+CMS ERROR")
 
+# Default AT port. The modem exposes the control/AT interface here; the SMS and
+# GPS plugins (both in the vrg-modem service) share one transport on this port.
+DEFAULT_MODEM_DEVICE = "/dev/ttyUSB2"
+
+
+def shared_transport(runner, device: str, baudrate: int = 115200, logger=None) -> "AtTransport":
+  """Return a per-runner singleton AtTransport for ``device``.
+
+  Plugins running in the same service (e.g. sms + gps in vrg-modem) must share
+  one transport so the single serial port is opened once and access is
+  serialised by the transport's internal lock. Keyed by device on the runner.
+  """
+  registry = getattr(runner, "_at_transports", None)
+  if registry is None:
+    registry = {}
+    setattr(runner, "_at_transports", registry)
+  if device not in registry:
+    registry[device] = AtTransport(device, baudrate, logger)
+  return registry[device]
+
 
 @dataclass
 class AtResponse:
@@ -54,6 +74,10 @@ class AtTransport:
     self.family = None  # ModemFamily | None
     self.model: str | None = None
 
+  @property
+  def device(self) -> str:
+    return self._device
+
   # --- lifecycle ----------------------------------------------------------
 
   async def open(self) -> None:
@@ -72,10 +96,21 @@ class AtTransport:
     # Drain any stale bytes left in the buffer.
     await loop.run_in_executor(None, self._ser.reset_input_buffer)
 
+  async def ensure_open(self) -> None:
+    if self._ser is None:
+      await self.open()
+
   async def close(self) -> None:
+    # Clear cached identity so a reopened port (e.g. after USB re-enumeration)
+    # is re-identified.
+    self.family = None
+    self.model = None
     if self._ser is not None:
       loop = asyncio.get_event_loop()
-      await loop.run_in_executor(None, self._ser.close)
+      try:
+        await loop.run_in_executor(None, self._ser.close)
+      except Exception:
+        pass
       self._ser = None
 
   async def __aenter__(self) -> "AtTransport":
@@ -111,10 +146,21 @@ class AtTransport:
   async def send(self, command: str, timeout: float = 5.0) -> AtResponse:
     """Send a single AT command and return the parsed response."""
     async with self._lock:
-      if self._logger:
-        self._logger.debug(f"AT >> {command}")
-      await self._write((command + "\r").encode())
-      raw = await self._read_until(lambda b: _FINAL_RE.search(b.decode(errors="replace")), timeout)
+      await self.ensure_open()
+      try:
+        if self._logger:
+          self._logger.debug(f"AT >> {command}")
+        await self._write((command + "\r").encode())
+        raw = await self._read_until(
+          lambda b: _FINAL_RE.search(b.decode(errors="replace")), timeout
+        )
+      except OSError as e:
+        # Port error (e.g. USB re-enumeration): drop the handle so the next
+        # call reopens it. Safe to do under a shared transport.
+        if self._logger:
+          self._logger.warning(f"AT port error on {self._device}: {e}")
+        await self.close()
+        raise
       resp = self._parse(command, raw)
       if self._logger:
         self._logger.debug(f"AT << {resp.final} {resp.lines}")
@@ -123,14 +169,21 @@ class AtTransport:
   async def send_pdu(self, command: str, pdu_hex: str, timeout: float = 10.0) -> AtResponse:
     """Send a PDU-mode command (AT+CMGS=<len>): await '>' then write PDU + Ctrl-Z."""
     async with self._lock:
-      if self._logger:
-        self._logger.debug(f"AT >> {command} (pdu {pdu_hex})")
-      await self._write((command + "\r").encode())
-      await self._read_until(lambda b: b">" in b, timeout=5.0)
-      await self._write(pdu_hex.encode() + b"\x1a")  # Ctrl-Z submits
-      raw = await self._read_until(
-        lambda b: _FINAL_RE.search(b.decode(errors="replace")), timeout
-      )
+      await self.ensure_open()
+      try:
+        if self._logger:
+          self._logger.debug(f"AT >> {command} (pdu {pdu_hex})")
+        await self._write((command + "\r").encode())
+        await self._read_until(lambda b: b">" in b, timeout=5.0)
+        await self._write(pdu_hex.encode() + b"\x1a")  # Ctrl-Z submits
+        raw = await self._read_until(
+          lambda b: _FINAL_RE.search(b.decode(errors="replace")), timeout
+        )
+      except OSError as e:
+        if self._logger:
+          self._logger.warning(f"AT port error on {self._device}: {e}")
+        await self.close()
+        raise
       return self._parse(command, raw)
 
   # --- parsing ------------------------------------------------------------

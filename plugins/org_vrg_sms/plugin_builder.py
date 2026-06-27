@@ -28,8 +28,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     sms_manager = SmsManagerImpl()
   else:
     from plugins.org_vrg_sms.prod.sms_manager import SmsManagerImpl
+    from sdk.at.transport import DEFAULT_MODEM_DEVICE, shared_transport
 
-    sms_manager = SmsManagerImpl(plugin.logger)
+    # Shared with the GPS plugin in the same vrg-modem process (one serial port).
+    device = plugin_manifest.get("modem_device") or DEFAULT_MODEM_DEVICE
+    transport = shared_transport(runner, device, logger=plugin.logger)
+    sms_manager = SmsManagerImpl(plugin.logger, transport)
 
   plugin.init_sms_manager(sms_manager)
   plugin.init_api_client()

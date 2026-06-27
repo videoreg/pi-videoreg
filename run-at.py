@@ -18,10 +18,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sdk.at import gps as gpsmod  # noqa: E402
+from sdk.at import lbs as lbsmod  # noqa: E402
 from sdk.at import sms as smsmod  # noqa: E402
 from sdk.at.modem_info import ModemFamily, identify  # noqa: E402
 from sdk.at.pdu import decode_deliver_pdu, encode_submit_pdu  # noqa: E402
-from sdk.at.sms import IncomingSms, merge_parts  # noqa: E402
+from sdk.at.sms import IncomingSms, merge_parts  # noqa: E402  (lbsmod imported above)
 from sdk.at.transport import AtTransport  # noqa: E402
 
 DEFAULT_DEVICE = "/dev/ttyUSB2"
@@ -93,6 +94,26 @@ async def cmd_sms_send(args) -> int:
   print(f"--- raw ---\n{resp.raw.strip()}")
   print(f"--- final: {resp.final} ---")
   return 0 if resp.ok else 1
+
+
+async def cmd_lbs(args) -> int:
+  async with AtTransport(device=args.dev) as t:
+    # Diagnostics: LBS needs network attach + a data context.
+    cgatt = await t.send("AT+CGATT?")
+    creg = await t.send("AT+CREG?")
+    print(f"attach (CGATT): {cgatt.line_after('+CGATT:') or cgatt.final}")
+    print(f"registration (CREG): {creg.line_after('+CREG:') or creg.final}")
+
+    line, parsed = await lbsmod.get_lbs(t, cid=args.cid, timeout=args.timeout)
+    print(f"raw: {line}")
+    if parsed is None:
+      print("no +CLBS reply (command unsupported, or modem not attached)")
+      return 1
+    print(f"parsed: {parsed}")
+    if "latitude" in parsed:
+      return 0
+    print(f"LBS failed: location_code={parsed['location_code']} (non-zero = error)")
+    return 1
 
 
 async def cmd_gps(args) -> int:
@@ -184,6 +205,13 @@ def _selftest() -> int:
   check("cgnssinfo.lon_neg", g["longitude"], -30.0)
   check("nofix", gpsmod.parse_cgpsinfo("+CGPSINFO: ,,,,,,,,"), None)
 
+  print("LBS parse:")
+  l = lbsmod.parse_clbs("+CLBS: 0,31.222654,121.355072,550")
+  check("clbs.lat", l["latitude"], 31.222654)
+  check("clbs.lon", l["longitude"], 121.355072)
+  check("clbs.acc", l["accuracy"], 550)
+  check("clbs.err", lbsmod.parse_clbs("+CLBS: 4"), {"location_code": 4})
+
   print()
   if failures:
     print(f"SELFTEST FAILED: {len(failures)} -> {failures}")
@@ -217,6 +245,11 @@ def main() -> int:
   p.add_argument("number")
   p.add_argument("text")
   p.set_defaults(func=cmd_sms_send)
+
+  p = sub.add_parser("lbs", help="query cell-based (LBS) location via AT+CLBS")
+  p.add_argument("--cid", type=int, default=1, help="PDP context id (default 1)")
+  p.add_argument("--timeout", type=float, default=20.0)
+  p.set_defaults(func=cmd_lbs)
 
   p = sub.add_parser("gps", help="enable GNSS and poll a location fix")
   p.add_argument("--attempts", type=int, default=10)

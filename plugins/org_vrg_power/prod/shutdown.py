@@ -17,21 +17,27 @@ class ShutdownLogicImpl(ShutdownLogic):
   _power_supply: PowerSupply
   _logger: Logger
   _api_client: ApiClient
+  _ask_plugins: list[str]
 
-  def __init__(self, videoreg: Videoreg, logger: Logger, power_supply: PowerSupply, api_client: ApiClient):
+  def __init__(
+    self,
+    videoreg: Videoreg,
+    logger: Logger,
+    power_supply: PowerSupply,
+    api_client: ApiClient,
+    ask_plugins: list[str],
+  ):
     self._videoreg = videoreg
     self._logger = logger
     self._power_supply = power_supply
     self._api_client = api_client
+    self._ask_plugins = ask_plugins
     self.last_attempt_shutdown_timestamp = 0
 
   async def should_shutdown(self, charging_status: ChargingStatus) -> bool:
     if charging_status == ChargingStatus.NOT_CHARGING:
       plugins_ready = await asyncio.gather(
-        self._is_plugin_ready_to_die("bot"),
-        self._is_plugin_ready_to_die("camera"),
-        self._is_plugin_ready_to_die("sms"),
-        self._is_plugin_ready_to_die("power"),
+        *(self._is_plugin_ready_to_die(name) for name in self._ask_plugins)
       )
 
       if not all(plugins_ready):

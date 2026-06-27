@@ -43,6 +43,7 @@ class CameraPlugin(Plugin):
   _camera_controls: CameraControls
   _osd: osd.OSD
   is_first_loop_done = False
+  is_dev = False
   _jpeg_watcher: "JpegFolderWatcher"
   _suspended = False
   _stream_timer_task: asyncio.Task = None
@@ -327,7 +328,31 @@ class CameraPlugin(Plugin):
       await self.start_video()
       self._suspended = False
 
+  def _latest_jpeg_path(self) -> "str | None":
+    """Returns the most recent (by mtime) jpeg in the jpeg folder, or None."""
+    jpeg_dir = str(self.runner.videoreg.jpeg_path())
+    try:
+      files = [
+        os.path.join(jpeg_dir, f)
+        for f in os.listdir(jpeg_dir)
+        if f.lower().endswith((".jpg", ".jpeg"))
+      ]
+    except FileNotFoundError:
+      return None
+    if not files:
+      return None
+    return max(files, key=os.path.getmtime)
+
   async def take_photo(self, is_screenshot: bool, is_night: bool) -> str:
+    # In dev (e.g. running in Docker) the camera is a no-op and captures nothing,
+    # so return the latest existing jpeg to keep the send/feed flow working.
+    if self.is_dev:
+      latest = self._latest_jpeg_path()
+      if latest:
+        self.logger.info(f"dev mode: returning latest jpeg {latest}")
+        return latest
+      self.logger.warning("dev mode: no jpeg files found in jpeg folder")
+
     date = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
     try:
       path = str(self.runner.videoreg.jpeg_path(f"{date}.jpg"))

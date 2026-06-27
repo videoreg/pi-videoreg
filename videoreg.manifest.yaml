@@ -28,6 +28,7 @@ services:
   - name: vrg-bot
     plugins:
       - org_vrg_bot
+      - org_vrg_botvk
   - name: vrg-pisugar-watchdog
     plugins: []
   - name: vrg-mediamtx
@@ -70,6 +71,10 @@ plugins:
     name: bot
     enabled: true
 
+  - id: org_vrg_botvk
+    name: botvk
+    enabled: true
+
   - id: org_vrg_http
     name: http
     enabled: true
@@ -91,6 +96,15 @@ interfaces:
       image: bot.send_image
       video: bot.send_video
       document: bot.send_document
+
+  - name: botvk
+    list_page_size: 3 # VK inline keyboards allow at most 6 rows / 10 buttons
+    interactions:
+      text: botvk.send_text
+      edit_text: botvk.edit_message
+      status: botvk.send_status
+      image: botvk.send_image
+      document: botvk.send_document
 
   - name: sms
     interactions:

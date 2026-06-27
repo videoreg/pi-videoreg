@@ -29,3 +29,6 @@ http:
 commands:
   - name: sms
     title: SMS commands
+
+power:
+  ask_before_shutdown: true # power calls sms.is_ready_to_die before shutting down

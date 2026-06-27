@@ -19,7 +19,7 @@ import plugins.org_vrg_http.handlers.user_handlers as user_handlers
 from plugins.org_vrg_http.bundle import build_bundle
 from plugins.org_vrg_http.handlers.generic_api_handler import make_api_handler
 from plugins.org_vrg_http.jwt_handler import JwtHandler
-from plugins.org_vrg_http.manifest_reader import read_plugin_http_configs
+from plugins.org_vrg_http.manifest_reader import enabled_plugin_ids, read_plugin_http_configs
 from plugins.org_vrg_http.middleware import create_auth_middleware
 from sdk.helper import stream_subprocess
 from sdk.service import Plugin
@@ -44,9 +44,11 @@ class HttpPlugin(Plugin):
 
     self.logger.info("Authorization components initialized")
 
-    # Read every plugin's `http` manifest block once and keep it in memory.
+    # Read every enabled plugin's `http` manifest block once and keep it in
+    # memory. Plugins disabled in the central manifest contribute no menu / api.
     plugins_dir = self.runner.videoreg.app_path("plugins")
-    self._http_manifests = read_plugin_http_configs(plugins_dir)
+    enabled_ids = enabled_plugin_ids(self.runner.videoreg.manifest)
+    self._http_manifests = read_plugin_http_configs(plugins_dir, enabled_ids)
     self.logger.info(
       f"Loaded http manifests from {len(self._http_manifests)} plugin(s)"
     )
@@ -200,7 +202,8 @@ class HttpPlugin(Plugin):
     out_path = self.runner.videoreg.app_path(
       "plugins/org_vrg_http/static/js/bundle.js"
     )
-    count = build_bundle(plugins_dir, out_path)
+    enabled_ids = enabled_plugin_ids(self.runner.videoreg.manifest)
+    count = build_bundle(plugins_dir, out_path, enabled_ids)
     return web.json_response({"status": "ok", "components": count})
 
   async def _get_local_ips(self) -> list[str]:

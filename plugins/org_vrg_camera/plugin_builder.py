@@ -60,6 +60,7 @@ async def build_plugin(
   name = plugin_manifest.get("name")
 
   plugin = CameraPlugin(id, name, runner)
+  plugin.is_dev = args.env == "dev"
   plugin.init_logger(args.log_level)
   plugin.init_socket(
     client_id=name,

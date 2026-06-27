@@ -17,3 +17,6 @@ http:
     - url: bot/config
       method: post
       plugin: bot.set_settings
+
+power:
+  ask_before_shutdown: true # power calls bot.is_ready_to_die before shutting down

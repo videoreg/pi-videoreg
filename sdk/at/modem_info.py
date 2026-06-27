@@ -28,11 +28,22 @@ def family_from_model(model: str) -> ModemFamily:
   return ModemFamily.UNKNOWN
 
 
-async def identify(transport: AtTransport) -> tuple[ModemFamily, str]:
-  """Query the modem model and return ``(family, raw_model_string)``."""
+async def identify(transport: AtTransport, force: bool = False) -> tuple[ModemFamily, str]:
+  """Query the modem model and return ``(family, raw_model_string)``.
+
+  The result is cached on the transport, so repeated calls (e.g. on every GPS
+  poll) reuse it instead of re-issuing AT+CGMM. Pass ``force=True`` to re-detect.
+  """
+  if not force and transport.family is not None:
+    return transport.family, transport.model or ""
+
   resp = await transport.send("AT+CGMM")
   model = " ".join(resp.lines) if resp.lines else ""
   if not model:
     resp = await transport.send("ATI")
     model = " ".join(resp.lines)
-  return family_from_model(model), model
+
+  family = family_from_model(model)
+  transport.family = family
+  transport.model = model
+  return family, model

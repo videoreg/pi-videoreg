@@ -1,139 +1,86 @@
 import asyncio
-from functools import wraps
+from datetime import datetime
 from logging import Logger
-
-import dbus
 
 from plugins.org_vrg_sms.sms import SMS
 from plugins.org_vrg_sms.sms_manager import SmsManager
+from sdk.at import sms as at_sms
+from sdk.at.transport import AtTransport
 
-
-def _async_retry(max_attempts=5, delay=2, backoff=2):
-  """
-  Async retry decorator
-
-  Args:
-      max_attempts: maximum number of attempts
-      delay: initial delay in seconds
-      backoff: delay multiplier
-  """
-
-  def decorator(func):
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-      current_delay = delay
-      last_error = None
-
-      for attempt in range(max_attempts):
-        try:
-          return await func(*args, **kwargs)
-        except dbus.DBusException as e:
-          if "WrongState" in str(e) or "enabling" in str(e).lower():
-            last_error = e
-            if attempt < max_attempts - 1:
-              # print(f"⏳ Retry in {current_delay}s (attempt {attempt + 1}/{max_attempts})")
-              await asyncio.sleep(current_delay)
-              current_delay *= backoff
-            else:
-              # print(f"❌ Failed after {max_attempts} attempts")
-              raise
-          else:
-            # Different error — do not retry
-            raise
-
-      # All attempts exhausted
-      raise last_error
-
-    return wrapper
-
-  return decorator
+DEFAULT_DEVICE = "/dev/ttyUSB2"
 
 
 class SmsManagerImpl(SmsManager):
-  def __init__(self, logger: Logger):
+  """SMS access over the modem's raw AT port (no ModemManager / dbus).
+
+  Reads incoming messages via AT+CMGL (PDU mode), merges multipart parts into
+  whole messages, and deletes every part from the modem after reading. A single
+  AtTransport is kept open and reused; its internal lock serialises reads and
+  sends on the shared serial port.
+  """
+
+  def __init__(self, logger: Logger, device: str = DEFAULT_DEVICE, baudrate: int = 115200):
     self.logger = logger
+    self._device = device
+    self._baudrate = baudrate
+    self._transport: AtTransport | None = None
+    self._open_lock = asyncio.Lock()
 
-  def _get_modem_messaging(self):
-    bus = dbus.SystemBus()
-    manager = bus.get_object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1")
-    manager_iface = dbus.Interface(manager, "org.freedesktop.DBus.ObjectManager")
-    objects = manager_iface.GetManagedObjects()
+  async def _get_transport(self) -> AtTransport:
+    if self._transport is None:
+      async with self._open_lock:
+        if self._transport is None:
+          transport = AtTransport(self._device, self._baudrate, self.logger)
+          await transport.open()
+          self._transport = transport
+    return self._transport
 
-    for path, interfaces in objects.items():
-      if "org.freedesktop.ModemManager1.Modem" in interfaces:
-        modem = bus.get_object("org.freedesktop.ModemManager1", path)
-        messaging = dbus.Interface(modem, "org.freedesktop.ModemManager1.Modem.Messaging")
-        return bus, messaging
-
-    return None, None
+  async def _reset(self) -> None:
+    """Drop the transport so the next call reopens the port (e.g. after USB re-enumeration)."""
+    if self._transport is not None:
+      try:
+        await self._transport.close()
+      except Exception as e:
+        self.logger.debug(f"transport close error: {e}")
+      self._transport = None
 
   async def read_and_delete_sms(self) -> list[SMS]:
-    bus, messaging, sms_paths = await self._list_sms_with_retry()
-
-    if messaging is None:
+    try:
+      transport = await self._get_transport()
+      messages = await at_sms.list_messages(transport)
+    except Exception as e:
+      self.logger.warning(f"sms read error: {e}")
+      await self._reset()
       return []
 
-    sms_list: list[SMS] = []
+    result: list[SMS] = []
+    for message in messages:
+      timestamp = (
+        message.timestamp.isoformat()
+        if message.timestamp
+        else datetime.now().astimezone().isoformat()
+      )
+      result.append(SMS(message.number, message.text, timestamp))
 
-    MM_SMS_PDU_TYPE_DELIVER = 1
+      # Delete every part of the message after reading.
+      for index in sorted(message.indices, reverse=True):
+        try:
+          response = await at_sms.delete(transport, index)
+          if not response.ok:
+            self.logger.error(f"sms delete index={index} failed: {response.final}")
+        except Exception as e:
+          self.logger.error(f"sms delete error index={index}: {e}")
 
-    for sms_path in sms_paths:
-      sms = bus.get_object("org.freedesktop.ModemManager1", sms_path)
-      props = dbus.Interface(sms, "org.freedesktop.DBus.Properties")
-
-      pdu_type = props.Get("org.freedesktop.ModemManager1.Sms", "PduType")
-
-      if int(pdu_type) != MM_SMS_PDU_TYPE_DELIVER:
-        continue
-
-      number = props.Get("org.freedesktop.ModemManager1.Sms", "Number")
-      text = props.Get("org.freedesktop.ModemManager1.Sms", "Text")
-      timestamp = props.Get("org.freedesktop.ModemManager1.Sms", "Timestamp")
-
-      sms_list.append(SMS(str(number), str(text), str(timestamp)))
-
-      try:
-        messaging.Delete(sms_path)
-      except dbus.DBusException as e:
-        self.logger.error(f"sms delete error: {e}")
-
-    return sms_list
-
-  @_async_retry(max_attempts=10, delay=2, backoff=1.5)
-  async def _list_sms_with_retry(self):
-    bus = dbus.SystemBus()
-    manager = bus.get_object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1")
-    manager_iface = dbus.Interface(manager, "org.freedesktop.DBus.ObjectManager")
-    objects = manager_iface.GetManagedObjects()
-
-    for path, interfaces in objects.items():
-      if "org.freedesktop.ModemManager1.Modem" in interfaces:
-        modem = bus.get_object("org.freedesktop.ModemManager1", path)
-        messaging = dbus.Interface(modem, "org.freedesktop.ModemManager1.Modem.Messaging")
-        sms_paths = messaging.List()  # may raise WrongState — retry in that case
-        return bus, messaging, sms_paths
-
-    return None, None, []
+    return result
 
   async def send_sms(self, number: str, text: str) -> None:
-    bus, messaging = self._get_modem_messaging()
-
-    if messaging is None:
-      raise RuntimeError("No modem found")
-
-    sms_path = messaging.Create(
-      {
-        "number": dbus.String(number),
-        "text": dbus.String(text),
-      }
-    )
-
-    sms = bus.get_object("org.freedesktop.ModemManager1", sms_path)
-    sms_iface = dbus.Interface(sms, "org.freedesktop.ModemManager1.Sms")
-
     try:
-      sms_iface.Send()
+      transport = await self._get_transport()
+      pdu_hex, response = await at_sms.send(transport, number, text)
     except Exception as e:
-      self.logger.error(f"Send sms error: {e}")
-    finally:
-      messaging.Delete(sms_path)
+      await self._reset()
+      raise RuntimeError(f"send sms error: {e}") from e
+
+    self.logger.debug(f"sent sms pdu: {pdu_hex}")
+    if not response.ok:
+      raise RuntimeError(f"send sms failed: {response.final}")

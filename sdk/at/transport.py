@@ -49,6 +49,10 @@ class AtTransport:
     self._logger = logger
     self._ser = None
     self._lock = asyncio.Lock()
+    # Cached modem identity (filled once by modem_info.identify); lives as long
+    # as this open port, so detection is not repeated on every read/send.
+    self.family = None  # ModemFamily | None
+    self.model: str | None = None
 
   # --- lifecycle ----------------------------------------------------------
 

@@ -1,234 +1,168 @@
-import json
-import re
-from datetime import UTC, datetime
+import asyncio
 from logging import Logger
 
 from plugins.org_vrg_gps.modem import Modem
-from sdk.helper import return_subprocess
+from sdk.at import gps as at_gps
+from sdk.at import lbs as at_lbs
+from sdk.at.modem_info import ModemFamily, identify
+from sdk.at.transport import AtTransport
+
+# GPS uses its own AT port (ttyUSB3) so it doesn't contend with the SMS plugin
+# on ttyUSB2 — the two run in separate service processes.
+DEFAULT_DEVICE = "/dev/ttyUSB3"
 
 
 class ModemImpl(Modem):
-  _logger: Logger
-  _modem_id: str = None
+  """GPS / LBS location over the modem's raw AT port (no ModemManager / mmcli).
+
+  Location is obtained by polling a single AT command and parsing its reply:
+  ``AT+CGPSINFO`` on SIM7600, ``AT+CGNSSINFO`` on A7670 (coordinates converted
+  from NMEA ddmm.mmmm to decimal degrees in ``sdk/at/gps.py``). The modem family
+  is detected once and cached on the transport. A single AtTransport is kept open
+  and reused; its internal lock serialises GPS and LBS queries.
+  """
+
+  def __init__(self, logger: Logger, device: str = DEFAULT_DEVICE, baudrate: int = 115200):
+    self._logger = logger
+    self._device = device
+    self._baudrate = baudrate
+    self._transport: AtTransport | None = None
+    self._open_lock = asyncio.Lock()
+    self._enabled = False
+    self._family = ModemFamily.UNKNOWN
+    self._model: str | None = None
 
   @property
-  def modem_id(self) -> str:
-    return self._modem_id
-
-  def __init__(self, logger: Logger):
-    self._logger = logger
+  def modem_id(self) -> str | None:
+    # Identity used by the plugin to detect modem re-enumeration; the model
+    # string is stable for a given modem on a given port.
+    return self._model if self._enabled else None
 
   def is_enabled(self) -> bool:
-    return True if self._modem_id else False
+    return self._enabled
+
+  # --- transport lifecycle ------------------------------------------------
+
+  async def _get_transport(self) -> AtTransport:
+    if self._transport is None:
+      async with self._open_lock:
+        if self._transport is None:
+          transport = AtTransport(self._device, self._baudrate, self._logger)
+          await transport.open()
+          self._transport = transport
+    return self._transport
+
+  async def _reset(self) -> None:
+    self._enabled = False
+    if self._transport is not None:
+      try:
+        await self._transport.close()
+      except Exception as e:
+        self._logger.debug(f"transport close error: {e}")
+      self._transport = None
+
+  # --- per-family command set ---------------------------------------------
+
+  def _gps_commands(self) -> tuple[str, str, str, str, str]:
+    """Return (power_on, power_off, query_state, info, info_prefix) for the family."""
+    if self._family == ModemFamily.A7670:
+      return "AT+CGNSSPWR=1", "AT+CGNSSPWR=0", "AT+CGNSSPWR?", "AT+CGNSSINFO", "+CGNSSINFO:"
+    return "AT+CGPS=1", "AT+CGPS=0", "AT+CGPS?", "AT+CGPSINFO", "+CGPSINFO:"
+
+  @staticmethod
+  def _state_is_on(line: str) -> bool:
+    # "+CGPS: 1,1" / "+CGNSSPWR: 1" -> first value after ':' is 1.
+    if ":" not in line:
+      return False
+    first = line.split(":", 1)[1].split(",")[0].strip()
+    return first == "1"
+
+  # --- Modem interface ----------------------------------------------------
 
   async def enable(self) -> bool:
-    # Check 1: ModemManager is running
-    result = await return_subprocess(cmd=["systemctl", "is-active", "ModemManager"])
-    if result.returncode != 0:
-      self._logger.warning("ModemManager is not running")
-      self._modem_id = None
+    try:
+      transport = await self._get_transport()
+      resp = await transport.send("AT", timeout=2.0)
+      if not resp.ok:
+        self._logger.warning("modem not responding to AT")
+        await self._reset()
+        return False
+      family, model = await identify(transport)  # cached on the transport
+      self._family = family
+      self._model = model or self._device
+      self._enabled = True
+      return True
+    except Exception as e:
+      self._logger.warning(f"modem enable error: {e}")
+      await self._reset()
       return False
-
-    # Check 2: Modem is present
-    result = await return_subprocess(cmd=["mmcli", "-L"])
-    if result.returncode != 0 or "Modem" not in result.stdout:
-      self._logger.warning("Modem not found")
-      self._modem_id = None
-      return False
-
-    # Get modem ID (first found)
-    match = re.search(r"/Modem/(\d+)", result.stdout)
-    if not match:
-      self._logger.warning("Failed to determine modem ID")
-      self._modem_id = None
-      return False
-
-    modem_id = match.group(1)
-
-    # Check 3: Modem supports gps-nmea
-    result = await return_subprocess(cmd=["mmcli", "-m", modem_id, "--location-status"])
-    if result.returncode != 0:
-      self._logger.warning(f"Failed to get location info for modem {modem_id}")
-      self._modem_id = None
-      return False
-
-    caps_line = next((l for l in result.stdout.splitlines() if "capabilities:" in l), "")
-    if "gps-nmea" not in caps_line:
-      self._logger.warning(
-        f"Modem {modem_id} does not support gps-nmea. Available: {caps_line.strip()}"
-      )
-      self._modem_id = None
-      return False
-
-    self._modem_id = modem_id
-    return True
 
   async def enable_gps(self) -> bool:
-    if not self._modem_id:
+    if not self._enabled:
       raise Exception("Modem not enabled!")
-
     try:
-      result = await return_subprocess(
-        cmd=[
-          "mmcli",
-          "-m",
-          self._modem_id,
-          "--location-enable-gps-nmea",
-          "--location-enable-gps-raw",
-          "--location-enable-agps-msa",
-        ]
-      )
+      transport = await self._get_transport()
+      power_on, _, query, _, _ = self._gps_commands()
 
-      if result.returncode != 0:
-        self._logger.warning(result.stderr)
-        return False
+      state = await transport.send(query, timeout=3.0)
+      if state.ok and state.lines and self._state_is_on(state.lines[0]):
+        return True
 
-      return True
+      resp = await transport.send(power_on, timeout=5.0)
+      if resp.ok:
+        return True
 
+      # Some firmwares reply ERROR when GPS is already powered — re-check state.
+      state = await transport.send(query, timeout=3.0)
+      return state.ok and bool(state.lines) and self._state_is_on(state.lines[0])
     except Exception as e:
       self._logger.warning(f"enable gps error: {e}")
       return False
 
-  @staticmethod
-  def _parse_gps_datetime(utc_str: str, gprmc: str | None) -> datetime | None:
-    """
-    Assembles datetime from two mmcli sources:
-    - utc_str: UTC time in "HH:MM:SS.S" format (from gps.utc)
-    - gprmc: $GPRMC sentence, date in field 9 (DDMMYY)
-    Returns datetime in device local TZ or None.
-    """
-    if not utc_str or utc_str == "--":
-      return None
-
-    if not gprmc:
-      return None
-
-    fields = gprmc.split(",")
-    if len(fields) <= 9:
-      return None
-
-    date_str = fields[9]  # DDMMYY
-    if not date_str or len(date_str) != 6:
-      return None
-
-    try:
-      day = int(date_str[0:2])
-      month = int(date_str[2:4])
-      year = 2000 + int(date_str[4:6])
-
-      # mmcli returns time as "HH:MM:SS.S" — strip colons and fractional seconds
-      time_digits = utc_str.replace(":", "").split(".")[0]  # → "HHMMSS"
-      hour = int(time_digits[0:2])
-      minute = int(time_digits[2:4])
-      second = int(time_digits[4:6])
-
-      dt_utc = datetime(year, month, day, hour, minute, second, tzinfo=UTC)
-      return dt_utc.astimezone()  # convert to device local TZ
-    except (ValueError, IndexError):
-      return None
-
-  async def get_location_gps(self) -> dict:
-    if not self._modem_id:
-      raise Exception("Modem not enabled!")
-
-    result = await return_subprocess(
-      cmd=["mmcli", "-m", self._modem_id, "--location-get", "--output-json"]
-    )
-
-    try:
-      data = json.loads(result.stdout)
-      modem = data.get("modem")
-      location = modem.get("location")
-      gps = location.get("gps")
-
-      nmea = gps.get("nmea") or []
-      gprmc = next((s for s in nmea if isinstance(s, str) and s.startswith("$GPRMC")), None)
-
-      dt = self._parse_gps_datetime(gps.get("utc"), gprmc)
-
-      speed_kmh = None
-      if gprmc:
-        fields = gprmc.split(",")
-        if len(fields) > 7 and fields[7]:
-          try:
-            speed_kmh = round(float(fields[7]) * 1.852, 1)
-          except ValueError:
-            pass
-
-      return {
-        "longitude": gps.get("longitude"),
-        "latitude": gps.get("latitude"),
-        "datetime": dt.isoformat() if dt else None,
-        "speed": speed_kmh,
-      }
-    except Exception as e:
-      self._logger.warning(f"gps parsing error: {e}")
-      return None
-
   async def disable_gps(self) -> bool:
-    if not self._modem_id:
+    if not self._enabled:
       raise Exception("Modem not enabled!")
-
     try:
-      result = await return_subprocess(
-        cmd=[
-          "mmcli",
-          "-m",
-          self._modem_id,
-          "--location-disable-gps-nmea",
-          "--location-disable-gps-raw",
-        ]
-      )
-
-      if result.returncode != 0:
-        self._logger.warning(result.stderr)
-        return False
-
-      return True
-
+      transport = await self._get_transport()
+      _, power_off, _, _, _ = self._gps_commands()
+      resp = await transport.send(power_off, timeout=5.0)
+      return resp.ok
     except Exception as e:
       self._logger.warning(f"disable gps error: {e}")
       return False
 
+  async def get_location_gps(self) -> dict | None:
+    if not self._enabled:
+      raise Exception("Modem not enabled!")
+    try:
+      transport = await self._get_transport()
+      _, _, _, info, prefix = self._gps_commands()
+      resp = await transport.send(info, timeout=3.0)
+      line = resp.line_after(prefix)
+      if not line:
+        return None
+      return at_gps.parse_gps_line(line)  # decimal degrees, speed km/h, or None
+    except Exception as e:
+      self._logger.warning(f"get gps location error: {e}")
+      return None
+
   async def enable_lbs(self) -> bool:
-    if not self._modem_id:
+    # LBS is queried on demand via AT+CLBS; there is nothing to keep enabled.
+    return True
+
+  async def get_location_lbs(self) -> dict | None:
+    if not self._enabled:
       raise Exception("Modem not enabled!")
-
     try:
-      result = await return_subprocess(
-        cmd=["mmcli", "-m", self._modem_id, "--command", "AT+CLBS=1,1"]
-      )
-
-      if result.returncode != 0:
-        self._logger.warning(result.stderr)
-        return False
-
-      return True
-
+      transport = await self._get_transport()
+      _, parsed = await at_lbs.get_lbs(transport, cid=1, timeout=15.0)
+      if parsed and "latitude" in parsed:
+        return {
+          "latitude": parsed["latitude"],
+          "longitude": parsed["longitude"],
+          "accuracy": parsed["accuracy"],
+        }
+      return None
     except Exception as e:
-      self._logger.warning(f"enable lbs error: {e}")
-      return False
-
-  async def get_location_lbs(self) -> dict:
-    if not self._modem_id:
-      raise Exception("Modem not enabled!")
-
-    result = await return_subprocess(
-      cmd=["mmcli", "-m", self._modem_id, "--command", "AT+CLBS=4,1"]
-    )
-
-    try:
-      match = re.search(r"\+CLBS:\s*(\d+),([-\d.]+),([-\d.]+),(\d+)", result.stdout)
-
-      if match:
-        error_code = int(match.group(1))
-        if error_code == 0:
-          return {
-            "latitude": float(match.group(2)),
-            "longitude": float(match.group(3)),
-            "accuracy": int(match.group(4)),
-          }
-    except Exception as e:
-      self._logger.warning(f"gps parsing error: {e}")
-
-    return None
+      self._logger.warning(f"get lbs location error: {e}")
+      return None

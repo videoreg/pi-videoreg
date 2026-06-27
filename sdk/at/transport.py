@@ -126,6 +126,27 @@ class AtTransport:
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, self._ser.write, data)
 
+  async def _drain(self) -> None:
+    if self._ser is not None:
+      loop = asyncio.get_event_loop()
+      await loop.run_in_executor(None, self._ser.reset_input_buffer)
+
+  @staticmethod
+  def _make_predicate(expect_prefix: str | None):
+    if not expect_prefix:
+      return lambda b: bool(_FINAL_RE.search(b.decode(errors="replace")))
+
+    # Async command: result line (e.g. "+CLBS: ...") arrives after OK. Stop when
+    # that line appears, or on an error final code.
+    line_re = re.compile(rf"\r\n{re.escape(expect_prefix)}[^\r]*\r\n")
+    err_re = re.compile(r"\r\n(ERROR|\+CME ERROR:[^\r]*|\+CMS ERROR:[^\r]*)\r\n")
+
+    def predicate(b: bytes) -> bool:
+      text = b.decode(errors="replace")
+      return bool(line_re.search(text)) or bool(err_re.search(text))
+
+    return predicate
+
   async def _read_until(self, predicate, timeout: float) -> bytes:
     """Accumulate bytes until ``predicate(buffer)`` is true or ``timeout``."""
     loop = asyncio.get_event_loop()
@@ -143,17 +164,23 @@ class AtTransport:
 
   # --- AT commands --------------------------------------------------------
 
-  async def send(self, command: str, timeout: float = 5.0) -> AtResponse:
-    """Send a single AT command and return the parsed response."""
+  async def send(self, command: str, timeout: float = 5.0, expect_prefix: str | None = None) -> AtResponse:
+    """Send a single AT command and return the parsed response.
+
+    ``expect_prefix`` is for asynchronous commands (e.g. ``AT+CLBS``) whose
+    result line arrives *after* the ``OK``: reading then continues past ``OK``
+    until a line starting with that prefix appears (or ERROR / timeout).
+    """
     async with self._lock:
       await self.ensure_open()
       try:
+        # Drop any stale/late unsolicited bytes from a previous command so they
+        # don't get mis-read as this command's response.
+        await self._drain()
         if self._logger:
           self._logger.debug(f"AT >> {command}")
         await self._write((command + "\r").encode())
-        raw = await self._read_until(
-          lambda b: _FINAL_RE.search(b.decode(errors="replace")), timeout
-        )
+        raw = await self._read_until(self._make_predicate(expect_prefix), timeout)
       except OSError as e:
         # Port error (e.g. USB re-enumeration): drop the handle so the next
         # call reopens it. Safe to do under a shared transport.
@@ -171,6 +198,7 @@ class AtTransport:
     async with self._lock:
       await self.ensure_open()
       try:
+        await self._drain()
         if self._logger:
           self._logger.debug(f"AT >> {command} (pdu {pdu_hex})")
         await self._write((command + "\r").encode())

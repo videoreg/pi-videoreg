@@ -39,6 +39,8 @@ async def get_lbs(transport: AtTransport, cid: int = 1, timeout: float = 20.0):
   The query talks to the SIMCom LBS server over the data context, so it can
   take several seconds and fails if the modem is not attached / has no data.
   """
-  resp = await transport.send(f"AT+CLBS=4,{cid}", timeout=timeout)
+  # AT+CLBS is asynchronous: the modem replies OK immediately and the
+  # "+CLBS: ..." result line follows seconds later — wait for that line.
+  resp = await transport.send(f"AT+CLBS=4,{cid}", timeout=timeout, expect_prefix="+CLBS:")
   line = resp.line_after("+CLBS:")
   return line, (parse_clbs(line) if line else None)

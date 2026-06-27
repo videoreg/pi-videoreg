@@ -147,7 +147,7 @@ class ModemImpl(Modem):
         return {
           "latitude": parsed["latitude"],
           "longitude": parsed["longitude"],
-          "accuracy": parsed["accuracy"],
+          "accuracy": parsed.get("accuracy"),
         }
       return None
     except Exception as e:

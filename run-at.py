@@ -21,6 +21,7 @@ from sdk.at import gps as gpsmod  # noqa: E402
 from sdk.at import sms as smsmod  # noqa: E402
 from sdk.at.modem_info import ModemFamily, identify  # noqa: E402
 from sdk.at.pdu import decode_deliver_pdu, encode_submit_pdu  # noqa: E402
+from sdk.at.sms import IncomingSms, merge_parts  # noqa: E402
 from sdk.at.transport import AtTransport  # noqa: E402
 
 DEFAULT_DEVICE = "/dev/ttyUSB2"
@@ -50,21 +51,37 @@ async def cmd_id(args) -> int:
 
 
 async def cmd_sms_list(args) -> int:
+  if args.parts:  # raw per-part view (each storage slot, undecoded multipart)
+    async with AtTransport(device=args.dev) as t:
+      parts = await smsmod.list_incoming(t)
+    if not parts:
+      print("(no messages)")
+      return 0
+    for m in parts:
+      d = m.decoded
+      print(f"=== index {m.index} ===")
+      print(f"  raw pdu : {m.pdu}")
+      print(f"  sender  : {d.sender}")
+      print(f"  text    : {d.text!r}")
+      print(f"  time    : {d.timestamp}")
+      print(f"  encoding: {d.encoding}")
+      if d.concat:
+        print(f"  part    : {d.concat.seq}/{d.concat.total} (ref {d.concat.ref})")
+    return 0
+
+  # default: whole messages, multipart parts merged
   async with AtTransport(device=args.dev) as t:
-    messages = await smsmod.list_incoming(t)
+    messages = await smsmod.list_messages(t)
   if not messages:
     print("(no messages)")
     return 0
   for m in messages:
-    d = m.decoded
-    print(f"=== index {m.index} ===")
-    print(f"  raw pdu : {m.pdu}")
-    print(f"  sender  : {d.sender}")
-    print(f"  text    : {d.text!r}")
-    print(f"  time    : {d.timestamp}")
-    print(f"  encoding: {d.encoding}")
-    if d.concat:
-      print(f"  part    : {d.concat.seq}/{d.concat.total} (ref {d.concat.ref})")
+    print("===")
+    print(f"  number   : {m.number}")
+    print(f"  text     : {m.text!r}")
+    print(f"  timestamp: {m.timestamp}")
+    if len(m.indices) > 1:
+      print(f"  merged   : {len(m.indices)} parts (indices {m.indices})")
   return 0
 
 
@@ -110,8 +127,9 @@ async def cmd_gps(args) -> int:
 _PDU_GSM7 = "07911326040000F0040B911346610089F60000208062917314080CC8F71D14969741F977FD07"
 # UCS2 "Привет".
 _PDU_UCS2 = "00040B911346610089F6000820806291731400" + "0C" + "041F0440043804320435 0442".replace(" ", "")
-# 7-bit concatenated part (UDH ref 0xAB, 1/2), text "Hi".
+# 7-bit concatenated parts (UDH ref 0xAB), text "Hi" in each: 1/2 and 2/2.
 _PDU_UDH = "00440B911346610089F6000020806291731400" + "09" + "050003AB02019069"
+_PDU_UDH2 = "00440B911346610089F6000020806291731400" + "09" + "050003AB02029069"
 
 
 def _selftest() -> int:
@@ -136,6 +154,17 @@ def _selftest() -> int:
   d = decode_deliver_pdu(_PDU_UDH)
   check("udh.text", d.text, "Hi")
   check("udh.concat", (d.concat.ref, d.concat.total, d.concat.seq), (0xAB, 2, 1))
+
+  print("SMS multipart merge:")
+  parts = [
+    IncomingSms(index=1, pdu=_PDU_UDH2, decoded=decode_deliver_pdu(_PDU_UDH2)),  # 2/2 first
+    IncomingSms(index=0, pdu=_PDU_UDH, decoded=decode_deliver_pdu(_PDU_UDH)),  # 1/2 second
+  ]
+  merged = merge_parts(parts)
+  check("merge.count", len(merged), 1)
+  check("merge.text", merged[0].text, "HiHi")  # reordered by sequence
+  check("merge.number", merged[0].number, "+31641600986")
+  check("merge.indices", sorted(merged[0].indices), [0, 1])
 
   print("SMS PDU encode:")
   _, h = encode_submit_pdu("+79991234567", "Hello")
@@ -180,7 +209,8 @@ def main() -> int:
   p = sub.add_parser("id", help="detect modem family")
   p.set_defaults(func=cmd_id)
 
-  p = sub.add_parser("sms-list", help="list & decode stored SMS")
+  p = sub.add_parser("sms-list", help="list SMS (multipart merged); --parts for raw parts")
+  p.add_argument("--parts", action="store_true", help="show raw per-part view instead of merged")
   p.set_defaults(func=cmd_sms_list)
 
   p = sub.add_parser("sms-send", help="encode & send an SMS")

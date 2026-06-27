@@ -14,8 +14,9 @@ class MethodGetLocation(ApiMethod):
       if not self._plugin.modem.is_enabled():
         return {"status": "error", "bot_message": "Missing GPS modem"}
 
-      location_gps = await self._plugin.modem.get_location_gps()
-      location_lbs = await self._plugin.modem.get_location_lbs()
+      # Prefer the monitor's cached location; query on demand only if empty.
+      location_gps = self._plugin.gps_location or await self._plugin.modem.get_location_gps()
+      location_lbs = self._plugin.lbs_location or await self._plugin.modem.get_location_lbs()
 
       if location_gps:
         gps_lat = location_gps["latitude"]

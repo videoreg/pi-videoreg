@@ -36,6 +36,16 @@ class GpsPlugin(Plugin):
   def init_modem(self, modem: Modem):
     self.modem = modem
 
+  @property
+  def gps_location(self) -> dict | None:
+    """Last GPS location cached by the background monitor (or None)."""
+    return self._gps_location
+
+  @property
+  def lbs_location(self) -> dict | None:
+    """Last LBS location cached by the background monitor (or None)."""
+    return self._lbs_location
+
   async def stop(self):
     await super().stop()
     if self._gps_tracker:

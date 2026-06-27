@@ -81,9 +81,16 @@ class ModemImpl(Modem):
       self._enabled = False
       return False
 
+  async def _ensure_enabled(self) -> bool:
+    """Enable the modem on demand (e.g. when a command queries location while the
+    background monitor is not running). Returns False instead of raising."""
+    if self._enabled:
+      return True
+    return await self.enable()
+
   async def enable_gps(self) -> bool:
-    if not self._enabled:
-      raise Exception("Modem not enabled!")
+    if not await self._ensure_enabled():
+      return False
     try:
       power_on, _, query, _, _ = self._gps_commands()
 
@@ -104,7 +111,7 @@ class ModemImpl(Modem):
 
   async def disable_gps(self) -> bool:
     if not self._enabled:
-      raise Exception("Modem not enabled!")
+      return False
     try:
       _, power_off, _, _, _ = self._gps_commands()
       resp = await self._transport.send(power_off, timeout=5.0)
@@ -114,8 +121,8 @@ class ModemImpl(Modem):
       return False
 
   async def get_location_gps(self) -> dict | None:
-    if not self._enabled:
-      raise Exception("Modem not enabled!")
+    if not await self._ensure_enabled():
+      return None
     try:
       _, _, _, info, prefix = self._gps_commands()
       resp = await self._transport.send(info, timeout=3.0)
@@ -132,8 +139,8 @@ class ModemImpl(Modem):
     return True
 
   async def get_location_lbs(self) -> dict | None:
-    if not self._enabled:
-      raise Exception("Modem not enabled!")
+    if not await self._ensure_enabled():
+      return None
     try:
       _, parsed = await at_lbs.get_lbs(self._transport, cid=1, timeout=15.0)
       if parsed and "latitude" in parsed:

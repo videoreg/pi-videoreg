@@ -10,8 +10,10 @@ class CommandGetCommands(GatewayCommand):
     self._plugin = plugin
 
   async def exec(self, gateway: Gateway, payload, args):
-    location_gps = await self._plugin.modem.get_location_gps()
-    location_lbs = await self._plugin.modem.get_location_lbs()
+    # Prefer the location the background monitor already fetched; fall back to an
+    # on-demand query only when the cache is empty (e.g. monitor not running).
+    location_gps = self._plugin.gps_location or await self._plugin.modem.get_location_gps()
+    location_lbs = self._plugin.lbs_location or await self._plugin.modem.get_location_lbs()
 
     if location_gps:
       gps_lat = location_gps["latitude"]

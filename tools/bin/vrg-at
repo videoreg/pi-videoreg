@@ -1,0 +1,16 @@
+#!/bin/bash
+# CLI wrapper for the direct AT-command tool (SMS & GPS over serial).
+# Forwards all arguments to run-at.py using the project venv when available.
+
+set -e
+
+PROJECT_HOME="${VIDEOREG_PROJECT_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+SCRIPT_PATH="$PROJECT_HOME/run-at.py"
+
+if [[ -x "$PROJECT_HOME/.venv/bin/python3" ]]; then
+    PYTHON="$PROJECT_HOME/.venv/bin/python3"
+else
+    PYTHON="python3"
+fi
+
+exec "$PYTHON" "$SCRIPT_PATH" "$@"

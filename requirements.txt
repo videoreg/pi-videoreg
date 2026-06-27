@@ -6,3 +6,4 @@ bcrypt
 psutil
 PyYAML
 inotify-simple
+pyserial

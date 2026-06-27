@@ -14,6 +14,9 @@ gps_token = osd.Token(key="gps", text=None, weight=osd.WEIGHT_GPS)
 
 lbs_token = osd.Token(key="lbs", text=None, weight=osd.WEIGHT_LBS)
 
+# Interval between location polls (GPS + LBS) in the monitor loop, seconds.
+LOCATION_POLL_INTERVAL = 10
+
 
 class GpsPlugin(Plugin):
   modem: Modem = None
@@ -129,7 +132,7 @@ class GpsPlugin(Plugin):
         i += 1
 
         # Sometimes modem could change it's id (probably due to bad usb cable connection)
-        if i % 10 == 0:  # ~ every minute
+        if i % 6 == 0:  # ~ every minute (6 * 10s)
           modem_enabled = await self.modem.enable()
           if not modem_enabled or self.modem.modem_id != enabled_modem_id:
             self.logger.warning("gps track loop: modem disappeared or id changed")
@@ -169,7 +172,7 @@ class GpsPlugin(Plugin):
         # self.logger.debug(f"gps: {self._gps_location}")
         # self.logger.debug(f"lbs: {self._lbs_location}")
 
-        await asyncio.sleep(6)
+        await asyncio.sleep(LOCATION_POLL_INTERVAL)
 
     except Exception as e:
       self.logger.warning(f"gps monitor error: {e}")

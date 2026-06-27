@@ -15,12 +15,6 @@ class CommandGetCommands(GatewayCommand):
     location_gps = self._plugin.gps_location or await self._plugin.modem.get_location_gps()
     location_lbs = self._plugin.lbs_location or await self._plugin.modem.get_location_lbs()
 
-    self._plugin.logger.debug(
-      f"/gps resolved: cached_gps={self._plugin.gps_location} "
-      f"cached_lbs={self._plugin.lbs_location} "
-      f"-> gps={location_gps} lbs={location_lbs}"
-    )
-
     if location_gps:
       gps_lat = location_gps["latitude"]
       gps_lng = location_gps["longitude"]

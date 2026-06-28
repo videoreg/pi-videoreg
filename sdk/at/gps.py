@@ -68,6 +68,20 @@ def _knots_to_kmh(value: str) -> float | None:
     return None
 
 
+def _decimal_deg(value: str, hemisphere: str) -> float | None:
+  """Parse an already-decimal-degrees coordinate, signed by the hemisphere."""
+  value = value.strip()
+  if not value:
+    return None
+  try:
+    decimal = float(value)
+  except ValueError:
+    return None
+  if hemisphere.upper() in ("S", "W"):
+    decimal = -decimal
+  return round(decimal, 6)
+
+
 def _float_or_none(value: str) -> float | None:
   value = value.strip()
   if not value:
@@ -113,14 +127,41 @@ def parse_cgpsinfo(line: str) -> dict | None:
 def parse_cgnssinfo(line: str) -> dict | None:
   """Parse an A7670 ``+CGNSSINFO:`` reply.
 
-  Field layout: mode, GPS-SVs, GLONASS-SVs, BEIDOU-SVs, lat, N/S, lon, E/W,
-  date, UTC-time, alt, speed, course, PDOP, HDOP, VDOP.
+  The reply begins with a *variable* number of satellite-count fields (mode plus
+  per-constellation SV counts — firmware may report GPS / GLONASS / BEIDOU /
+  GALILEO), then the fix:
+  ``...,<lat>,<N/S>,<lon>,<E/W>,<date>,<UTC>,<alt>,<speed>,<course>,...``.
+
+  Two differences from the SIM7600 ``+CGPSINFO`` reply: the A7670 reports
+  latitude / longitude already in **decimal degrees** (not NMEA ddmm.mmmm), and
+  the number of leading SV-count fields varies between firmwares. So the
+  latitude is located by the adjacent ``N`` / ``S`` marker instead of a fixed
+  index, and parsed as plain decimal degrees.
   """
   body = _strip_prefix(line, "+CGNSSINFO:")
-  f = body.split(",")
-  if len(f) < 13 or not f[4].strip():
-    return None  # no fix
-  return _build(f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12])
+  f = [x.strip() for x in body.split(",")]
+
+  # Find the hemisphere marker: latitude is the (non-empty) field before it.
+  ns_idx = next(
+    (i for i, x in enumerate(f) if x.upper() in ("N", "S") and i > 0 and f[i - 1]),
+    None,
+  )
+  if ns_idx is None or ns_idx + 7 >= len(f):
+    return None  # no fix / malformed
+
+  latitude = _decimal_deg(f[ns_idx - 1], f[ns_idx])
+  longitude = _decimal_deg(f[ns_idx + 1], f[ns_idx + 2])
+  if latitude is None or longitude is None:
+    return None
+  dt = _parse_datetime(f[ns_idx + 3], f[ns_idx + 4])
+  return {
+    "latitude": latitude,
+    "longitude": longitude,
+    "datetime": dt.isoformat() if dt else None,
+    "altitude": _float_or_none(f[ns_idx + 5]),
+    "speed": _knots_to_kmh(f[ns_idx + 6]),
+    "course": _float_or_none(f[ns_idx + 7]),
+  }
 
 
 def parse_gps_line(line: str) -> dict | None:

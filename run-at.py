@@ -198,11 +198,20 @@ def _selftest() -> int:
   g = gpsmod.parse_cgpsinfo("+CGPSINFO: 5956.165420,N,03019.551200,E,270626,103045.0,12.3,0.5,84.2")
   check("cgpsinfo.lat", g["latitude"], 59.93609)
   check("cgpsinfo.lon", g["longitude"], 30.325853)
+  # A7670: decimal degrees, 5 leading SV-count fields (mode,GPS,GLONASS,BEIDOU,GALILEO).
   g = gpsmod.parse_cgnssinfo(
-    "+CGNSSINFO: 3,09,05,00,5930.000000,S,03000.000000,W,270626,103045.0,1,2,3,1,1,1"
+    "+CGNSSINFO: 3,16,,05,02,59.655376,N,30.470524,E,280626,124300.00,71.0,1.415,256.75,1.56,0.85,1.30,12"
+  )
+  check("cgnssinfo.lat", g["latitude"], 59.655376)
+  check("cgnssinfo.lon", g["longitude"], 30.470524)
+  check("cgnssinfo.alt", g["altitude"], 71.0)
+  # Robust to a different leading-field count (4) and S/W hemispheres.
+  g = gpsmod.parse_cgnssinfo(
+    "+CGNSSINFO: 3,09,05,00,59.5,S,30.0,W,270626,103045.0,1,2,3,1,1,1"
   )
   check("cgnssinfo.lat_neg", g["latitude"], -59.5)
   check("cgnssinfo.lon_neg", g["longitude"], -30.0)
+  check("cgnssinfo.nofix", gpsmod.parse_cgnssinfo("+CGNSSINFO: ,,,,,,,,,,,,,,,"), None)
   check("nofix", gpsmod.parse_cgpsinfo("+CGPSINFO: ,,,,,,,,"), None)
 
   print("LBS parse:")

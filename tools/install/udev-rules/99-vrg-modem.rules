@@ -12,7 +12,11 @@
 # If after applying this rule `mmcli -m 0` stops listing the modem, leave one AT
 # port to ModemManager and ignore only the remaining ones.
 
-# SIMCom SIM7600 (1e0e:9001): interface 02 = AT/control (SMS, GPS poll),
-# interface 03 = NMEA/GPS stream.
+# SIMCom SIM7600 (1e0e:9001) port map:
+#   01 = NMEA/GPS stream (MM grabs it as its "gps" port — we drive GPS over AT)
+#   02 = AT/control (SMS, GPS poll)
+#   03 = secondary AT/PPP (kept off MM so it can't race us on SMS/AT)
+# QMI (cdc-wdm0 / wwan0) is intentionally left to ModemManager for data.
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1e0e", ATTRS{idProduct}=="9001", ENV{ID_USB_INTERFACE_NUM}=="01", ENV{ID_MM_PORT_IGNORE}="1"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1e0e", ATTRS{idProduct}=="9001", ENV{ID_USB_INTERFACE_NUM}=="02", ENV{ID_MM_PORT_IGNORE}="1"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1e0e", ATTRS{idProduct}=="9001", ENV{ID_USB_INTERFACE_NUM}=="03", ENV{ID_MM_PORT_IGNORE}="1"

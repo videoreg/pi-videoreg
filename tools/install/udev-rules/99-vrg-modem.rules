@@ -1,0 +1,18 @@
+# Detach the modem's AT and NMEA/GPS serial ports from ModemManager so the
+# videoreg vrg-modem service can own them exclusively for AT-based SMS & GPS.
+# ModemManager keeps managing the modem over its QMI port (cdc-wdm0 / wwan0) —
+# only the listed tty ports are ignored, not the whole device.
+#
+# Ports are matched by USB interface number (ID_USB_INTERFACE_NUM) instead of
+# the ttyUSB index, because ttyUSBx numbering can shift between boots/replugs.
+# Add more lines for other modem models/PIDs as needed.
+#
+# To confirm the interface numbers on a given modem:
+#   udevadm info /dev/ttyUSB2 | grep -E 'ID_USB_INTERFACE_NUM|ID_VENDOR_ID|ID_MODEL_ID'
+# If after applying this rule `mmcli -m 0` stops listing the modem, leave one AT
+# port to ModemManager and ignore only the remaining ones.
+
+# SIMCom SIM7600 (1e0e:9001): interface 02 = AT/control (SMS, GPS poll),
+# interface 03 = NMEA/GPS stream.
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1e0e", ATTRS{idProduct}=="9001", ENV{ID_USB_INTERFACE_NUM}=="02", ENV{ID_MM_PORT_IGNORE}="1"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1e0e", ATTRS{idProduct}=="9001", ENV{ID_USB_INTERFACE_NUM}=="03", ENV{ID_MM_PORT_IGNORE}="1"

@@ -20,8 +20,7 @@ services:
       - org_vrg_camera
   - name: vrg-modem
     plugins:
-      - org_vrg_gps
-      - org_vrg_sms
+      - org_vrg_modem
   - name: vrg-http
     plugins:
       - org_vrg_http
@@ -79,12 +78,8 @@ plugins:
     name: http
     enabled: true
 
-  - id: org_vrg_gps
-    name: gps
-    enabled: true
-
-  - id: org_vrg_sms
-    name: sms
+  - id: org_vrg_modem
+    name: modem
     enabled: true
 
 gateways:
@@ -108,4 +103,4 @@ gateways:
 
   - name: sms
     interactions:
-      text: sms.send_text
+      text: modem.send_text

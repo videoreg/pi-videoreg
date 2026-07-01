@@ -17,17 +17,17 @@ from logging import Logger
 _FINAL_RE = re.compile(r"\r\n(OK|ERROR|\+CME ERROR:[^\r]*|\+CMS ERROR:[^\r]*)\r\n")
 _ERROR_PREFIXES = ("+CME ERROR", "+CMS ERROR")
 
-# Default AT port. The modem exposes the control/AT interface here; the SMS and
-# GPS plugins (both in the vrg-modem service) share one transport on this port.
+# Default AT port. The modem exposes the control/AT interface here; the modem
+# plugin's GPS and SMS managers share one transport on this port.
 DEFAULT_MODEM_DEVICE = "/dev/ttyUSB2"
 
 
 def shared_transport(runner, device: str, baudrate: int = 115200, logger=None) -> "AtTransport":
   """Return a per-runner singleton AtTransport for ``device``.
 
-  Plugins running in the same service (e.g. sms + gps in vrg-modem) must share
-  one transport so the single serial port is opened once and access is
-  serialised by the transport's internal lock. Keyed by device on the runner.
+  Components in the same service (e.g. the modem plugin's GPS and SMS managers)
+  must share one transport so the single serial port is opened once and access
+  is serialised by the transport's internal lock. Keyed by device on the runner.
   """
   registry = getattr(runner, "_at_transports", None)
   if registry is None:

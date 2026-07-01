@@ -27,7 +27,7 @@ async def handle_get_dashboard_status(request: web.Request):
     api_client.exec("camera.get_info", {}),
     api_client.exec("power.get_status", {}),
     api_client.exec("camera.get_last_media", {}),
-    api_client.exec("gps.get_location", {}),
+    api_client.exec("modem.get_location", {}),
     api_client.exec("core.get_trip_state", {}),
     api_client.exec("stat.get_current_temp", {}, timeout=2.0),
     return_exceptions=True,

@@ -227,7 +227,7 @@ Pi-Videoreg — комплексная система, требующая нас
 |---|---|
 | **vrg-core** | **core** — общая логика<br>**bus** — шина событий (Unix socket)<br>**net** — сеть: WiFi, WireGuard, модем<br>**power** — питание, батарея, PiSugar<br>**stat** — статистика: CPU, диск, трафик |
 | **vrg-camera** | **camera** — видео, фото, live-стрим |
-| **vrg-modem** | **gps** — GPS-трекинг<br>**sms** — SMS |
+| **vrg-modem** | **modem** — доступ к модему по AT: GPS-трекинг, SMS, информация о модеме |
 | **vrg-http** | **http** — HTTPS-сервер |
 | **vrg-bot** | **bot** — Telegram-бот |
 | **vrg-pisugar-watchdog** | Watchdog (без плагинов) |

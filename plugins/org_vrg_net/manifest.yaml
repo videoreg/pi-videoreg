@@ -65,6 +65,11 @@ http:
       method: post
       plugin: net.connection_update
 
+    # Single high-level WiFi mode switch: {"mode": "client" | "ap" | "off"}
+    - url: net/wifi_mode
+      method: post
+      plugin: net.set_wifi_mode
+
     # Component sends {"type": <name>}; enable/disable are separate endpoints
     - url: net/connection_enable
       method: post

@@ -15,6 +15,7 @@ from plugins.org_vrg_net.methods.get_wireguard_settings import MethodGetWireguar
 from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
+from plugins.org_vrg_net.methods.set_wifi_mode import MethodSetWifiMode
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
 from plugins.org_vrg_net.methods.wg_set_state import MethodWgSetState
 from plugins.org_vrg_net.methods.wg_show import MethodWgShow
@@ -88,6 +89,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "connection_update": MethodConnectionUpdate(plugin.logger, net_controls),
       "connection_up": MethodSetConnectionEnabled(net_controls, enabled=True),
       "connection_down": MethodSetConnectionEnabled(net_controls, enabled=False),
+      "set_wifi_mode": MethodSetWifiMode(net_controls, plugin.state),
       "wg_auto": MethodWgAuto(plugin),
       "wg_set_state": MethodWgSetState(plugin),
       "wg_skip_on_wifi": MethodWgSkipOnWifi(plugin),

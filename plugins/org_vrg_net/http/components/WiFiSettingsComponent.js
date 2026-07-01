@@ -1,7 +1,6 @@
 // Компонент настройки WiFi сетей (AP и Client)
 const WiFiSettingsComponent = {
   components: {
-    ToggleSwitch,
     TabSwitch,
     Icon
   },
@@ -28,89 +27,33 @@ const WiFiSettingsComponent = {
 
       <!-- Вкладка: Общие -->
       <div v-show="activeTab === 'general'">
-        <!-- Включение WiFi модуля -->
-        <div class="info-block">
-          <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-            <div class="section-title" style="margin-bottom: 0;">{{ $t('net.wifi.module_title') }}</div>
-            <toggle-switch
-              v-model="radioEnabled"
-              :disabled="loading"
-              @update:modelValue="onWifiBlock"
-            ></toggle-switch>
-          </div>
-          <p style="margin-top: var(--spacing-sm); color: var(--color-text-secondary);">
-            {{ $t('net.wifi.module_description') }}
-          </p>
-        </div>
-
         <!-- Режим работы WiFi -->
         <div class="section-title" style="margin-bottom: var(--spacing-md);">{{ $t('net.wifi.mode_title') }}</div>
 
-        <div style="display: flex; gap: var(--spacing-md); flex-wrap: wrap; margin-bottom: var(--spacing-md);">
-          <!-- Access Point -->
-          <div class="info-block" style="flex: 1 1 calc(50% - var(--spacing-md)); min-width: 240px; margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-              <div class="section-title" style="margin-bottom: 0;">{{ $t('net.wifi.ap_title') }}</div>
-              <toggle-switch
-                v-model="ap.enabled"
-                :disabled="loading"
-                @update:modelValue="onApToggle"
-              ></toggle-switch>
-            </div>
-            <p style="margin-top: var(--spacing-sm); color: var(--color-text-secondary);">
-              {{ $t('net.wifi.ap_description') }}
-            </p>
-            <div v-if="ap.enabled && ap.ip" style="margin-top: var(--spacing-sm);">
-              {{ $t('net.wifi.ip_label') }} <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ ap.ip }}</code>
-            </div>
-          </div>
+        <tab-switch
+          v-model="mode"
+          :tabs="modeTabs"
+          :disabled="loading"
+          @update:modelValue="onModeChange"
+          style="margin-bottom: var(--spacing-md);"
+        ></tab-switch>
 
-          <!-- Client -->
-          <div class="info-block" style="flex: 1 1 calc(50% - var(--spacing-md)); min-width: 240px; margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-              <div class="section-title" style="margin-bottom: 0;">{{ $t('net.wifi.client_title') }}</div>
-              <toggle-switch
-                v-model="wifi.enabled"
-                :disabled="loading"
-                @update:modelValue="onWifiToggle"
-              ></toggle-switch>
-            </div>
-            <p style="margin-top: var(--spacing-sm); color: var(--color-text-secondary);">
-              {{ $t('net.wifi.client_description') }}
-            </p>
-            <div v-if="wifi.enabled && wifi.ip" style="margin-top: var(--spacing-sm);">
-              {{ $t('net.wifi.ip_label') }} <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ wifi.ip }}</code>
-            </div>
-          </div>
+        <!-- IP выбранного режима -->
+        <div v-if="modeIp" class="info-block" style="margin-bottom: var(--spacing-md);">
+          {{ $t('net.wifi.ip_label') }} <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ modeIp }}</code>
         </div>
 
-        <p style="color: var(--color-text-secondary); margin-bottom: var(--spacing-xs);">
-          {{ $t('net.wifi.mode_note1') }}
-        </p>
         <p style="color: var(--color-text-secondary);">
-          {{ $t('net.wifi.mode_note2') }}
+          {{ $t('net.wifi.mode_description') }}
         </p>
       </div>
 
       <!-- Вкладка: AP -->
       <div v-show="activeTab === 'ap'">
-        <div v-if="ap.ip" class="info-block" style="margin-bottom: var(--spacing-md);">
-          <strong>{{ $t('net.wifi.ip_router') }}</strong>
-          <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ ap.ip }}</code>
-        </div>
-
         <div class="info-block">
           <div class="section-title">{{ $t('net.wifi.ap_settings_title') }}</div>
 
           <form @submit.prevent="saveApConfig" style="max-width: 600px;">
-            <div class="form-group">
-              <toggle-switch
-                v-model="ap.autoconnect"
-                :disabled="loading"
-                :label="$t('http.common.autoconnect')"
-              ></toggle-switch>
-            </div>
-
             <div class="form-group">
               <label class="form-label" for="ap-ssid">{{ $t('net.wifi.ssid_label') }}</label>
               <input
@@ -155,23 +98,10 @@ const WiFiSettingsComponent = {
 
       <!-- Вкладка: Client -->
       <div v-show="activeTab === 'client'">
-        <div v-if="wifi.ip" class="info-block" style="margin-bottom: var(--spacing-md);">
-          <strong>{{ $t('net.wifi.ip_client') }}</strong>
-          <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ wifi.ip }}</code>
-        </div>
-
         <div class="info-block">
           <div class="section-title">{{ $t('net.wifi.client_settings_title') }}</div>
 
           <form @submit.prevent="saveWifiConfig" style="max-width: 600px;">
-            <div class="form-group">
-              <toggle-switch
-                v-model="wifi.autoconnect"
-                :disabled="loading"
-                :label="$t('http.common.autoconnect')"
-              ></toggle-switch>
-            </div>
-
             <div class="form-group">
               <label class="form-label" for="wifi-ssid">{{ $t('net.wifi.ssid_label') }}</label>
               <input
@@ -215,17 +145,16 @@ const WiFiSettingsComponent = {
   data() {
     return {
       activeTab: 'general',
+      mode: 'off',
       radioEnabled: false,
       ap: {
         enabled: false,
-        autoconnect: false,
         ssid: '',
         password: '',
         ip: ''
       },
       wifi: {
         enabled: false,
-        autoconnect: false,
         ssid: '',
         password: '',
         ip: ''
@@ -244,108 +173,58 @@ const WiFiSettingsComponent = {
         { value: 'ap', label: this.$t('net.wifi.ap_title') },
         { value: 'client', label: this.$t('net.wifi.client_title') }
       ];
+    },
+    modeTabs() {
+      return [
+        { value: 'client', label: this.$t('net.wifi.client_title') },
+        { value: 'ap', label: this.$t('net.wifi.ap_title') },
+        { value: 'off', label: this.$t('net.wifi.mode_off') }
+      ];
+    },
+    modeIp() {
+      if (this.mode === 'client') return this.wifi.ip || '';
+      if (this.mode === 'ap') return this.ap.ip || '';
+      return '';
     }
   },
 
   methods: {
-    async onWifiBlock(enabled) {
+    async onModeChange(mode) {
       this.error = '';
       this.success = '';
       this.loading = true;
 
       try {
-        const response = await fetch(enabled ? '/api/net/wifi_unblock' : '/api/net/wifi_block', {
+        const response = await fetch('/api/net/wifi_mode', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'same-origin',
-          body: JSON.stringify({})
+          body: JSON.stringify({ mode })
         });
 
         if (!response.ok) {
           const data = await response.json();
-          this.error = data.error || this.$t('net.wifi.error_module');
+          this.error = data.error || this.$t('net.wifi.error_mode');
           this.loading = false;
           // Откатываем изменение в UI
           await this.loadConfig();
           return;
         }
 
-        this.success = enabled ? this.$t('net.wifi.module_enabled') : this.$t('net.wifi.module_disabled');
+        this.success = this.$t('net.wifi.mode_changed');
 
-        // Перезагружаем данные
+        // Перезагружаем данные для обновления IP/состояния
         setTimeout(() => {
           this.loadConfig();
         }, 1000);
 
       } catch (err) {
         this.error = this.$t('http.common.error_server');
-        console.error('Radio toggle error:', err);
+        console.error('WiFi mode change error:', err);
         this.loading = false;
         await this.loadConfig();
-      }
-    },
-
-    async onApToggle(value) {
-      // Если включаем AP, выключаем WiFi
-      if (value && this.wifi.enabled) {
-        this.error = '';
-        this.success = '';
-        await this.switchConnection('wifi', false);
-      }
-
-      // Применяем изменение для AP
-      await this.switchConnection('ap', value);
-    },
-
-    async onWifiToggle(value) {
-      // Если включаем WiFi, выключаем AP
-      if (value && this.ap.enabled) {
-        this.error = '';
-        this.success = '';
-        await this.switchConnection('ap', false);
-      }
-
-      // Применяем изменение для WiFi
-      await this.switchConnection('wifi', value);
-    },
-
-    async switchConnection(type, enabled) {
-      this.loading = true;
-
-      try {
-        const response = await fetch(enabled ? '/api/net/connection_enable' : '/api/net/connection_disanable', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            type: type
-          })
-        });
-
-        if (!response.ok) {
-          const data = await response.json();
-          this.error = data.error || this.$t('net.wifi.error_module');
-          this.loading = false;
-          // Откатываем изменение в UI
-          await this.loadConfig();
-          return;
-        }
-
-        this.success = enabled ? this.$t('net.wifi.mode_enabled') : this.$t('net.wifi.mode_disabled');
-
-        // Перезагружаем данные
-        setTimeout(() => {
-          this.loadConfig();
-        }, 1000);
-
-      } catch (err) {
-        this.error = this.$t('http.common.error_server');
-        console.error('Switch mode error:', err);
-        this.loading = false;
       }
     },
 
@@ -375,7 +254,6 @@ const WiFiSettingsComponent = {
         // Загружаем данные для AP
         if (data.ap) {
           this.ap.enabled = data.ap.enabled || false;
-          this.ap.autoconnect = data.ap.autoconnect || false;
           this.ap.ssid = data.ap.ssid || '';
           this.ap.password = '';//data.ap.password || '';
           this.ap.ip = data.ap.ip || '';
@@ -384,11 +262,13 @@ const WiFiSettingsComponent = {
         // Загружаем данные для WiFi Client
         if (data.wifi) {
           this.wifi.enabled = data.wifi.enabled || false;
-          this.wifi.autoconnect = data.wifi.autoconnect || false;
           this.wifi.ssid = data.wifi.ssid || '';
           this.wifi.password = '';//data.wifi.password || '';
           this.wifi.ip = data.wifi.ip || '';
         }
+
+        // Определяем текущий режим по активным соединениям
+        this.mode = this.deriveMode();
 
       } catch (err) {
         this.error = this.$t('http.common.error_server');
@@ -397,6 +277,13 @@ const WiFiSettingsComponent = {
         this.loading = false;
         this.initialLoading = false;
       }
+    },
+
+    deriveMode() {
+      if (!this.radioEnabled) return 'off';
+      if (this.ap.enabled) return 'ap';
+      if (this.wifi.enabled) return 'client';
+      return 'off';
     },
 
     async saveApConfig() {
@@ -413,7 +300,6 @@ const WiFiSettingsComponent = {
           credentials: 'same-origin',
           body: JSON.stringify({
             type: 'ap',
-            autoconnect: this.ap.autoconnect,
             ssid: this.ap.ssid,
             ...(this.ap.password ? { password: this.ap.password } : {})
           })
@@ -456,7 +342,6 @@ const WiFiSettingsComponent = {
           credentials: 'same-origin',
           body: JSON.stringify({
             type: 'wifi',
-            autoconnect: this.wifi.autoconnect,
             ssid: this.wifi.ssid,
             ...(this.wifi.password ? { password: this.wifi.password } : {})
           })

@@ -217,6 +217,10 @@ const WiFiSettingsComponent = {
         this.renderKey++;
         return;
       }
+      // Reflect the selection immediately so exactly one switch shows as active
+      // (the backend confirmation / reload happens in onModeChange).
+      this.mode = value;
+      this.renderKey++;
       await this.onModeChange(value);
     },
 
@@ -246,10 +250,11 @@ const WiFiSettingsComponent = {
 
         this.success = this.$t('net.wifi.mode_changed');
 
-        // Перезагружаем данные для обновления IP/состояния
+        // Перезагружаем данные для обновления IP/состояния (даём соединению
+        // подняться, чтобы deriveMode вернул корректный режим)
         setTimeout(() => {
           this.loadConfig();
-        }, 1000);
+        }, 1500);
 
       } catch (err) {
         this.error = this.$t('http.common.error_server');
@@ -300,6 +305,8 @@ const WiFiSettingsComponent = {
 
         // Определяем текущий режим по активным соединениям
         this.mode = this.deriveMode();
+        // Форсируем перерисовку свичей, чтобы DOM соответствовал режиму
+        this.renderKey++;
 
       } catch (err) {
         this.error = this.$t('http.common.error_server');

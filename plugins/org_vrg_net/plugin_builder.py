@@ -98,7 +98,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),
-      "modem_info": MethodGetModemInfo(plugin.logger, modem_controls),
+      "modem_info": MethodGetModemInfo(plugin.logger, modem_controls, plugin.api_client),
     }
   )
 

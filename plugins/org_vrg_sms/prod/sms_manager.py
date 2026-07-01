@@ -3,6 +3,7 @@ from logging import Logger
 
 from plugins.org_vrg_sms.sms import SMS
 from plugins.org_vrg_sms.sms_manager import SmsManager
+from sdk.at import info as at_info
 from sdk.at import sms as at_sms
 from sdk.at.transport import AtTransport
 
@@ -57,3 +58,10 @@ class SmsManagerImpl(SmsManager):
     self.logger.debug(f"sent sms pdu: {pdu_hex}")
     if not response.ok:
       raise RuntimeError(f"send sms failed: {response.final}")
+
+  async def get_modem_info(self) -> dict:
+    try:
+      return await at_info.get_modem_info(self._transport)
+    except Exception as e:
+      self.logger.warning(f"modem info error: {e}")
+      return {"connected": False}

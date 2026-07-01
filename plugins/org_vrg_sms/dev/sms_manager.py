@@ -7,3 +7,6 @@ class SmsManagerImpl(SmsManager):
 
   async def send_sms(self, number, text):
     pass
+
+  async def get_modem_info(self):
+    return {"connected": False}

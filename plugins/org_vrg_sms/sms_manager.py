@@ -7,3 +7,6 @@ class SmsManager:
 
   async def send_sms(self, number: str, text: str) -> None:
     raise NotImplementedError()
+
+  async def get_modem_info(self) -> dict:
+    raise NotImplementedError()

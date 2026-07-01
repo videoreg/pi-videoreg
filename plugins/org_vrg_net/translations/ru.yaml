@@ -19,6 +19,7 @@ net.wifi.ap_description: "Устройство создаёт WiFi сеть (р�
 net.wifi.client_title: "Client"
 net.wifi.client_description: "Устройство подключается к существующей WiFi сети"
 net.wifi.mode_off: "Выкл"
+net.wifi.off_description: "WiFi полностью отключён"
 net.wifi.mode_description: "Выбор режима включает WiFi модуль, поднимает соединение и включает его автоподключение при загрузке. «Выкл» выключает оба соединения и отключает модуль."
 net.wifi.mode_changed: "Режим WiFi изменён"
 net.wifi.error_mode: "Ошибка изменения режима WiFi"

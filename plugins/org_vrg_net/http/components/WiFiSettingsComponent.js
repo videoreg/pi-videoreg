@@ -1,6 +1,7 @@
 // Компонент настройки WiFi сетей (AP и Client)
 const WiFiSettingsComponent = {
   components: {
+    ToggleSwitch,
     TabSwitch,
     Icon
   },
@@ -30,17 +31,26 @@ const WiFiSettingsComponent = {
         <!-- Режим работы WiFi -->
         <div class="section-title" style="margin-bottom: var(--spacing-md);">{{ $t('net.wifi.mode_title') }}</div>
 
-        <tab-switch
-          v-model="mode"
-          :tabs="modeTabs"
-          :disabled="loading"
-          @update:modelValue="onModeChange"
-          style="margin-bottom: var(--spacing-md);"
-        ></tab-switch>
-
-        <!-- IP выбранного режима -->
-        <div v-if="modeIp" class="info-block" style="margin-bottom: var(--spacing-md);">
-          {{ $t('net.wifi.ip_label') }} <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ modeIp }}</code>
+        <!-- Список режимов в виде свичей (одновременно активен только один) -->
+        <div
+          v-for="opt in modeOptions"
+          :key="opt.value"
+          class="info-block"
+          style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin-bottom: var(--spacing-md);"
+        >
+          <div>
+            <div class="section-title" style="margin-bottom: 4px;">{{ opt.label }}</div>
+            <p style="margin: 0; color: var(--color-text-secondary);">{{ opt.description }}</p>
+            <div v-if="mode === opt.value && opt.ip" style="margin-top: var(--spacing-sm);">
+              {{ $t('net.wifi.ip_label') }} <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ opt.ip }}</code>
+            </div>
+          </div>
+          <toggle-switch
+            :key="renderKey"
+            :model-value="mode === opt.value"
+            :disabled="loading"
+            @update:modelValue="(v) => onModeSwitch(opt.value, v)"
+          ></toggle-switch>
         </div>
 
         <p style="color: var(--color-text-secondary);">
@@ -146,6 +156,7 @@ const WiFiSettingsComponent = {
     return {
       activeTab: 'general',
       mode: 'off',
+      renderKey: 0,
       radioEnabled: false,
       ap: {
         enabled: false,
@@ -174,21 +185,41 @@ const WiFiSettingsComponent = {
         { value: 'client', label: this.$t('net.wifi.client_title') }
       ];
     },
-    modeTabs() {
+    modeOptions() {
       return [
-        { value: 'client', label: this.$t('net.wifi.client_title') },
-        { value: 'ap', label: this.$t('net.wifi.ap_title') },
-        { value: 'off', label: this.$t('net.wifi.mode_off') }
+        {
+          value: 'client',
+          label: this.$t('net.wifi.client_title'),
+          description: this.$t('net.wifi.client_description'),
+          ip: this.wifi.ip || ''
+        },
+        {
+          value: 'ap',
+          label: this.$t('net.wifi.ap_title'),
+          description: this.$t('net.wifi.ap_description'),
+          ip: this.ap.ip || ''
+        },
+        {
+          value: 'off',
+          label: this.$t('net.wifi.mode_off'),
+          description: this.$t('net.wifi.off_description'),
+          ip: ''
+        }
       ];
-    },
-    modeIp() {
-      if (this.mode === 'client') return this.wifi.ip || '';
-      if (this.mode === 'ap') return this.ap.ip || '';
-      return '';
     }
   },
 
   methods: {
+    async onModeSwitch(value, enabled) {
+      // Only one mode is active at a time. Turning a switch on selects that
+      // mode; turning the active switch off is ignored (re-assert its state).
+      if (!enabled || value === this.mode) {
+        this.renderKey++;
+        return;
+      }
+      await this.onModeChange(value);
+    },
+
     async onModeChange(mode) {
       this.error = '';
       this.success = '';

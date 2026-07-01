@@ -64,11 +64,10 @@ Media (video, photos, GPS tracks) is stored in `/mnt/data/videoreg`.
 | `org_vrg_bus` | `bus` | Event bus (central event bus), Unix socket |
 | `org_vrg_camera` | `camera` | Video, photos, OSD, RTSP, Live stream |
 | `org_vrg_net` | `net` | WiFi, WireGuard, modem, networking |
-| `org_vrg_gps` | `gps` | GPS tracking, location |
+| `org_vrg_modem` | `modem` | Modem AT access: GPS tracking & location, SMS, modem info |
 | `org_vrg_bot` | `bot` | Telegram bot, receiving commands from user, sending text and media (photo, video, documents) |
 | `org_vrg_stat` | `stat` | Statistics: CPU temp, disk, traffic |
 | `org_vrg_power` | `power` | Power management, battery, PiSugar |
-| `org_vrg_sms` | `sms` | SMS, receiving commands from user |
 | `org_vrg_http` | `http` | HTTPS server (web-site, http-api) |
 
 See each plugin's `README.md` for its documentation.

@@ -35,19 +35,6 @@ const ModemSettingsComponent = {
 
         <!-- Вкладка "Статус" -->
         <div v-if="activeTab === 'status'">
-            <!-- Включение модема -->
-            <div v-if="modemInfo && modemInfo.connected" class="info-block" style="margin-bottom: var(--spacing-lg);">
-              <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                <div class="section-title" style="margin-bottom: 0;">{{ $t('net.modem.enable_title') }}</div>
-                <toggle-switch
-                  v-model="enabled"
-                  :disabled="loading"
-                  @update:modelValue="onModemToggle"
-                ></toggle-switch>
-              </div>
-              <p style="margin-top: var(--spacing-sm); color: var(--color-text-secondary);">{{ $t('net.modem.enable_hint') }}</p>
-            </div>
-
             <div class="info-block">
             <div class="section-title">{{ $t('net.modem.info_title') }}</div>
 
@@ -89,7 +76,7 @@ const ModemSettingsComponent = {
                 <progress-bar :value="modemInfo.signal_quality" :variant="signalVariant(modemInfo.signal_quality)" :show-label="true" style="width: 160px;"></progress-bar>
               </div>
 
-              <div v-if="enabled && ip" class="info-row">
+              <div v-if="ip" class="info-row">
                 <span class="info-label">{{ $t('net.modem.ip_label') }}</span>
                 <code class="code-inline">{{ ip }}</code>
               </div>
@@ -102,14 +89,6 @@ const ModemSettingsComponent = {
           <div class="info-block">
             <form @submit.prevent="saveApn" style="max-width: 600px;">
               <div class="section-title">{{ $t('net.modem.settings_title') }}</div>
-
-              <div class="form-group">
-                <toggle-switch
-                  v-model="autoconnect"
-                  :disabled="loading"
-                  :label="$t('http.common.autoconnect')"
-                ></toggle-switch>
-              </div>
 
               <div class="form-group">
                 <label class="form-label" for="apn">{{ $t('net.modem.apn_label') }}</label>
@@ -163,8 +142,6 @@ const ModemSettingsComponent = {
     return {
       activeTab: 'status',
       apn: '',
-      enabled: false,
-      autoconnect: false,
       ip: '',
       modemInfo: null,
       modemInfoLoading: true,
@@ -184,45 +161,6 @@ const ModemSettingsComponent = {
   },
 
   methods: {
-    async onModemToggle(value) {
-      this.error = '';
-      this.success = '';
-      this.loading = true;
-
-      try {
-        const response = await fetch(value ? '/api/net/connection_enable' : '/api/net/connection_disanable', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            type: 'modem'
-          })
-        });
-
-        if (!response.ok) {
-          const data = await response.json();
-          this.error = data.error || this.$t('net.modem.error_toggle');
-          this.loading = false;
-          await this.loadApn();
-          return;
-        }
-
-        this.success = value ? this.$t('net.modem.enabled') : this.$t('net.modem.disabled');
-
-        setTimeout(() => {
-          this.loadApn();
-        }, 1000);
-
-      } catch (err) {
-        this.error = this.$t('http.common.error_server');
-        console.error('Modem toggle error:', err);
-        this.loading = false;
-        await this.loadApn();
-      }
-    },
-
     signalVariant(quality) {
       if (quality < 40) return 'critical';
       if (quality < 70) return 'warning';
@@ -230,7 +168,7 @@ const ModemSettingsComponent = {
     },
 
     async refreshAll() {
-      await Promise.all([this.loadApn(), this.loadModemInfo()]);
+      await Promise.all([this.loadApn(), this.loadModemInfo(), this.loadConnection()]);
     },
 
     async loadModemInfo() {
@@ -265,7 +203,7 @@ const ModemSettingsComponent = {
       this.loading = true;
 
       try {
-        const response = await fetch('/api/net/connection_config', {
+        const response = await fetch('/api/modem/apn', {
           method: 'GET',
           credentials: 'same-origin'
         });
@@ -278,10 +216,7 @@ const ModemSettingsComponent = {
         }
 
         const data = await response.json();
-        this.apn = data.modem.apn || '';
-        this.enabled = data.modem.enabled || false;
-        this.autoconnect = data.modem.autoconnect || false;
-        this.ip = data.modem.ip || '';
+        this.apn = data.apn || '';
 
       } catch (err) {
         this.error = this.$t('http.common.error_server');
@@ -291,22 +226,38 @@ const ModemSettingsComponent = {
       }
     },
 
+    async loadConnection() {
+      // Modem IP comes from the NetworkManager connection; APN is configured
+      // separately over AT (see loadApn / saveApn).
+      try {
+        const response = await fetch('/api/net/connection_config', {
+          method: 'GET',
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          this.ip = (data.modem && data.modem.ip) || '';
+        }
+      } catch (err) {
+        console.error('Load connection error:', err);
+      }
+    },
+
     async saveApn() {
       this.error = '';
       this.success = '';
       this.loading = true;
 
       try {
-        const response = await fetch('/api/net/connection_config', {
+        const response = await fetch('/api/modem/apn', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'same-origin',
           body: JSON.stringify({
-            type: 'modem',
-            apn: this.apn,
-            autoconnect: this.autoconnect
+            apn: this.apn
           })
         });
 
@@ -331,5 +282,6 @@ const ModemSettingsComponent = {
   async mounted() {
     await this.loadApn();
     await this.loadModemInfo();
+    await this.loadConnection();
   }
 };

@@ -226,7 +226,7 @@ The mapping between services and plugins is defined in `videoreg.manifest.yaml`.
 |---|---|
 | **vrg-core** | **core** — general logic<br>**bus** — event bus (Unix socket)<br>**net** — networking: WiFi, WireGuard, modem<br>**power** — power, battery, PiSugar<br>**stat** — statistics: CPU, disk, traffic |
 | **vrg-camera** | **camera** — video, photo, live stream |
-| **vrg-modem** | **gps** — GPS tracking<br>**sms** — SMS |
+| **vrg-modem** | **modem** — modem AT access: GPS tracking, SMS, modem info |
 | **vrg-http** | **http** — HTTPS server |
 | **vrg-bot** | **bot** — Telegram bot |
 | **vrg-pisugar-watchdog** | Watchdog (no plugins) |

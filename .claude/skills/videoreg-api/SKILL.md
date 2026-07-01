@@ -13,7 +13,7 @@ Templates and rules for writing videoreg-api methods (`plugins/<plugin>/methods/
 
 ## Method-to-plugin assignment
 
-A method must live in the **plugin that owns the state and dependencies it accesses**. Default mapping (camera → `org_vrg_camera`, net → `org_vrg_net`, gps → `org_vrg_gps`, stat → `org_vrg_stat`, power → `org_vrg_power`, bot → `org_vrg_bot`, sms → `org_vrg_sms`, http → `org_vrg_http`, core → `org_vrg_core`, bus → `org_vrg_bus`) is in `CLAUDE.md`.
+A method must live in the **plugin that owns the state and dependencies it accesses**. Default mapping (camera → `org_vrg_camera`, net → `org_vrg_net`, modem → `org_vrg_modem` (GPS + SMS + modem info), stat → `org_vrg_stat`, power → `org_vrg_power`, bot → `org_vrg_bot`, http → `org_vrg_http`, core → `org_vrg_core`, bus → `org_vrg_bus`) is in `CLAUDE.md`.
 
 To list existing methods of a plugin, read `plugins/<plugin>/plugin_builder.py` — they're all registered there.
 

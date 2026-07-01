@@ -20,7 +20,7 @@ class MethodConnectionUpdate(ApiMethod):
 
     connection_type = args.get("type")
 
-    if connection_type not in ["ap", "wifi", "modem"]:
+    if connection_type not in ["ap", "wifi"]:
       return {"status": "error", "error": 'Invalid connection type. Must be "ap" or "wifi"'}
 
     try:
@@ -44,10 +44,6 @@ class MethodConnectionUpdate(ApiMethod):
         await self._net_controls.set_connection_property(
           connection_type, "connection.autoconnect", autoconnect
         )
-
-      if "apn" in args:
-        apn = args["apn"].strip()
-        await self._net_controls.set_connection_property("modem", "gsm.apn", apn)
 
       self._logger.info(f"{connection_type} configuration updated successfully")
 

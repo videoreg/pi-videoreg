@@ -2,6 +2,7 @@ import asyncio
 from logging import Logger
 
 from plugins.org_vrg_modem.modem import Modem
+from sdk.at import apn as at_apn
 from sdk.at import gps as at_gps
 from sdk.at import lbs as at_lbs
 from sdk.at.modem_info import ModemFamily, identify
@@ -153,3 +154,23 @@ class ModemImpl(Modem):
     except Exception as e:
       self._logger.warning(f"get lbs location error: {e}")
       return None
+
+  # --- APN ----------------------------------------------------------------
+
+  async def get_apn(self) -> str | None:
+    if not await self._ensure_enabled():
+      return None
+    try:
+      return await at_apn.get_apn(self._transport)
+    except Exception as e:
+      self._logger.warning(f"get apn error: {e}")
+      return None
+
+  async def set_apn(self, apn: str) -> bool:
+    if not await self._ensure_enabled():
+      return False
+    try:
+      return await at_apn.set_apn(self._transport, apn)
+    except Exception as e:
+      self._logger.warning(f"set apn error: {e}")
+      return False

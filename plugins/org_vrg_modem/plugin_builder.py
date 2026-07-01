@@ -9,11 +9,13 @@ from plugins.org_vrg_modem.commands.sms_commands import CommandSmsCommands
 from plugins.org_vrg_modem.methods.delete_sms import MethodDeleteSms
 from plugins.org_vrg_modem.methods.delete_track import MethodDeleteTrack
 from plugins.org_vrg_modem.methods.get_all_sms import MethodGetAllSms
+from plugins.org_vrg_modem.methods.get_apn import MethodGetApn
 from plugins.org_vrg_modem.methods.get_location import MethodGetLocation
 from plugins.org_vrg_modem.methods.get_modem_info import MethodGetModemInfo
 from plugins.org_vrg_modem.methods.get_tracks import MethodGetTracks
 from plugins.org_vrg_modem.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_modem.methods.send_text import MethodSendText
+from plugins.org_vrg_modem.methods.set_apn import MethodSetApn
 from plugins.org_vrg_modem.plugin import ModemPlugin
 from sdk.command_reader import read_plugin_commands
 from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
@@ -75,6 +77,8 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "get_all_sms": MethodGetAllSms(plugin),
       "delete_sms": MethodDeleteSms(plugin),
       "modem_info": MethodGetModemInfo(plugin),
+      "get_apn": MethodGetApn(plugin),
+      "set_apn": MethodSetApn(plugin),
     }
   )
 

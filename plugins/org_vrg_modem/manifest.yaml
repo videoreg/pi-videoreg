@@ -41,6 +41,15 @@ http:
       method: delete
       plugin: modem.delete_sms
 
+    - url: modem/apn
+      method: get
+      plugin: modem.get_apn
+
+    # Component sends {"apn": <value>} in the request body
+    - url: modem/apn
+      method: post
+      plugin: modem.set_apn
+
 commands:
   - name: gps
     title: GPS commands

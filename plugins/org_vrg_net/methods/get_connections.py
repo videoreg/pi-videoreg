@@ -31,10 +31,9 @@ class MethodGetConnections(ApiMethod):
       },
     )
 
-    # Get modem connection info
-    modem_info = await self._net_controls.get_connection_info(
-      "modem", properties_map={"gsm.apn": "apn"}
-    )
+    # Get modem connection info (IP/device only; APN is configured over AT in
+    # the modem plugin, not via the NetworkManager gsm profile).
+    modem_info = await self._net_controls.get_connection_info("modem")
 
     return {
       "status": "ok",

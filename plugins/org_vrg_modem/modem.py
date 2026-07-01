@@ -23,3 +23,9 @@ class Modem:
 
   async def get_location_lbs(self) -> dict:
     raise NotImplementedError()
+
+  async def get_apn(self) -> str | None:
+    raise NotImplementedError()
+
+  async def set_apn(self, apn: str) -> bool:
+    raise NotImplementedError()

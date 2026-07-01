@@ -34,3 +34,9 @@ class ModemImpl(Modem):
       "longitude": "30.365276",
       "latitude": "59.754425",
     }
+
+  async def get_apn(self) -> str:
+    return "internet"
+
+  async def set_apn(self, apn: str) -> bool:
+    return True

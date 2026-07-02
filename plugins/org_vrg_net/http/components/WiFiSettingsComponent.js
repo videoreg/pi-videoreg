@@ -217,6 +217,12 @@ const WiFiSettingsComponent = {
         this.renderKey++;
         return;
       }
+      // Changing the mode can drop the very connection the user is on, so ask
+      // for confirmation before applying. On cancel, re-assert the switch state.
+      if (!confirm(this.$t('net.wifi.mode_confirm'))) {
+        this.renderKey++;
+        return;
+      }
       // Reflect the selection immediately so exactly one switch shows as active
       // (the backend confirmation / reload happens in onModeChange).
       this.mode = value;

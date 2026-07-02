@@ -150,12 +150,12 @@ const LineChart = {
           <line
             :x1="chart.padL" :y1="line.y"
             :x2="chart.W - chart.padR" :y2="line.y"
-            :stroke="line.color" stroke-width="1.5"
+            :stroke="line.color" stroke-width="1.5" opacity="0.5"
           />
           <text
             :x="chart.W - chart.padR - 4" :y="line.y - 4"
             text-anchor="end" font-size="11" font-weight="600"
-            :fill="line.color"
+            :fill="line.color" opacity="0.65"
           >{{ line.value }}{{ unit }}</text>
         </g>
       </svg>

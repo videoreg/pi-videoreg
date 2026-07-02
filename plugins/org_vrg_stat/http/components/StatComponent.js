@@ -41,7 +41,7 @@ const StatComponent = {
               {{ tempDate }} &middot; {{ tempData.length }} {{ $t('stat.stat.points') }}
             </span>
           </div>
-          <line-chart :data="tempData" unit="°C"></line-chart>
+          <line-chart :data="tempData" unit="°C" :thresholds="tempThresholds"></line-chart>
         </div>
 
         <!-- PiSugar заряд -->
@@ -105,6 +105,15 @@ const StatComponent = {
   },
 
   computed: {
+    tempThresholds() {
+      // Границы температуры CPU
+      const color = 'var(--color-error, #ef4444)';
+      return [
+        { value: 55, color },
+        { value: 60, color }
+      ];
+    },
+
     tabList() {
       return [
         { value: 'cpu', label: this.$t('stat.stat.tab_cpu') },

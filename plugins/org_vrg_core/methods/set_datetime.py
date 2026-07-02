@@ -12,8 +12,10 @@ class MethodSetDatetime(ApiMethod):
   """Set the system timezone and/or date-time.
 
   Accepts ``{"datetime"?: "YYYY-MM-DDTHH:MM[:SS]", "timezone"?: "Area/City"}``.
-  Setting a manual time first disables NTP (otherwise the daemon overwrites it),
-  then updates the PiSugar RTC so the clock survives power loss.
+  ``timedatectl`` refuses to set the time while NTP is active, so setting a manual
+  time disables NTP only for the duration of the ``set-time`` call and restores it
+  afterwards — a manual time set must not turn off automatic synchronization. The
+  PiSugar RTC is then updated so the clock survives power loss.
   """
 
   _plugin: CorePlugin
@@ -87,11 +89,24 @@ class MethodSetDatetime(ApiMethod):
         if normalized is None:
           return {"status": "error", "error": f"Invalid datetime: {raw_datetime}"}
 
-        ok, err = await self._run(["sudo", "timedatectl", "set-ntp", "false"])
-        if not ok:
-          return {"status": "error", "error": err}
+        # timedatectl refuses to set the time while NTP is active. Disable it
+        # only for this operation and restore it afterwards so a manual time set
+        # keeps automatic synchronization enabled (it will re-sync once able).
+        ntp_was_on = bool((await read_datetime_state()).get("ntp"))
+
+        if ntp_was_on:
+          ok, err = await self._run(["sudo", "timedatectl", "set-ntp", "false"])
+          if not ok:
+            return {"status": "error", "error": err}
 
         ok, err = await self._run(["sudo", "timedatectl", "set-time", normalized])
+
+        if ntp_was_on:
+          # Restore NTP regardless of whether set-time succeeded.
+          restore_ok, restore_err = await self._run(["sudo", "timedatectl", "set-ntp", "true"])
+          if ok and not restore_ok:
+            return {"status": "error", "error": restore_err}
+
         if not ok:
           return {"status": "error", "error": err}
 

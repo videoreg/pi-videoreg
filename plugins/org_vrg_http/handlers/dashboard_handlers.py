@@ -59,7 +59,7 @@ async def handle_get_dashboard_status(request: web.Request):
   if isinstance(wg_response, Exception):
     logger.warning(f"Dashboard: wg_show error: {wg_response}")
   elif wg_response.is_ok():
-    result["wireguard"] = wg_response.response.body.get("wg_info")
+    result["wireguard"] = wg_response.get_data()
 
   if isinstance(camera_response, Exception):
     logger.warning(f"Dashboard: camera info error: {camera_response}")

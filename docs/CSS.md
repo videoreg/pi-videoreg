@@ -382,6 +382,35 @@ For displaying IP addresses, keys, and commands.
 
 ---
 
+## Onboarding
+
+First-run steps (forced password change, clock setup) shown full-page before the
+app loads. All steps share one top-aligned wrapper with a fixed content width so
+they line up identically; the forms themselves use ordinary `.info-block` cards.
+The same components render as normal settings sub-pages when their `forced` /
+`onboarding` flag is off (using `.page-header` instead).
+
+```html
+<div class="onboarding-page">
+  <div class="onboarding-header">
+    <h1>Videoreg</h1>
+    <p>Short step instruction</p>
+  </div>
+  <div class="info-block">
+    <!-- form -->
+  </div>
+</div>
+```
+
+| Class | Description |
+|---|---|
+| `.onboarding-page` | `max-width: 560px`, centered horizontally, top-aligned, `padding: --spacing-xl --spacing-lg` |
+| `.onboarding-header` | Centered header block, `margin-bottom: --spacing-lg` |
+| `.onboarding-header h1` | Product title, `1.875rem`, bold |
+| `.onboarding-header p` | `--color-text-secondary`, `0.9375rem` step instruction |
+
+---
+
 ## Progress bar
 
 Reusable component for displaying numeric values as a filled bar: battery level, signal strength, disk usage.

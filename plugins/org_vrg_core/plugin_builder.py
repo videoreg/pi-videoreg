@@ -4,6 +4,7 @@ from plugins.org_vrg_core.methods.get_datetime import MethodGetDatetime
 from plugins.org_vrg_core.methods.get_journal_files import MethodGetJournalFiles
 from plugins.org_vrg_core.methods.get_trip_state import MethodGetTripState
 from plugins.org_vrg_core.methods.get_system import MethodGetSystem
+from plugins.org_vrg_core.methods.mark_datetime_configured import MethodMarkDatetimeConfigured
 from plugins.org_vrg_core.methods.service_action import MethodServiceAction
 from plugins.org_vrg_core.methods.set_datetime import MethodSetDatetime
 from plugins.org_vrg_core.methods.set_ntp import MethodSetNtp
@@ -54,6 +55,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "get_trip_state": MethodGetTripState(plugin),
       "get_datetime": MethodGetDatetime(plugin),
       "set_datetime": MethodSetDatetime(plugin),
+      "mark_datetime_configured": MethodMarkDatetimeConfigured(plugin),
       "set_ntp": MethodSetNtp(plugin),
     }
   )

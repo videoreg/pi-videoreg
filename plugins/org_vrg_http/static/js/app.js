@@ -40,7 +40,9 @@ const { createApp } = Vue;
       powerActionLoading: null,
       keepAliveSuccess: false,
       rebootSuccess: false,
-      shutdownSuccess: false
+      shutdownSuccess: false,
+      // System-wide first-run clock setup flag (null = not yet fetched).
+      datetimeConfigured: null
     };
   },
   provide() {
@@ -53,6 +55,13 @@ const { createApp } = Vue;
   computed: {
     mustChangePassword() {
       return this.isAuthenticated && this.user && this.user.password_changed === false;
+    },
+
+    // First-run clock setup step: shown once for the whole system (after the
+    // password is changed), until completed. Persisted in the core plugin state.
+    mustSetupDatetime() {
+      return this.isAuthenticated && !this.mustChangePassword &&
+        this.datetimeConfigured === false;
     },
 
     // --- Manifest-driven menu/routing (from window.__vrgMenu) ---
@@ -216,6 +225,23 @@ const { createApp } = Vue;
       }
     },
     
+    // Load the system-wide clock-setup flag (once). On error assume configured
+    // so a backend hiccup never traps the user on the onboarding screen.
+    async loadDatetimeConfigured() {
+      if (this.datetimeConfigured !== null) return;
+      try {
+        const response = await fetch('/api/core/datetime', { credentials: 'same-origin' });
+        if (response.ok) {
+          const result = await response.json();
+          this.datetimeConfigured = result.configured === true;
+        } else {
+          this.datetimeConfigured = true;
+        }
+      } catch (err) {
+        this.datetimeConfigured = true;
+      }
+    },
+
     async onLoginSuccess() {
       await this.checkAuth();
 
@@ -223,13 +249,36 @@ const { createApp } = Vue;
         return;
       }
 
+      // Stay on the clock setup step until it is completed.
+      await this.loadDatetimeConfigured();
+      if (this.mustSetupDatetime) {
+        return;
+      }
+
       this._initAfterAuth();
     },
 
-    onPasswordChanged() {
+    async onPasswordChanged() {
       if (this.user) {
         this.user = { ...this.user, password_changed: true };
       }
+      // password changed → show the clock setup step if the system isn't configured.
+      await this.loadDatetimeConfigured();
+      if (!this.mustSetupDatetime) {
+        this._initAfterAuth();
+      }
+    },
+
+    async onDatetimeDone() {
+      try {
+        await fetch('/api/core/datetime-configured', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+      } catch (err) {
+        console.error('Failed to mark datetime configured:', err);
+      }
+      this.datetimeConfigured = true;
       this._initAfterAuth();
     },
 
@@ -452,7 +501,10 @@ const { createApp } = Vue;
     await this.checkAuth();
 
     if (this.isAuthenticated && !this.mustChangePassword) {
-      this._initAfterAuth();
+      await this.loadDatetimeConfigured();
+      if (!this.mustSetupDatetime) {
+        this._initAfterAuth();
+      }
     }
   },
 

@@ -36,6 +36,10 @@ http:
       method: post
       plugin: core.set_datetime
 
+    - url: core/datetime-configured
+      method: post
+      plugin: core.mark_datetime_configured
+
     - url: core/ntp
       method: post
       plugin: core.set_ntp

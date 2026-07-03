@@ -12,7 +12,10 @@ class MethodGetDatetime(ApiMethod):
 
   async def exec(self, args):
     try:
-      return {"status": "ok", "data": await read_datetime_state()}
+      data = await read_datetime_state()
+      # System-wide flag: whether the one-time first-run clock setup was completed.
+      data["configured"] = bool(self._plugin.state.get("datetime_configured", False))
+      return {"status": "ok", "data": data}
     except Exception as e:
       self._plugin.logger.error(f"Error in get_datetime: {e}", exc_info=True)
       return {"status": "error", "error": str(e)}

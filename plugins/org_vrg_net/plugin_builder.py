@@ -9,6 +9,7 @@ from plugins.org_vrg_net.methods.connection_update import MethodConnectionUpdate
 from plugins.org_vrg_net.methods.generate_wireguard_key import MethodGenerateWireguardKey
 from plugins.org_vrg_net.methods.get_connection import MethodGetConnection
 from plugins.org_vrg_net.methods.get_connections import MethodGetConnections
+from plugins.org_vrg_net.methods.get_modem_dashboard import MethodGetModemDashboard
 from plugins.org_vrg_net.methods.get_modem_info import MethodGetModemInfo
 from plugins.org_vrg_net.methods.get_wireguard_config import MethodGetWireguardConfig
 from plugins.org_vrg_net.methods.get_wireguard_settings import MethodGetWireguardSettings
@@ -81,10 +82,14 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     "wg_off": CommandWgSetState(plugin, enable=False),
   }
 
+  # Shared instances reused by the modem-dashboard aggregate below.
+  method_connections = MethodGetConnections(net_controls)
+  method_modem_info = MethodGetModemInfo(plugin.logger, modem_controls, plugin.api_client)
+
   plugin.init_api_servier(
     methods={
       "command": GatewayCommandMethod(gateways, commands),
-      "connections": MethodGetConnections(net_controls),
+      "connections": method_connections,
       "connection": MethodGetConnection(net_controls),
       "connection_update": MethodConnectionUpdate(plugin.logger, net_controls),
       "connection_up": MethodSetConnectionEnabled(net_controls, enabled=True),
@@ -100,7 +105,8 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),
-      "modem_info": MethodGetModemInfo(plugin.logger, modem_controls, plugin.api_client),
+      "modem_info": method_modem_info,
+      "modem_dashboard": MethodGetModemDashboard(method_modem_info, method_connections),
     }
   )
 

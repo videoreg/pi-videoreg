@@ -15,10 +15,26 @@ http:
       icon: vpn
       component: WireguardSettingsComponent
 
+  dashboard:
+    - component: DashboardWifiTile
+      method: net.connections
+      order: 60
+
+    - component: DashboardModemTile
+      method: net.modem_dashboard
+      order: 70
+
+    - component: DashboardWireguardTile
+      method: net.wg_show
+      order: 80
+
   components:
     - WiFiSettingsComponent.js
     - ModemSettingsComponent.js
     - WireguardSettingsComponent.js
+    - DashboardWifiTile.js
+    - DashboardModemTile.js
+    - DashboardWireguardTile.js
 
   api:
     - url: net/wireguard_status

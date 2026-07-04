@@ -16,11 +16,17 @@ http:
       icon: sms
       component: SmsSettingsComponent
 
+  dashboard:
+    - component: DashboardLocationTile
+      method: modem.get_location
+      order: 40
+
   components:
     - GpsTracksComponent.js
     - SmsIcons.js
     - SmsInboxComponent.js
     - SmsSettingsComponent.js
+    - DashboardLocationTile.js
 
   api:
     - url: gps/tracks

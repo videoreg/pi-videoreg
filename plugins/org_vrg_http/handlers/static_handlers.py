@@ -8,15 +8,16 @@ import aiofiles
 from aiohttp import web
 
 from plugins.org_vrg_http.bundle import build_bundle
-from plugins.org_vrg_http.manifest_reader import enabled_plugin_ids
+from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks, enabled_plugin_ids
 
 
 def _build_bootstrap_script(http_manifests: list) -> str:
   """Build the inline bootstrap `<script>` injected into index.html.
 
-  Emits `window.__vrgMenu` (menu data from the manifests) and
-  `window.__vrgComponents` — a string→object bridge written with literal Vue
-  component identifiers, resolved lexically from bundle.js.
+  Emits `window.__vrgMenu` (menu data), `window.__vrgDashboard` (ordered
+  dashboard block structure) and `window.__vrgComponents` — a string→object
+  bridge written with literal Vue component identifiers, resolved lexically
+  from bundle.js.
   """
   menu: list = []
   menu_settings: list = []
@@ -33,8 +34,25 @@ def _build_bootstrap_script(http_manifests: list) -> str:
     http = config["http"]
     _collect(http.get("menu"), menu)
     _collect(http.get("menu_settings"), menu_settings)
+    # Dashboard blocks are not menu items, but their components must still be
+    # resolvable through the string→object bridge (block.component arrives as a
+    # name string). Runtime-inserted tiles pass the component object directly and
+    # so are not declared in the manifest / bridged here.
+    for entry in http.get("dashboard") or []:
+      name = entry.get("component")
+      if name and name not in component_names:
+        component_names.append(name)
+
+  # Structure of the initial dashboard blocks (component + order), sent to the
+  # frontend so it can render tiles (with loading shimmers) before their data
+  # arrives from /api/dashboard/status. Runtime-only blocks are excluded.
+  dashboard = [
+    {"key": b["key"], "component": b["component"], "order": b["order"]}
+    for b in collect_dashboard_blocks(http_manifests)
+  ]
 
   menu_json = json.dumps({"menu": menu, "menu_settings": menu_settings}, ensure_ascii=False)
+  dashboard_json = json.dumps(dashboard, ensure_ascii=False)
 
   # Bridge string component name → object using the identifiers defined in
   # bundle.js (or still-present static scripts). Each assignment is guarded so a
@@ -49,6 +67,7 @@ def _build_bootstrap_script(http_manifests: list) -> str:
   return (
     "<script>\n"
     f"  window.__vrgMenu = {menu_json};\n"
+    f"  window.__vrgDashboard = {dashboard_json};\n"
     f"{bridge}\n"
     "</script>"
   )

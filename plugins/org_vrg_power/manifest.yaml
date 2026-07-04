@@ -5,8 +5,14 @@ http:
       icon: battery
       component: PowerSettingsComponent
 
+  dashboard:
+    - component: DashboardPowerTile
+      method: power.get_status
+      order: 90
+
   components:
     - PowerSettingsComponent.js
+    - DashboardPowerTile.js
 
   api:
     - url: power/status

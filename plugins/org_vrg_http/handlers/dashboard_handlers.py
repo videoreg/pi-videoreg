@@ -20,6 +20,8 @@ async def handle_get_dashboard_status(request: web.Request):
     location_response,
     trip_response,
     current_temp_response,
+    bot_response,
+    botvk_response,
   ) = await asyncio.gather(
     api_client.exec("net.connections", None),
     api_client.exec("net.modem_info", {}),
@@ -30,6 +32,8 @@ async def handle_get_dashboard_status(request: web.Request):
     api_client.exec("modem.get_location", {}),
     api_client.exec("core.get_trip_state", {}),
     api_client.exec("stat.get_current_temp", {}, timeout=2.0),
+    api_client.exec("bot.get_status", {}, timeout=2.0),
+    api_client.exec("botvk.get_status", {}, timeout=2.0),
     return_exceptions=True,
   )
 
@@ -44,6 +48,8 @@ async def handle_get_dashboard_status(request: web.Request):
     "location": None,
     "trip": None,
     "system": None,
+    "bot": None,
+    "botvk": None,
   }
 
   if isinstance(connections_response, Exception):
@@ -90,6 +96,16 @@ async def handle_get_dashboard_status(request: web.Request):
     logger.warning(f"Dashboard: current temp error: {current_temp_response}")
   elif current_temp_response.is_ok():
     result["system"] = current_temp_response.get_data()
+
+  if isinstance(bot_response, Exception):
+    logger.warning(f"Dashboard: bot status error: {bot_response}")
+  elif bot_response.is_ok():
+    result["bot"] = bot_response.get_data()
+
+  if isinstance(botvk_response, Exception):
+    logger.warning(f"Dashboard: botvk status error: {botvk_response}")
+  elif botvk_response.is_ok():
+    result["botvk"] = botvk_response.get_data()
 
   # if isinstance(storage_response, Exception):
   #   logger.warning(f"Dashboard: storage info error: {storage_response}")

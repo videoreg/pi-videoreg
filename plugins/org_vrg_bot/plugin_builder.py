@@ -9,6 +9,7 @@ from plugins.org_vrg_bot.commands.start import CommandStart
 from plugins.org_vrg_bot.dispatcher import Dispatcher
 from plugins.org_vrg_bot.main import Bot, BotChat, BotCommand, Context
 from plugins.org_vrg_bot.methods.get_settings import MethodGetSettings
+from plugins.org_vrg_bot.methods.get_status import MethodGetStatus
 from plugins.org_vrg_bot.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_bot.methods.send_document import MethodSendDocument
 from plugins.org_vrg_bot.methods.send_image import MethodSendImage
@@ -97,6 +98,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "send_status": MethodSendStatus(plugin, bot, tg_api),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_settings": MethodGetSettings(plugin),
+      "get_status": MethodGetStatus(plugin),
       "set_settings": MethodSetSettings(plugin, tg_api),
     }
   )
@@ -142,7 +144,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     CommandEditCallback(prefix="command_edit__", api_client=plugin.api_client, tg_api=tg_api),
   ]
 
-  plugin.dispatcher = Dispatcher(bot, tg_api, commands, callbacks, plugin.keep_alive)
+  plugin.dispatcher = Dispatcher(
+    bot, tg_api, commands, callbacks, plugin.keep_alive, plugin.health
+  )
   plugin.tg_api = tg_api
   plugin.bot = bot
   plugin.chats_loader = load_chats

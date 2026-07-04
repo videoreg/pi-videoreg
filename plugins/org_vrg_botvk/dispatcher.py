@@ -4,7 +4,7 @@ import json
 import plugins.org_vrg_botvk.const as const
 from plugins.org_vrg_botvk.backoff import Backoff
 from plugins.org_vrg_botvk.keep_alive import KeepAlive
-from plugins.org_vrg_botvk.main import Bot, BotChat, Callback, Command
+from plugins.org_vrg_botvk.main import Bot, BotChat, BotHealth, Callback, Command
 from plugins.org_vrg_botvk.vk_api import VkApi
 
 
@@ -15,6 +15,7 @@ class Dispatcher:
   _callbacks: list[Callback]
   _stop_event: asyncio.Event
   _keep_alive: KeepAlive
+  _health: BotHealth
 
   def __init__(
     self,
@@ -23,6 +24,7 @@ class Dispatcher:
     commands: list[Command],
     callbacks: list[Callback],
     keep_alive: KeepAlive,
+    health: BotHealth,
   ):
     super().__init__()
     self._bot = bot
@@ -30,6 +32,7 @@ class Dispatcher:
     self._commands = commands
     self._callbacks = callbacks
     self._keep_alive = keep_alive
+    self._health = health
     self._stop_event = asyncio.Event()
     self._stop_event.set()  # initially not polling
 
@@ -52,6 +55,7 @@ class Dispatcher:
       raise Exception("Bot pooling is already started")
 
     self._stop_event = asyncio.Event()
+    self._health.mark_polling(True)
     is_first_loop = True
 
     server = None
@@ -71,6 +75,7 @@ class Dispatcher:
           resp = lp.get("response") if isinstance(lp, dict) else None
           if not resp:
             self._bot.context.http_logger.error(f"getLongPollServer failed: {lp}")
+            self._health.mark_error("getLongPollServer failed")
             backoff.consider_connection_error()
             await self._delay(backoff)
             continue
@@ -87,6 +92,11 @@ class Dispatcher:
           http_timeout=backoff.get_http_timeout(),
           wait=backoff.get_wait_timeout(),
         )
+
+        # A Long Poll response (even with an empty updates list, or a benign
+        # `failed` code) means the bot successfully reached the VK server.
+        if isinstance(updates, dict):
+          self._health.mark_ok()
 
         # VK signals expired key/ts via the `failed` field.
         failed = updates.get("failed") if isinstance(updates, dict) else None
@@ -169,6 +179,7 @@ class Dispatcher:
 
       except TimeoutError:
         self._bot.context.http_logger.warning("a_check: timeout")
+        self._health.mark_error("timeout")
         backoff.consider_timeout()
         await self._delay(backoff)
         continue
@@ -179,6 +190,7 @@ class Dispatcher:
 
       except Exception as e:
         self._bot.context.http_logger.error(f"a_check error {type(e).__name__}: {e}")
+        self._health.mark_error(f"{type(e).__name__}: {e}")
         # Force a server refresh on the next iteration.
         server = None
         key = None
@@ -210,6 +222,7 @@ class Dispatcher:
 
       await self._delay(backoff)
 
+    self._health.mark_polling(False)
     self._bot.context.logger.warning("stop pooling")
 
   async def _handle_command(self, chat: BotChat, name: str, args: str):

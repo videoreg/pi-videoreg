@@ -5,7 +5,7 @@ import plugins.org_vrg_botvk.backoff as backoff
 import plugins.org_vrg_botvk.const as const
 from plugins.org_vrg_botvk.dispatcher import Dispatcher
 from plugins.org_vrg_botvk.keep_alive import KeepAlive
-from plugins.org_vrg_botvk.main import Bot, BotChat
+from plugins.org_vrg_botvk.main import Bot, BotChat, BotHealth
 from plugins.org_vrg_botvk.vk_api import VkApi
 from sdk.service import Plugin
 
@@ -18,6 +18,7 @@ class BotvkPlugin(Plugin):
   bot: Bot = None
   chats_loader: Callable[[], list[BotChat]] = None
   keep_alive: KeepAlive
+  health: BotHealth
   _pooling_task: asyncio.Task = None
   _sync_task: asyncio.Task = None
   _waiting_settings_logged = False
@@ -25,6 +26,7 @@ class BotvkPlugin(Plugin):
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
     self.keep_alive = KeepAlive()
+    self.health = BotHealth()
 
   async def start(self):
     await super().start()

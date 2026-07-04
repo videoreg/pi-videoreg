@@ -10,6 +10,7 @@ from plugins.org_vrg_botvk.dispatcher import Dispatcher
 from plugins.org_vrg_botvk.main import Bot, BotChat, Context, MenuButton
 from plugins.org_vrg_botvk.methods.edit_message import MethodEditMessage
 from plugins.org_vrg_botvk.methods.get_settings import MethodGetSettings
+from plugins.org_vrg_botvk.methods.get_status import MethodGetStatus
 from plugins.org_vrg_botvk.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_botvk.methods.send_document import MethodSendDocument
 from plugins.org_vrg_botvk.methods.send_image import MethodSendImage
@@ -98,6 +99,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "send_status": MethodSendStatus(plugin, bot, vk_api),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_settings": MethodGetSettings(plugin),
+      "get_status": MethodGetStatus(plugin),
       "set_settings": MethodSetSettings(plugin),
     }
   )
@@ -144,7 +146,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     CommandEditCallback(prefix="command_edit__", api_client=plugin.api_client, vk_api=vk_api),
   ]
 
-  plugin.dispatcher = Dispatcher(bot, vk_api, commands, callbacks, plugin.keep_alive)
+  plugin.dispatcher = Dispatcher(
+    bot, vk_api, commands, callbacks, plugin.keep_alive, plugin.health
+  )
   plugin.vk_api = vk_api
   plugin.bot = bot
   plugin.chats_loader = load_chats

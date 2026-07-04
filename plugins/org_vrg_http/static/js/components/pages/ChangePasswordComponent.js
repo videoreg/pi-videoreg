@@ -7,24 +7,22 @@ const ChangePasswordComponent = {
     }
   },
   template: `
-    <div v-if="forced" class="login-container">
-      <div class="login-box">
-        <div class="login-header">
-          <h1>Videoreg</h1>
-        </div>
+    <div v-if="forced" class="onboarding-page">
+      <div class="onboarding-header">
+        <h1>Videoreg</h1>
+        <p>{{ $t('http.change_pw.forced_note') }}</p>
+      </div>
 
-        <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary); font-size: var(--font-size-sm);">
-          {{ $t('http.change_pw.forced_note') }}
-        </p>
+      <div v-if="success" class="alert alert-success">
+        {{ success }}
+      </div>
 
-        <div v-if="success" class="alert alert-success">
-          {{ success }}
-        </div>
+      <div v-if="error" class="alert alert-error">
+        {{ error }}
+      </div>
 
-        <div v-if="error" class="alert alert-error">
-          {{ error }}
-        </div>
-
+      <div class="info-block">
+        <div class="section-title">{{ $t('http.change_pw.title') }}</div>
         <form @submit.prevent="handleChangePassword">
           <div class="form-group">
             <label class="form-label" for="old_password_forced">{{ $t('http.change_pw.current_label') }}</label>

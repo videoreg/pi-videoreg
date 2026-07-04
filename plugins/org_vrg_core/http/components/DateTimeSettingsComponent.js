@@ -1,12 +1,23 @@
 // Date & Time settings page (core plugin): view and set system date, time and
 // timezone, and toggle automatic time synchronization (NTP).
+//
+// Also reused during first-run onboarding (after a forced password change): with
+// `onboarding` set the back button and NTP toggle are hidden and a
+// "Continue with these settings" button is shown, which emits `done`.
 const DateTimeSettingsComponent = {
   components: { Icon, ToggleSwitch },
-  emits: ['navigate'],
+  props: {
+    onboarding: { type: Boolean, default: false },
+  },
+  emits: ['navigate', 'done'],
 
   template: `
-    <div>
-      <div class="page-header">
+    <div :class="{ 'onboarding-page': onboarding }">
+      <div v-if="onboarding" class="onboarding-header">
+        <h1>Videoreg</h1>
+        <p>{{ $t('core.datetime.onboarding_hint') }}</p>
+      </div>
+      <div v-else class="page-header">
         <button class="btn-back" @click="$emit('navigate', 'settings')" :title="$t('common.back')"><icon name="chevron-left" :size="28"></icon></button>
         <h1 class="page-title">{{ $t('core.datetime.title') }}</h1>
         <div v-if="loading" class="spinner spinner-sm"></div>
@@ -18,27 +29,54 @@ const DateTimeSettingsComponent = {
       <div v-if="state && !state.supported" class="alert alert-info">{{ $t('core.datetime.not_supported') }}</div>
 
       <div v-if="state" class="info-block">
-        <div class="section-title">{{ $t('core.datetime.current_title') }}</div>
-        <div class="info-rows">
-          <div class="info-row">
-            <span class="info-label">{{ $t('core.datetime.current_time') }}</span>
-            <strong>{{ formatCurrent(state.datetime) }}</strong>
+        <div class="section-title">{{ $t('core.datetime.set_time_title') }}</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--spacing-lg); max-width: 640px;">
+          <div>
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('core.datetime.datetime_label') }}
+              </label>
+              <input type="datetime-local" v-model="dtInput" class="form-input" step="1" :disabled="timeSaving || !state.supported">
+            </div>
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('core.datetime.timezone_select_label') }}
+              </label>
+              <select v-model="tzInput" class="form-input" :disabled="timeSaving || !state.supported">
+                <option v-for="tz in state.timezones" :key="tz" :value="tz">{{ tz }}</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" @click="saveTime" :disabled="timeSaving || !dtInput || !tzInput || !state.supported">
+              {{ timeSaving ? $t('common.saving') : $t('core.datetime.set_this_time') }}
+            </button>
           </div>
-          <div class="info-row">
-            <span class="info-label">{{ $t('core.datetime.timezone_label') }}</span>
-            <strong>{{ state.timezone || '—' }}</strong>
-          </div>
-          <div class="info-row">
-            <span class="info-label">{{ $t('core.datetime.ntp_label') }}</span>
-            <span class="status-indicator" style="padding: 3px 8px;">
-              <span class="status-dot" :class="{ active: state.ntp }"></span>
-              <span>{{ state.ntp ? $t('core.datetime.ntp_on') : $t('core.datetime.ntp_off') }}</span>
-            </span>
+          <div>
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('core.datetime.browser_time_label') }}
+              </label>
+              <input type="text" :value="formatCurrent(browserTime)" class="form-input" readonly>
+            </div>
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('core.datetime.timezone_select_label') }}
+              </label>
+              <input type="text" :value="browserTz" class="form-input" readonly>
+            </div>
+            <button class="btn btn-primary" @click="saveBrowserTime" :disabled="timeSaving || !state.supported">
+              {{ timeSaving ? $t('common.saving') : $t('core.datetime.set_from_browser') }}
+            </button>
           </div>
         </div>
+        <p style="margin-top: var(--spacing-md); color: var(--color-text-secondary);">
+          {{ $t('core.datetime.set_time_hint') }}
+        </p>
+        <button v-if="onboarding" class="btn btn-primary btn-block" style="margin-top: var(--spacing-md);" @click="$emit('done')">
+          {{ $t('core.datetime.continue') }}
+        </button>
       </div>
 
-      <div v-if="state" class="info-block">
+      <div v-if="state && !onboarding" class="info-block">
         <div class="section-title">{{ $t('core.datetime.ntp_title') }}</div>
         <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
           {{ $t('core.datetime.ntp_hint') }}
@@ -48,41 +86,6 @@ const DateTimeSettingsComponent = {
           :disabled="ntpSaving || !state.supported"
           @update:modelValue="onNtpToggle"
         ></toggle-switch>
-      </div>
-
-      <div v-if="state" class="info-block">
-        <div class="section-title">{{ $t('core.datetime.set_time_title') }}</div>
-        <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
-          {{ $t('core.datetime.set_time_hint') }}
-        </p>
-        <div style="max-width: 400px;">
-          <div style="margin-bottom: var(--spacing-md);">
-            <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
-              {{ $t('core.datetime.datetime_label') }}
-            </label>
-            <input type="datetime-local" v-model="dtInput" class="form-input" step="1" :disabled="timeSaving || !state.supported">
-          </div>
-          <button class="btn btn-primary" @click="saveTime" :disabled="timeSaving || !dtInput || !state.supported">
-            {{ timeSaving ? $t('common.saving') : $t('common.save') }}
-          </button>
-        </div>
-      </div>
-
-      <div v-if="state" class="info-block">
-        <div class="section-title">{{ $t('core.datetime.set_timezone_title') }}</div>
-        <div style="max-width: 400px;">
-          <div style="margin-bottom: var(--spacing-md);">
-            <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
-              {{ $t('core.datetime.timezone_select_label') }}
-            </label>
-            <select v-model="tzInput" class="form-input" :disabled="tzSaving || !state.supported">
-              <option v-for="tz in state.timezones" :key="tz" :value="tz">{{ tz }}</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" @click="saveTimezone" :disabled="tzSaving || !tzInput || tzInput === state.timezone || !state.supported">
-            {{ tzSaving ? $t('common.saving') : $t('common.save') }}
-          </button>
-        </div>
       </div>
     </div>
   `,
@@ -96,9 +99,11 @@ const DateTimeSettingsComponent = {
       ntp: false,
       ntpSaving: false,
       dtInput: '',
+      browserTime: '',
+      browserTz: '',
+      browserTimer: null,
       timeSaving: false,
       tzInput: '',
-      tzSaving: false,
     };
   },
 
@@ -106,6 +111,23 @@ const DateTimeSettingsComponent = {
     formatCurrent(value) {
       if (!value) return '—';
       return value.replace('T', ' ');
+    },
+
+    // Current browser wall-clock time as a `YYYY-MM-DDTHH:MM:SS` string.
+    localDatetime() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+        `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
+
+    // Browser's IANA timezone name (e.g. "Europe/Moscow").
+    localTimezone() {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch (err) {
+        return '';
+      }
     },
 
     applyState(state) {
@@ -165,7 +187,8 @@ const DateTimeSettingsComponent = {
       }
     },
 
-    async saveTime() {
+    // Apply date/time and timezone together. `payload` omits empty fields.
+    async setDatetime(payload) {
       this.error = '';
       this.success = '';
       this.timeSaving = true;
@@ -174,7 +197,7 @@ const DateTimeSettingsComponent = {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ datetime: this.dtInput }),
+          body: JSON.stringify(payload),
         });
         const result = await response.json();
         if (!response.ok) {
@@ -190,33 +213,25 @@ const DateTimeSettingsComponent = {
       }
     },
 
-    async saveTimezone() {
-      this.error = '';
-      this.success = '';
-      this.tzSaving = true;
-      try {
-        const response = await fetch('/api/core/datetime', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ timezone: this.tzInput }),
-        });
-        const result = await response.json();
-        if (!response.ok) {
-          this.error = result.error || this.$t('core.datetime.error_save');
-          return;
-        }
-        this.applyState(result);
-        this.flashSuccess();
-      } catch (err) {
-        this.error = this.$t('http.common.error_connection');
-      } finally {
-        this.tzSaving = false;
-      }
+    async saveTime() {
+      await this.setDatetime({ datetime: this.dtInput, timezone: this.tzInput });
+    },
+
+    async saveBrowserTime() {
+      const payload = { datetime: this.localDatetime() };
+      if (this.browserTz) payload.timezone = this.browserTz;
+      await this.setDatetime(payload);
     },
   },
 
   async mounted() {
+    this.browserTz = this.localTimezone();
+    this.browserTime = this.localDatetime();
+    this.browserTimer = setInterval(() => { this.browserTime = this.localDatetime(); }, 1000);
     await this.load();
+  },
+
+  beforeUnmount() {
+    if (this.browserTimer) clearInterval(this.browserTimer);
   },
 };

@@ -29,6 +29,13 @@
             @logout="logout"
         ></change-password-component>
 
+        <!-- Первичная настройка часов (после смены пароля) -->
+        <date-time-settings-component
+            v-else-if="mustSetupDatetime"
+            :onboarding="true"
+            @done="onDatetimeDone"
+        ></date-time-settings-component>
+
         <!-- Авторизованный пользователь -->
         <template v-else>
             <!-- Строка состояния -->

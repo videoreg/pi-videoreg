@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from logging import Logger
 
+from sdk.bot_health import BotHealth  # noqa: F401 — re-exported for local imports
 from sdk.state import State
 
 

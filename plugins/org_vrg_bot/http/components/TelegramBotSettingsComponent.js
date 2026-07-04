@@ -30,6 +30,19 @@ const TelegramBotSettingsComponent = {
 
         <!-- Вкладка: Настройки -->
         <div v-if="activeTab === 'settings'">
+          <!-- Health indicator: shows whether the bot reaches the Telegram server -->
+          <div class="info-block" style="margin-bottom: var(--spacing-lg); display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md);">
+            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+              <span class="status-dot" :class="{ active: status && status.healthy }"></span>
+              <div>
+                <div style="font-weight: 500;">{{ statusLabel }}</div>
+                <div v-if="status && status.healthy && lastOkLabel" class="form-hint" style="margin-top: 2px;">{{ lastOkLabel }}</div>
+                <div v-if="status && !status.healthy && status.last_error" class="form-hint" style="margin-top: 2px;">{{ status.last_error }}</div>
+              </div>
+            </div>
+            <button class="btn btn-icon" @click="loadStatus" :disabled="statusLoading" :title="$t('http.common.refresh')">↻</button>
+          </div>
+
           <div class="info-block">
             <form @submit.prevent="saveConfig" style="max-width: 600px;">
               <div class="form-group">
@@ -137,6 +150,19 @@ const TelegramBotSettingsComponent = {
         { value: 'settings', label: this.$t('bot.telegram.tab_settings') },
         { value: 'users', label: this.$t('bot.telegram.tab_users') }
       ];
+    },
+    statusLabel() {
+      if (!this.status) {
+        return this.statusLoading ? this.$t('bot.telegram.status_checking') : this.$t('bot.telegram.status_unknown');
+      }
+      if (!this.status.configured) return this.$t('bot.telegram.status_not_configured');
+      if (this.status.healthy) return this.$t('bot.telegram.status_healthy');
+      return this.$t('bot.telegram.status_no_connection');
+    },
+    lastOkLabel() {
+      if (!this.status || !this.status.last_ok_at) return '';
+      const time = new Date(this.status.last_ok_at * 1000).toLocaleTimeString(VrgI18n.locale);
+      return this.$t('bot.telegram.status_last_update', { time });
     }
   },
 
@@ -150,7 +176,9 @@ const TelegramBotSettingsComponent = {
       loading: false,
       users: [],
       usersLoading: false,
-      usersSaving: false
+      usersSaving: false,
+      status: null,
+      statusLoading: false
     };
   },
   watch: {
@@ -163,6 +191,22 @@ const TelegramBotSettingsComponent = {
     }
   },
   methods: {
+    async loadStatus() {
+      this.statusLoading = true;
+      try {
+        const response = await fetch('/api/bot/status', {
+          method: 'GET',
+          credentials: 'same-origin'
+        });
+        if (!response.ok) return;
+        this.status = await response.json();
+      } catch (err) {
+        console.error('Load bot status error:', err);
+      } finally {
+        this.statusLoading = false;
+      }
+    },
+
     async loadConfig() {
       this.error = '';
       this.success = '';
@@ -291,5 +335,6 @@ const TelegramBotSettingsComponent = {
   },
   async mounted() {
     await this.loadConfig();
+    await this.loadStatus();
   }
 };

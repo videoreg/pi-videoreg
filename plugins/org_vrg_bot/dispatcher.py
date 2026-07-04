@@ -3,7 +3,7 @@ import asyncio
 import plugins.org_vrg_bot.const as const
 from plugins.org_vrg_bot.backoff import Backoff
 from plugins.org_vrg_bot.keep_alive import KeepAlive
-from plugins.org_vrg_bot.main import Bot, BotChat, Callback, Command
+from plugins.org_vrg_bot.main import Bot, BotChat, BotHealth, Callback, Command
 from plugins.org_vrg_bot.telegram_api import TelegramApi
 
 
@@ -14,6 +14,7 @@ class Dispatcher:
   _callbacks: list[Callback]
   _stop_event: asyncio.Event
   _keep_alive: KeepAlive
+  _health: BotHealth
 
   def __init__(
     self,
@@ -22,6 +23,7 @@ class Dispatcher:
     commands: list[Command],
     callbacks: list[Callback],
     keep_alive: KeepAlive,
+    health: BotHealth,
   ):
     super().__init__()
     self._bot = bot
@@ -29,6 +31,7 @@ class Dispatcher:
     self._commands = commands
     self._callbacks = callbacks
     self._keep_alive = keep_alive
+    self._health = health
     self._stop_event = asyncio.Event()
     self._stop_event.set()  # initially not polling
     self._apitask = None
@@ -52,6 +55,7 @@ class Dispatcher:
       raise Exception("Bot pooling is already started")
 
     self._stop_event = asyncio.Event()
+    self._health.mark_polling(True)
     is_first_loop = True
     offset = self._bot.context.state.get("offset", 0)
 
@@ -66,6 +70,17 @@ class Dispatcher:
           http_timeout=backoff.get_http_timeout(),
           tg_timeout=backoff.get_tg_timeout(),
         )
+
+        # A response from Telegram (even with an empty result) means the bot is
+        # healthy. An `ok: false` payload means Telegram is reachable but rejected
+        # the request (e.g. invalid token) — that is an unhealthy state.
+        if isinstance(updates, dict) and updates.get("ok"):
+          self._health.mark_ok()
+        else:
+          description = (
+            updates.get("description") if isinstance(updates, dict) else "invalid response"
+          )
+          self._health.mark_error(description or "invalid response")
 
         if updates and "result" in updates:
           for update in updates["result"]:
@@ -126,6 +141,7 @@ class Dispatcher:
 
       except TimeoutError:
         self._bot.context.http_logger.warning("getUpdates: timeout")
+        self._health.mark_error("timeout")
         backoff.consider_timeout()
         await self._delay(backoff)
         continue
@@ -136,6 +152,7 @@ class Dispatcher:
 
       except Exception as e:
         self._bot.context.http_logger.error(f"getUpdates error {type(e).__name__}: {e}")
+        self._health.mark_error(f"{type(e).__name__}: {e}")
         backoff.consider_connection_error()
         await self._delay(backoff)
         continue
@@ -161,6 +178,7 @@ class Dispatcher:
 
       await self._delay(backoff)
 
+    self._health.mark_polling(False)
     self._bot.context.logger.warning("stop pooling")
 
   async def _handle_command(self, chat: BotChat, name: str, args: str):

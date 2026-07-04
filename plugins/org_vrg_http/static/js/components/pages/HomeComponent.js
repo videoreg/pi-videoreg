@@ -289,6 +289,36 @@ const HomeComponent = {
           <div v-else class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
         </div>
 
+        <!-- Bots (Telegram, VK, ...) -->
+        <template v-if="loading">
+          <div v-for="g in botGateways" :key="g.key" class="dashboard-tile">
+            <div class="dashboard-tile-header">
+              <shimmer height="20px" width="20px" style="border-radius: 4px; flex-shrink: 0;"></shimmer>
+              <shimmer height="15px" width="45%"></shimmer>
+            </div>
+            <shimmer height="13px" width="60%"></shimmer>
+          </div>
+        </template>
+        <div
+          v-else
+          v-for="tile in botTiles"
+          :key="tile.key"
+          class="dashboard-tile"
+          @click="$emit('navigate', tile.page)"
+        >
+          <div class="dashboard-tile-header">
+            <span class="dashboard-tile-icon"><icon :name="tile.icon" :size="20"></icon></span>
+            <span class="dashboard-tile-title">{{ tile.title }}</span>
+            <span class="status-indicator" style="margin-left: auto;">
+              <span class="status-dot" :class="{ active: tile.status.healthy }"></span>
+              <span>{{ botStatusLabel(tile.status) }}</span>
+            </span>
+          </div>
+          <div v-if="!tile.status.configured" class="dashboard-tile-meta">{{ $t('http.home.bot_not_configured') }}</div>
+          <div v-else-if="tile.status.last_error" class="dashboard-tile-meta">{{ tile.status.last_error }}</div>
+          <div v-else-if="botLastOkLabel(tile.status)" class="dashboard-tile-meta">{{ botLastOkLabel(tile.status) }}</div>
+        </div>
+
       </div>
     </div>
   `,
@@ -298,6 +328,8 @@ const HomeComponent = {
       connections: null,
       modem: null,
       wireguard: null,
+      bot: null,
+      botvk: null,
       trip: null,
       location: null,
       system: null,
@@ -449,9 +481,40 @@ const HomeComponent = {
       if (temp == null) return '—';
       return temp + ' °C';
     },
+
+    // The bot gateways that can appear on the dashboard. `field` names the data
+    // property holding this gateway's status. Used for both the loading shimmers
+    // and the loaded tiles so their counts stay in sync.
+    botGateways() {
+      return [
+        { key: 'tg', field: 'bot', page: 'telegram', title: this.$t('bot.telegram.menu'), icon: 'tg' },
+        { key: 'vk', field: 'botvk', page: 'vk', title: this.$t('botvk.vk.menu'), icon: 'vk' },
+      ];
+    },
+
+    // One tile per available bot gateway. A gateway whose plugin is disabled or
+    // unreachable yields null status and is simply omitted.
+    botTiles() {
+      return this.botGateways
+        .filter((g) => this[g.field])
+        .map((g) => ({ ...g, status: this[g.field] }));
+    },
   },
 
   methods: {
+    botStatusLabel(status) {
+      if (!status) return '—';
+      if (!status.configured) return this.$t('http.home.bot_not_configured_short');
+      if (status.healthy) return this.$t('http.home.bot_connected');
+      return this.$t('http.home.bot_no_connection');
+    },
+
+    botLastOkLabel(status) {
+      if (!status || !status.last_ok_at) return '';
+      const time = new Date(status.last_ok_at * 1000).toLocaleTimeString(VrgI18n.locale);
+      return this.$t('http.home.bot_last_update', { time });
+    },
+
     _formatDuration(startIso) {
       const start = new Date(startIso);
       const diffMs = Date.now() - start;
@@ -537,6 +600,8 @@ const HomeComponent = {
           this.connections = data.connections;
           this.modem = data.modem;
           this.wireguard = data.wireguard;
+          this.bot = data.bot || null;
+          this.botvk = data.botvk || null;
           this.trip = data.trip || null;
           this.location = data.location || null;
           this.system = data.system || null;

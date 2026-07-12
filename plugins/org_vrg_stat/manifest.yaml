@@ -11,10 +11,16 @@ http:
       icon: storage
       component: StorageSettingsComponent
 
+  dashboard:
+    - component: DashboardSystemTile
+      method: stat.get_current_temp
+      order: 50
+
   components:
     - StatIcons.js
     - StatComponent.js
     - StorageSettingsComponent.js
+    - DashboardSystemTile.js
 
   api:
     # Date selection + file parsing moved into stat.get_temp_history.

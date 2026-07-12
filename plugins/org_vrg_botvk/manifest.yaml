@@ -10,9 +10,15 @@ http:
       icon: vk
       component: VkBotSettingsComponent
 
+  dashboard:
+    - component: DashboardBotvkTile
+      method: botvk.get_status
+      order: 120
+
   components:
     - BotvkIcons.js
     - VkBotSettingsComponent.js
+    - DashboardBotvkTile.js
 
   api:
     - url: botvk/config

@@ -20,6 +20,10 @@ lbs_token = osd.Token(key="lbs", text=None, weight=osd.WEIGHT_LBS)
 # Interval between location polls (GPS + LBS) in the monitor loop, seconds.
 LOCATION_POLL_INTERVAL = 10
 
+# Interval between modem-info polls (model, operator, signal, access tech) that
+# keep the dashboard tile's cache warm, seconds.
+MODEM_INFO_POLL_INTERVAL = 15
+
 
 class ModemPlugin(Plugin):
   modem: Modem = None
@@ -27,6 +31,7 @@ class ModemPlugin(Plugin):
   _gps_monitor_started = False
   _gps_location = None
   _lbs_location = None
+  _modem_info = None
   _is_charging = "--"
   _bat_level = "--"
   _cpu_temp = "--"
@@ -46,6 +51,7 @@ class ModemPlugin(Plugin):
     asyncio.create_task(self._start_lifecycle_loop())
     asyncio.create_task(self._check_files_loop())
     asyncio.create_task(self._start_check_sms_loop())
+    asyncio.create_task(self._start_modem_info_loop())
 
   def init_modem(self, modem: Modem):
     self.modem = modem
@@ -81,6 +87,11 @@ class ModemPlugin(Plugin):
   def lbs_location(self) -> dict | None:
     """Last LBS location cached by the background monitor (or None)."""
     return self._lbs_location
+
+  @property
+  def modem_info(self) -> dict | None:
+    """Last modem info cached by the background poller (None until first poll)."""
+    return self._modem_info
 
   async def stop(self):
     await super().stop()
@@ -233,6 +244,24 @@ class ModemPlugin(Plugin):
       lbs_token.text = None
 
     await self._connection.send_data("osd", [gps_token.to_dict(), lbs_token.to_dict()])
+
+  async def _start_modem_info_loop(self):
+    """Keep modem info (model, operator, signal, access tech) warm in a cache.
+
+    Reading it over AT is slow — the port is shared with GPS/SMS and serialised
+    by the transport lock — and can lag badly under weak signal. The modem
+    dashboard tile reads this cache via ``modem.modem_info`` instead of doing a
+    synchronous AT read per request, so a slow read no longer makes the tile
+    fall back to a false "disabled" state. Runs regardless of charging state
+    (like the SMS loop, which also uses the AT port).
+    """
+    await asyncio.sleep(1)
+    while self.runner.is_running():
+      try:
+        self._modem_info = await self.sms_manager.get_modem_info()
+      except Exception as e:
+        self.logger.warning(f"modem info poll error: {e}")
+      await asyncio.sleep(MODEM_INFO_POLL_INTERVAL)
 
   async def _check_files_loop(self):
     await asyncio.sleep(15)

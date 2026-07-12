@@ -21,11 +21,32 @@ http:
       icon: camera
       component: CameraSettingsComponent
 
+  dashboard:
+    - component: DashboardLastMediaTile
+      method: camera.get_last_media
+      order: 10
+
+    - component: DashboardCameraActionsTile
+      order: 20
+
+    # DashboardMediaTile is intentionally NOT declared here: it is inserted
+    # imperatively at runtime after a capture (see DashboardCameraActionsTile),
+    # which passes the component object directly. It only needs to be bundled,
+    # hence its presence in `components` below.
+
+    - component: DashboardCameraTile
+      method: camera.get_info
+      order: 100
+
   components:
     - MediaFeedComponent.js
     - MediaFaveComponent.js
     - LiveBroadcastComponent.js
     - CameraSettingsComponent.js
+    - DashboardLastMediaTile.js
+    - DashboardCameraActionsTile.js
+    - DashboardMediaTile.js
+    - DashboardCameraTile.js
 
   api:
     - url: camera/info

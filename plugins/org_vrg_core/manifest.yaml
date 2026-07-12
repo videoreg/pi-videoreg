@@ -15,11 +15,17 @@ http:
       icon: schedule
       component: DateTimeSettingsComponent
 
+  dashboard:
+    - component: DashboardTripTile
+      method: core.get_trip_state
+      order: 30
+
   components:
     - TripsComponent.js
     - SystemSettingsComponent.js
     - CoreIcons.js
     - DateTimeSettingsComponent.js
+    - DashboardTripTile.js
 
   api:
     # Было: "/api/core/journal" -> handle_get_journal

@@ -5,9 +5,15 @@ http:
       icon: tg
       component: TelegramBotSettingsComponent
 
+  dashboard:
+    - component: DashboardBotTile
+      method: bot.get_status
+      order: 110
+
   components:
     - BotIcons.js
     - TelegramBotSettingsComponent.js
+    - DashboardBotTile.js
 
   api:
     - url: bot/config

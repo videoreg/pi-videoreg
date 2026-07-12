@@ -17,6 +17,13 @@ from aiohttp import web
 
 from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks
 
+# Default per-block data-resolution timeout, seconds. Kept short so one slow or
+# hung plugin does not stall the whole dashboard. Blocks whose method may do slow
+# serial I/O (e.g. the modem tile reading info over AT under weak signal) declare
+# a larger `timeout` in their manifest, otherwise a merely-slow-but-successful
+# call gets dropped here and the tile falsely renders as "disabled".
+DEFAULT_BLOCK_TIMEOUT = 2.0
+
 
 async def handle_get_dashboard_status(request: web.Request):
   """Data for every manifest-declared dashboard block, keyed by block key."""
@@ -28,7 +35,10 @@ async def handle_get_dashboard_status(request: web.Request):
   data_blocks = [b for b in collect_dashboard_blocks(http_manifests) if b["method"]]
 
   responses = await asyncio.gather(
-    *(api_client.exec(b["method"], {}, timeout=2.0) for b in data_blocks),
+    *(
+      api_client.exec(b["method"], {}, timeout=b.get("timeout") or DEFAULT_BLOCK_TIMEOUT)
+      for b in data_blocks
+    ),
     return_exceptions=True,
   )
 

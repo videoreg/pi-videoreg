@@ -22,6 +22,11 @@ http:
 
     - component: DashboardModemTile
       method: net.modem_dashboard
+      # Larger timeout than the dashboard default: for modems ModemManager does
+      # not manage, this reads info over AT (shared, lock-serialised port), which
+      # is slow under weak signal. Too tight a budget drops a successful-but-slow
+      # response and the tile falsely shows "disabled".
+      timeout: 8
       order: 70
 
     - component: DashboardWireguardTile

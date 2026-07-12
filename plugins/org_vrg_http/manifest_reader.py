@@ -68,11 +68,13 @@ def collect_dashboard_blocks(http_manifests: list) -> list[dict]:
     http_manifests: the list returned by `read_plugin_http_configs`.
 
   Returns:
-    Descriptors `{key, component, method, order}` sorted by ascending `order`.
-    `key` is `"<plugin_id>:<component>"`. Entries without a `component` are
-    skipped. Only the static dashboard structure lives in the manifest; blocks
-    added imperatively at runtime (e.g. freshly captured media) are not declared
-    here — their component just needs to be bundled.
+    Descriptors `{key, component, method, order, timeout}` sorted by ascending
+    `order`. `key` is `"<plugin_id>:<component>"`. `timeout` is the optional
+    per-block data-resolution timeout in seconds (`None` when not declared, so
+    the handler applies its default). Entries without a `component` are skipped.
+    Only the static dashboard structure lives in the manifest; blocks added
+    imperatively at runtime (e.g. freshly captured media) are not declared here
+    — their component just needs to be bundled.
   """
   blocks: list[dict] = []
   for config in http_manifests or []:
@@ -87,6 +89,7 @@ def collect_dashboard_blocks(http_manifests: list) -> list[dict]:
           "component": component,
           "method": entry.get("method"),
           "order": entry.get("order", 0),
+          "timeout": entry.get("timeout"),
         }
       )
   blocks.sort(key=lambda b: b["order"])

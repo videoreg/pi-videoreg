@@ -8,6 +8,19 @@ const DashboardModemTile = {
     loading: { type: Boolean, default: false },
   },
 
+  computed: {
+    // After loading, a null `data` means the block did not resolve (its api call
+    // errored or timed out) — not that the modem is off. Show a neutral "no data"
+    // state instead of a false "disabled", which the modem info over a weak/slow
+    // AT link would otherwise trigger.
+    available() { return !!this.data; },
+    connected() { return !!(this.data && this.data.connected); },
+    statusText() {
+      if (!this.available) return this.$t('http.home.no_data');
+      return this.connected ? this.$t('http.home.enabled') : this.$t('http.home.disabled');
+    },
+  },
+
   template: `
     <div v-if="loading && !data" class="dashboard-tile">
       <div class="dashboard-tile-header">
@@ -20,14 +33,14 @@ const DashboardModemTile = {
     </div>
     <div v-else class="dashboard-tile" @click="$emit('navigate', 'modem')">
       <div class="dashboard-tile-header">
-        <span class="dashboard-tile-icon"><icon :name="data && data.connected ? 'modem' : 'modem_off'" :size="20"></icon></span>
+        <span class="dashboard-tile-icon"><icon :name="connected ? 'modem' : 'modem_off'" :size="20"></icon></span>
         <span class="dashboard-tile-title">{{ $t('net.settings.modem') }}</span>
         <span class="status-indicator" style="margin-left: auto;">
-          <span class="status-dot" :class="{ active: !!(data && data.connected) }"></span>
-          <span>{{ data && data.connected ? $t('http.home.enabled') : $t('http.home.disabled') }}</span>
+          <span class="status-dot" :class="{ active: connected }"></span>
+          <span>{{ statusText }}</span>
         </span>
       </div>
-      <template v-if="data && data.connected">
+      <template v-if="connected">
         <div v-if="data.model" class="dashboard-tile-row">
           <span class="dashboard-tile-label">{{ $t('http.home.model_label') }}</span>
           <span>{{ data.model }}</span>

@@ -17,12 +17,15 @@ from aiohttp import web
 
 from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks
 
-# Default per-block data-resolution timeout, seconds. Kept short so one slow or
-# hung plugin does not stall the whole dashboard. Blocks whose method may do slow
-# serial I/O (e.g. the modem tile reading info over AT under weak signal) declare
-# a larger `timeout` in their manifest, otherwise a merely-slow-but-successful
-# call gets dropped here and the tile falsely renders as "disabled".
-DEFAULT_BLOCK_TIMEOUT = 2.0
+# Default per-block data-resolution timeout, seconds. At cold first load most
+# block methods spawn a subprocess (rpicam-hello, nmcli, wg/ip) or read hardware
+# (I2C), which legitimately takes a few seconds — camera.get_info alone caps its
+# own rpicam probe at 3s. A tighter budget dropped such merely-slow-but-successful
+# calls, so the tile falsely rendered as off ("disabled"/"no data"). This gates
+# how long the (gathered) endpoint waits on its slowest block, so it stays bounded
+# rather than short. Blocks that can be slower still (the modem reading info over
+# AT under weak signal) declare a larger `timeout` in their manifest.
+DEFAULT_BLOCK_TIMEOUT = 5.0
 
 
 async def handle_get_dashboard_status(request: web.Request):

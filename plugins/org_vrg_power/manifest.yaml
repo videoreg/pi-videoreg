@@ -8,10 +8,6 @@ http:
   dashboard:
     - component: DashboardPowerTile
       method: power.get_status
-      # Larger timeout than the dashboard default: reads charging state, battery
-      # percent and temperature over I2C in sequence (get_charging_status is
-      # "slow_but_safe"), which can overrun a tight budget and drop the block.
-      timeout: 5
       order: 90
 
   components:

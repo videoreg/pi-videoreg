@@ -16,18 +16,21 @@ const DashboardBotvkTile = {
       </div>
       <shimmer height="13px" width="60%"></shimmer>
     </div>
-    <div v-else-if="data" class="dashboard-tile" @click="$emit('navigate', 'vk')">
+    <div v-else class="dashboard-tile" @click="$emit('navigate', 'vk')">
       <div class="dashboard-tile-header">
         <span class="dashboard-tile-icon"><icon name="vk" :size="20"></icon></span>
         <span class="dashboard-tile-title">{{ $t('botvk.vk.menu') }}</span>
-        <span class="status-indicator" style="margin-left: auto;">
+        <span v-if="data" class="status-indicator" style="margin-left: auto;">
           <span class="status-dot" :class="{ active: data.healthy }"></span>
           <span>{{ statusLabel }}</span>
         </span>
       </div>
-      <div v-if="!data.configured" class="dashboard-tile-meta">{{ $t('http.home.bot_not_configured') }}</div>
-      <div v-else-if="data.last_error" class="dashboard-tile-meta">{{ data.last_error }}</div>
-      <div v-else-if="lastOkLabel" class="dashboard-tile-meta">{{ lastOkLabel }}</div>
+      <template v-if="data">
+        <div v-if="!data.configured" class="dashboard-tile-meta">{{ $t('http.home.bot_not_configured') }}</div>
+        <div v-else-if="data.last_error" class="dashboard-tile-meta">{{ data.last_error }}</div>
+        <div v-else-if="lastOkLabel" class="dashboard-tile-meta">{{ lastOkLabel }}</div>
+      </template>
+      <div v-else class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
     </div>
   `,
 

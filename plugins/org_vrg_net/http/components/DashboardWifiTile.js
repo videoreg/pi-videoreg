@@ -22,7 +22,7 @@ const DashboardWifiTile = {
         <span class="dashboard-tile-title">WiFi</span>
         <span class="status-indicator" style="margin-left: auto;">
           <span class="status-dot" :class="{ active: !!wifiType }"></span>
-          <span>{{ wifiType ? $t('http.home.connected') : $t('http.home.disconnected') }}</span>
+          <span>{{ statusText }}</span>
         </span>
       </div>
       <template v-if="wifiType">
@@ -43,6 +43,15 @@ const DashboardWifiTile = {
   `,
 
   computed: {
+    // After loading, a null `data` means the block did not resolve (its api call
+    // errored or timed out) — not that WiFi is off. Show a neutral "no data"
+    // state instead of a false "disconnected", which the several slow nmcli
+    // calls at boot / first page load would otherwise trigger.
+    statusText() {
+      if (!this.data) return this.$t('http.home.no_data');
+      return this.wifiType ? this.$t('http.home.connected') : this.$t('http.home.disconnected');
+    },
+
     wifiIcon() {
       return (this.data?.wifi?.enabled || this.data?.ap?.enabled) ? 'wifi' : 'wifi_off';
     },

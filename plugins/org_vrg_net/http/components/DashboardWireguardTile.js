@@ -7,6 +7,18 @@ const DashboardWireguardTile = {
     loading: { type: Boolean, default: false },
   },
 
+  computed: {
+    // After loading, a null `data` means the block did not resolve (its api call
+    // errored or timed out) — not that the tunnel is down. Show a neutral "no
+    // data" state instead of a false "inactive": net.wg_show shells out to sudo
+    // wg/ip, which can be slow at boot / first page load.
+    active() { return !!(this.data && this.data.active); },
+    statusText() {
+      if (!this.data) return this.$t('http.home.no_data');
+      return this.active ? this.$t('http.home.wg_active') : this.$t('http.home.wg_inactive');
+    },
+  },
+
   template: `
     <div v-if="loading && !data" class="dashboard-tile">
       <div class="dashboard-tile-header">
@@ -20,11 +32,11 @@ const DashboardWireguardTile = {
         <span class="dashboard-tile-icon"><icon name="vpn" :size="20"></icon></span>
         <span class="dashboard-tile-title">WireGuard</span>
         <span class="status-indicator" style="margin-left: auto;">
-          <span class="status-dot" :class="{ active: !!(data && data.active) }"></span>
-          <span>{{ data && data.active ? $t('http.home.wg_active') : $t('http.home.wg_inactive') }}</span>
+          <span class="status-dot" :class="{ active: active }"></span>
+          <span>{{ statusText }}</span>
         </span>
       </div>
-      <template v-if="data && data.active">
+      <template v-if="active">
         <div v-if="data.ip_address" class="dashboard-tile-row">
           <span class="dashboard-tile-label">IP</span>
           <span>{{ data.ip_address }}</span>

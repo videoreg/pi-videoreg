@@ -18,6 +18,11 @@ http:
   dashboard:
     - component: DashboardWifiTile
       method: net.connections
+      # Larger timeout than the dashboard default: this fans out several nmcli
+      # calls, and NetworkManager is slow to answer at boot / first page load.
+      # Too tight a budget drops a successful-but-slow response and the tile
+      # falsely shows "disconnected".
+      timeout: 6
       order: 60
 
     - component: DashboardModemTile
@@ -31,6 +36,10 @@ http:
 
     - component: DashboardWireguardTile
       method: net.wg_show
+      # Larger timeout than the dashboard default: shells out to `sudo wg show`
+      # and `ip addr` in sequence (sudo/PAM adds latency), which can overrun a
+      # tight budget at boot and drop the block, falsely showing "inactive".
+      timeout: 5
       order: 80
 
   components:

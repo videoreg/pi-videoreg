@@ -48,3 +48,10 @@ commands:
     hidden: true
   - name: temp
     title: Get CPU temperature
+
+bot:
+  status_method: stat.get_status_text
+  more_buttons:
+    - text: Stat
+      callback_data: command__stat__stat
+      weigh: 10

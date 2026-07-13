@@ -58,9 +58,16 @@ http:
 
 commands:
   - name: gps
-    title: GPS commands
+    title: Location
   - name: sms
     title: SMS commands
+    hidden: true # reachable from the /more menu
+
+bot:
+  more_buttons:
+    - text: SMS
+      callback_data: command__modem__sms
+      weigh: 50
 
 power:
   ask_before_shutdown: true # power calls modem.is_ready_to_die before shutting down

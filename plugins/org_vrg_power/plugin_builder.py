@@ -10,6 +10,7 @@ from plugins.org_vrg_power.commands.shutdown import CommandShutdown
 from plugins.org_vrg_power.methods.get_capabilities import MethodGetCapabilities
 from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
 from plugins.org_vrg_power.methods.get_status import MethodGetStatus
+from plugins.org_vrg_power.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_power.methods.get_wakeup_config import MethodGetWakeupConfig
 from plugins.org_vrg_power.methods.set_charging_protection import MethodSetChargingProtection
 from plugins.org_vrg_power.methods.is_ready_to_die import MethodIsReadyToDie
@@ -102,6 +103,7 @@ async def build_plugin(
     methods={
       "command": GatewayCommandMethod(gateways, commands),
       "get_status": MethodGetStatus(plugin, runner.power_supply),
+      "get_status_text": MethodGetStatusText(plugin, runner.power_supply),
       "get_charging_status": MethodPowerStatusGeneric(runner.power_supply, "get_charging_status"),
       "get_wakeup_config": MethodGetWakeupConfig(plugin),
       "set_wakeup": MethodSetWakeup(plugin, runner.power_supply),

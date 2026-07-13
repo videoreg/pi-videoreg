@@ -17,6 +17,7 @@ from plugins.org_vrg_camera.methods.check_video_ready import MethodCheckVideoRea
 from plugins.org_vrg_camera.methods.convert_video import MethodConvertVideo
 from plugins.org_vrg_camera.methods.get_camera_modes import MethodGetCameraModes
 from plugins.org_vrg_camera.methods.get_info import MethodGetInfo
+from plugins.org_vrg_camera.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_camera.methods.get_last_media import MethodGetLastMedia
 from plugins.org_vrg_camera.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_camera.methods.list_media import MethodListMedia
@@ -105,6 +106,7 @@ async def build_plugin(
     methods={
       "command": GatewayCommandMethod(gateways, commands),
       "get_info": MethodGetInfo(plugin),
+      "get_status_text": MethodGetStatusText(plugin),
       # "get_commands": MethodGetCommands(plugin),
       "video_start": MethodVideoStart(plugin),
       "video_stop": MethodVideoStop(plugin),

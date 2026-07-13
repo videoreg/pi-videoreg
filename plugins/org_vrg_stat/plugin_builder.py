@@ -4,6 +4,7 @@ from plugins.org_vrg_stat.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_stat.commands.get_temp import CommandGetTemp
 from plugins.org_vrg_stat.dirs import Dirs
 from plugins.org_vrg_stat.methods.get_current_temp import MethodGetCurrentTemp
+from plugins.org_vrg_stat.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_stat.methods.get_pisugar_history import MethodGetPisugarHistory
 from plugins.org_vrg_stat.methods.get_temp_history import MethodGetTempHistory
 from plugins.org_vrg_stat.methods.get_traffic_hourly_history import MethodGetTrafficHourlyHistory
@@ -49,6 +50,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       # "get_commands": MethodGetCommands(),
       "storage_info": MethodStorageInfo(),
       "get_current_temp": MethodGetCurrentTemp(),
+      "get_status_text": MethodGetStatusText(),
       "get_temp_history": MethodGetTempHistory(dirs),
       "get_pisugar_history": MethodGetPisugarHistory(dirs),
       "get_traffic_hourly_history": MethodGetTrafficHourlyHistory(dirs),

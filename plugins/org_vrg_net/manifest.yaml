@@ -109,9 +109,16 @@ http:
       method: post
       plugin: net.wifi_unblock
 
+bot:
+  more_buttons:
+    - text: Network
+      callback_data: command__net__net
+      weigh: 20
+
 commands:
   - name: net
     title: Network commands
+    hidden: true # reachable from the /more menu
   - name: wifi_block
     title: Disable WiFi module
     hidden: true

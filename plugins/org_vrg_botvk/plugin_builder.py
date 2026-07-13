@@ -19,7 +19,8 @@ from plugins.org_vrg_botvk.methods.send_text import MethodSendText
 from plugins.org_vrg_botvk.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_botvk.plugin import BotvkPlugin
 from plugins.org_vrg_botvk.vk_api import VkApi
-from sdk.command_reader import read_plugin_commands
+from sdk.gateway import Gateway, GatewayCommandMethod
+from sdk.gateway_menu import build_menu_gateway_commands, read_menu_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -90,8 +91,20 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   vk_api = VkApi(bot, http_logger)
 
+  # `/more` and `/status` are shared bot-menu commands handled by this gateway itself
+  # (botvk.command) via the standard gateway command flow. The logic lives in the SDK so
+  # each bot gateway registers its own copy and stays independent of the others.
+  plugins_dir = runner.videoreg.app_path("plugins")
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
+  )
+  gateway_commands = build_menu_gateway_commands(
+    plugin.api_client, plugins_dir, runner.videoreg.manifest.plugins
+  )
+
   plugin.init_api_servier(
     methods={
+      "command": GatewayCommandMethod(gateways, gateway_commands),
       "send_image": MethodSendImage(plugin, bot, vk_api),
       "send_text": MethodSendText(plugin, bot, vk_api),
       "edit_message": MethodEditMessage(plugin, bot, vk_api),
@@ -107,10 +120,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   menu_buttons: list[MenuButton] = []
   common_commands: list[CommandCommon] = []
 
-  # Commands are declared in each plugin's manifest.yaml; read_plugin_commands returns
-  # them sorted by `weigh` descending, which defines the menu keyboard order.
-  plugins_dir = runner.videoreg.app_path("plugins")
-  for manifest_command in read_plugin_commands(plugins_dir, runner.videoreg.manifest.plugins):
+  # Commands are declared in each plugin's manifest.yaml (plus the shared /more & /status);
+  # read_menu_commands returns them sorted by `weigh` descending, which defines the menu
+  # keyboard order. The built-in commands route to this gateway's own botvk.command.
+  for manifest_command in read_menu_commands(
+    plugins_dir, runner.videoreg.manifest.plugins, plugin_manifest.get("name")
+  ):
     cmd_name = manifest_command.get("name")
     title = manifest_command.get("title")
     hidden = manifest_command.get("hidden", False)

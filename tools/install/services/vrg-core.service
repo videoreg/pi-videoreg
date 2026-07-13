@@ -7,7 +7,7 @@ PartOf=vrg-boot.target
 User=$VIDEOREG_USER
 Group=$VIDEOREG_GROUP
 ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-core.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
-Type=simple
+Type=notify
 Restart=always
 TimeoutStopSec=4
 

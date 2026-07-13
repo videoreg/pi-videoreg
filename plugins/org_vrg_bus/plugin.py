@@ -38,7 +38,9 @@ class BusPlugin(Plugin):
 
   async def start(self):
     await super().start()
-    asyncio.create_task(self._start_server())
+    # Open the socket before returning so the bus is listening once start() completes
+    await self._open_server()
+    asyncio.create_task(self._serve_forever())
     asyncio.create_task(self._start_clear_waiting_list_loop())
 
   async def stop(self):
@@ -46,7 +48,7 @@ class BusPlugin(Plugin):
     if self._server:
       await self._stop_server()
 
-  async def _start_server(self):
+  async def _open_server(self):
     socket_path = self.runner.videoreg.private_path("event-bus.socket")
 
     if socket_path.exists():
@@ -58,6 +60,7 @@ class BusPlugin(Plugin):
 
     self.logger.info("started")
 
+  async def _serve_forever(self):
     async with self._server:
       await self._server.serve_forever()
 

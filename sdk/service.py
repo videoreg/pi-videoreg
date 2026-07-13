@@ -17,6 +17,7 @@ from sdk.socket.client import ConnectionListener, DefaultConnectionListener, Eas
 from sdk.socket.mux_connection import MuxConnection
 from sdk.socket.requests import RequestsController
 from sdk.state import State
+from sdk.systemd import sd_notify_ready
 from sdk.videoreg import Videoreg, load_manifest
 
 
@@ -264,6 +265,10 @@ class ServiceRunner:
 
     for plugin in self.runnung_plugins:
       await plugin.start()
+
+    # All plugins started: signal readiness to systemd (no-op unless Type=notify)
+    if sd_notify_ready():
+      self.logger.info("systemd READY sent")
 
     try:
       await self.stop_event.wait()

@@ -60,10 +60,19 @@ commands:
     args: 5
   - name: power
     title: Power commands
+    hidden: true # reachable from the /more menu
   - name: reboot
     title: Reboot
+    hidden: true # reachable from the /power menu
   - name: shutdown
     title: Shutdown
+
+bot:
+  status_method: power.get_status_text
+  more_buttons:
+    - text: Power
+      callback_data: command__power__power
+      weigh: 30
 
 power:
   ask_before_shutdown: true # power calls its own power.is_ready_to_die before shutting down

@@ -137,6 +137,7 @@ commands:
     weigh: 90
   - name: camera
     title: Camera commands
+    hidden: true # reachable from the /more menu
   - name: video_pause
     title: Pause video recording
     hidden: true
@@ -146,6 +147,13 @@ commands:
   - name: stream
     title: Start RTSP stream
     hidden: true
+
+bot:
+  status_method: camera.get_status_text
+  more_buttons:
+    - text: Camera
+      callback_data: command__camera__camera
+      weigh: 40
 
 power:
   ask_before_shutdown: true # power calls camera.is_ready_to_die before shutting down

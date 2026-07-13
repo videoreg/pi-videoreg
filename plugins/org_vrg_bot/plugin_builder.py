@@ -20,7 +20,8 @@ from plugins.org_vrg_bot.methods.send_video import MethodSendVideo
 from plugins.org_vrg_bot.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_bot.plugin import BotPlugin
 from plugins.org_vrg_bot.telegram_api import TelegramApi
-from sdk.command_reader import read_plugin_commands
+from sdk.gateway import Gateway, GatewayCommandMethod
+from sdk.gateway_menu import build_menu_gateway_commands, read_menu_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -88,8 +89,20 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   tg_api = TelegramApi(bot, http_logger)
 
+  # `/more` and `/status` are shared bot-menu commands handled by this gateway itself
+  # (bot.command) via the standard gateway command flow. The logic lives in the SDK so
+  # each bot gateway registers its own copy and stays independent of the others.
+  plugins_dir = runner.videoreg.app_path("plugins")
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
+  )
+  gateway_commands = build_menu_gateway_commands(
+    plugin.api_client, plugins_dir, runner.videoreg.manifest.plugins
+  )
+
   plugin.init_api_servier(
     methods={
+      "command": GatewayCommandMethod(gateways, gateway_commands),
       "send_video": MethodSendVideo(plugin, bot, tg_api),
       "send_image": MethodSendImage(plugin, bot, tg_api),
       "send_text": MethodSendText(plugin, bot, tg_api),
@@ -106,10 +119,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   bot_commands: list[BotCommand] = []
   common_commands: list[CommandCommon] = []
 
-  # Commands are declared in each plugin's manifest.yaml; read_plugin_commands returns
-  # them sorted by `weigh` descending, which defines the bot menu order.
-  plugins_dir = runner.videoreg.app_path("plugins")
-  for manifest_command in read_plugin_commands(plugins_dir, runner.videoreg.manifest.plugins):
+  # Commands are declared in each plugin's manifest.yaml (plus the shared /more & /status);
+  # read_menu_commands returns them sorted by `weigh` descending, which defines the bot
+  # menu order. The built-in commands route to this gateway's own bot.command.
+  for manifest_command in read_menu_commands(
+    plugins_dir, runner.videoreg.manifest.plugins, plugin_manifest.get("name")
+  ):
     name = manifest_command.get("name")
     title = manifest_command.get("title")
     hidden = manifest_command.get("hidden", False)

@@ -23,6 +23,8 @@ Plugins have both a unique id (e.g. `org_vrg_bus`) and a shorter name (e.g. `bus
 
 Multiple plugins may run within a single systemd service.
 
+**Startup order**: `vrg-core` starts first as a `Type=notify` service — it brings up `org_vrg_bus` first, then signals `READY=1` (via `sd_notify`, see `sdk/systemd.py`, emitted in `ServiceRunner.run` after all plugins started). Other services declare `After=`/`Requires=vrg-core.service`, so they start (in parallel) only once the bus is ready.
+
 **Entry points**:
 - `run.py` — start a single service (service name from the manifest is passed)
 - `run-cli.py` — CLI client for sending commands to services

@@ -238,6 +238,10 @@ The mapping between services and plugins is defined in `videoreg.manifest.yaml`.
 > [!NOTE]
 > Starting the system with the `--env dev` flag (for example via `docker compose up`) uses `videoreg.manifest.dev.yaml`, where all plugins run within a single (pseudo) service.
 
+#### Startup order
+
+`vrg-core` starts first as a `Type=notify` service: it brings up the event bus (`org_vrg_bus`) before the rest of its plugins, and signals `READY=1` to systemd only after all of its plugins have started. The other services declare `After=vrg-core.service` + `Requires=vrg-core.service`, so they start (in parallel with each other) only once the bus is up. This removes the previous startup race where bus clients had to retry connecting to a not-yet-listening socket.
+
 #### Why functionality is split across separate systemd services
 
 - A more resilient system. For example, problems in the Telegram Bot do not affect the core video-recording feature.

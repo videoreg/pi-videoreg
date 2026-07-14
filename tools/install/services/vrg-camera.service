@@ -1,6 +1,7 @@
 [Unit]
 Description=Videoreg Camera
-After=vrg-boot.target
+After=vrg-boot.target vrg-core.service
+Requires=vrg-core.service
 PartOf=vrg-boot.target
 
 [Service]

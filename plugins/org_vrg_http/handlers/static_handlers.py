@@ -8,7 +8,7 @@ import aiofiles
 from aiohttp import web
 
 from plugins.org_vrg_http.bundle import build_bundle
-from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks, enabled_plugin_ids
+from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks
 
 
 def _build_bootstrap_script(http_manifests: list) -> str:
@@ -113,10 +113,9 @@ async def handle_static(request: web.Request):
   if filename == "js/bundle.js" and not os.path.isfile(file_path):
     videoreg = request.app["videoreg"]
     plugins_dir = videoreg.app_path("plugins")
-    enabled_ids = enabled_plugin_ids(videoreg.manifest)
     build_bundle(plugins_dir, videoreg.app_path(
       "plugins/org_vrg_http/static/js/bundle.js"
-    ), enabled_ids)
+    ), videoreg.merged_manifest()["plugins"])
 
   if not os.path.isfile(file_path):
     raise web.HTTPNotFound(text="File not found")

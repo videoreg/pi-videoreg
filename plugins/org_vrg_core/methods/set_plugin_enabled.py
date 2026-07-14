@@ -1,6 +1,5 @@
-import yaml
-
 from plugins.org_vrg_core.plugin import CorePlugin
+from sdk.merged_manifest import set_plugin_enabled
 from sdk.socket.api import ApiMethod
 
 
@@ -19,22 +18,11 @@ class MethodSetPluginEnabled(ApiMethod):
       if not plugin_id or enabled is None:
         return {"status": "error", "error": "Missing fields: id, enabled"}
 
-      manifest_path = self._plugin.runner.videoreg.app_path("videoreg.manifest.yaml")
-      with open(manifest_path) as f:
-        manifest = yaml.safe_load(f)
-
-      found = False
-      for plugin in manifest.get("plugins", []):
-        if plugin.get("id") == plugin_id:
-          plugin["enabled"] = bool(enabled)
-          found = True
-          break
-
+      # The enabled flag is stored in the merged manifest under `.videoreg/`, never in
+      # the repo's videoreg.manifest.yaml, so the working tree stays clean.
+      found = set_plugin_enabled(self._plugin.runner.videoreg, plugin_id, bool(enabled))
       if not found:
         return {"status": "error", "error": f"Plugin not found: {plugin_id}"}
-
-      with open(manifest_path, "w") as f:
-        yaml.dump(manifest, f, allow_unicode=True, default_flow_style=False)
 
       return {"status": "ok", "data": {}}
     except Exception as e:

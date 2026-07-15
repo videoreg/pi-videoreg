@@ -218,7 +218,7 @@ class ServiceRunner:
 
     manifest = load_manifest(args.project_home, args.env)
 
-    self.videoreg = Videoreg(home=args.project_home, manifest=manifest)
+    self.videoreg = Videoreg(home=args.project_home, manifest=manifest, env=args.env)
     self.log_level = args.log_level
     self._service_name = args.service
 

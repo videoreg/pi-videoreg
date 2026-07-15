@@ -42,14 +42,25 @@ import yaml
 if TYPE_CHECKING:
   from sdk.videoreg import Videoreg
 
-MERGED_FILENAME = "manifest.merged.json"
-
 # Per-plugin manifest sections folded into each plugin's merged entry.
 SECTION_KEYS = ("http", "commands", "bot", "power")
 
 
+def _merged_filename(env: str) -> str:
+  """Env-specific merged-manifest filename, mirroring the manifest naming convention.
+
+  `prod` -> `manifest.merged.json`; any other env -> `manifest.merged.<env>.json`
+  (as `videoreg.manifest.yaml` vs `videoreg.manifest.<env>.yaml`). This keeps the
+  merged views of different environments from clobbering each other when they share
+  the same `.videoreg` directory (e.g. the dev container mounts the host's).
+  """
+  if env == "prod":
+    return "manifest.merged.json"
+  return f"manifest.merged.{env}.json"
+
+
 def _merged_path(videoreg: "Videoreg") -> Path:
-  return videoreg.private_path(MERGED_FILENAME)
+  return videoreg.private_path(_merged_filename(videoreg.env))
 
 
 def build_merged_dict(videoreg: "Videoreg") -> dict:
@@ -95,7 +106,7 @@ def build_merged_dict(videoreg: "Videoreg") -> dict:
 
 
 def write_merged(videoreg: "Videoreg", data: dict) -> Path:
-  """Atomically write the merged manifest to `.videoreg/manifest.merged.json`."""
+  """Atomically write the merged manifest to `.videoreg/manifest.merged[.<env>].json`."""
   path = _merged_path(videoreg)
   path.parent.mkdir(parents=True, exist_ok=True)
   tmp = path.with_name(path.name + ".tmp")

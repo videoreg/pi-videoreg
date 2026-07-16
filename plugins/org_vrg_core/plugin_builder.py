@@ -11,6 +11,7 @@ from plugins.org_vrg_core.methods.set_ntp import MethodSetNtp
 from plugins.org_vrg_core.methods.set_plugin_enabled import MethodSetPluginEnabled
 from plugins.org_vrg_core.plugin import CorePlugin
 from sdk.journal import JournalRecord
+from sdk.merged_manifest import ensure_merged_manifest
 from sdk.service import ConnectionListenerFactory, PluginConnectionListener, ServiceRunner
 
 
@@ -35,6 +36,11 @@ class CoreServiceConnectionListenerFactory(ConnectionListenerFactory):
 async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: dict) -> CorePlugin:
   id = plugin_manifest.get("id")
   name = plugin_manifest.get("name")
+
+  # Generate the merged manifest (central + per-plugin sections) under `.videoreg/`
+  # if it does not exist yet. core is built before every other plugin/service that
+  # reads it (see sdk/merged_manifest.py), so the file is ready by the time they run.
+  ensure_merged_manifest(runner.videoreg)
 
   plugin = CorePlugin(id, name, runner)
   plugin.init_logger(args.log_level)

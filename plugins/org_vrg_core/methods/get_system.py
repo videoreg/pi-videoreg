@@ -1,6 +1,7 @@
 import asyncio
 
 from plugins.org_vrg_core.plugin import CorePlugin
+from sdk.merged_manifest import read_merged
 from sdk.socket.api import ApiMethod
 
 
@@ -28,9 +29,11 @@ class MethodGetSystem(ApiMethod):
 
   async def exec(self, args):
     try:
-      manifest = self._plugin.runner.videoreg.manifest
-      services = manifest.services
-      plugins_by_id = {p["id"]: p for p in manifest.plugins}
+      # Read fresh from the merged manifest so a just-toggled `enabled` (written by
+      # set_plugin_enabled) is reflected immediately in the same process.
+      merged = read_merged(self._plugin.runner.videoreg)
+      services = merged.get("services", [])
+      plugins_by_id = {p["id"]: p for p in merged.get("plugins", [])}
 
       service_names = [s.get("name") for s in services]
       statuses = await asyncio.gather(*[self._get_service_status(s) for s in service_names])

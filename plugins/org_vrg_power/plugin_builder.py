@@ -66,7 +66,7 @@ async def build_plugin(
     from plugins.org_vrg_power.shutdown_plugins_reader import read_ask_before_shutdown_plugins
 
     ask_plugins = read_ask_before_shutdown_plugins(
-      runner.videoreg.app_path("plugins"), runner.videoreg.manifest.plugins
+      runner.videoreg.merged_manifest()["plugins"]
     )
     plugin.logger.info(f"Plugins asked before shutdown: {ask_plugins}")
 

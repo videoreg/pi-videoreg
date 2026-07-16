@@ -21,9 +21,6 @@ button `callback_data` and status method names are gateway-neutral.
 """
 
 import asyncio
-from pathlib import Path
-
-import yaml
 
 from sdk.command_reader import read_plugin_commands
 from sdk.gateway import Gateway, GatewayCommand
@@ -38,33 +35,21 @@ GATEWAY_MENU_COMMANDS: list[dict] = [
 ]
 
 
-def _iter_bot_sections(plugins_dir: Path, plugins_manifest: list[dict]):
+def _iter_bot_sections(plugins: list[dict]):
   """Yield (plugin_name, bot_section) for every enabled plugin declaring a `bot` group."""
-  name_by_id = {
-    p.get("id"): p.get("name") for p in plugins_manifest if p.get("enabled", True)
-  }
-
-  for manifest_path in sorted(plugins_dir.glob("*/manifest.yaml")):
-    plugin_id = manifest_path.parent.name
-    plugin_name = name_by_id.get(plugin_id)
+  for entry in plugins or []:
+    if not entry.get("enabled", True):
+      continue
+    plugin_name = entry.get("name")
     if not plugin_name:
       continue
 
-    try:
-      with open(manifest_path, encoding="utf-8") as f:
-        manifest = yaml.safe_load(f)
-    except Exception:
-      continue
-
-    if not isinstance(manifest, dict):
-      continue
-
-    bot = manifest.get("bot")
+    bot = entry.get("bot")
     if isinstance(bot, dict):
       yield plugin_name, bot
 
 
-def read_more_buttons(plugins_dir: Path, plugins_manifest: list[dict]) -> list[list[dict]]:
+def read_more_buttons(plugins: list[dict]) -> list[list[dict]]:
   """Collect `bot.more_buttons` from all plugins into an inline keyboard.
 
   Returns a keyboard (list of rows) with one button per row, sorted by button `weigh`
@@ -72,7 +57,7 @@ def read_more_buttons(plugins_dir: Path, plugins_manifest: list[dict]) -> list[l
   `text` and `callback_data` fields expected by the gateway.
   """
   buttons: list[dict] = []
-  for _plugin_name, bot in _iter_bot_sections(plugins_dir, plugins_manifest):
+  for _plugin_name, bot in _iter_bot_sections(plugins):
     for button in bot.get("more_buttons", []) or []:
       if not isinstance(button, dict):
         continue
@@ -88,14 +73,14 @@ def read_more_buttons(plugins_dir: Path, plugins_manifest: list[dict]) -> list[l
   return [[{"text": b["text"], "callback_data": b["callback_data"]}] for b in buttons]
 
 
-def read_status_methods(plugins_dir: Path, plugins_manifest: list[dict]) -> list[str]:
+def read_status_methods(plugins: list[dict]) -> list[str]:
   """Collect `bot.status_method` names from all plugins for the `/status` summary.
 
   Returns a list of videoreg-api method names (e.g. `power.get_status_text`), sorted by
   the owning plugin's short name for a deterministic order.
   """
   methods: list[tuple[str, str]] = []
-  for plugin_name, bot in _iter_bot_sections(plugins_dir, plugins_manifest):
+  for plugin_name, bot in _iter_bot_sections(plugins):
     method = bot.get("status_method")
     if isinstance(method, str) and method:
       methods.append((plugin_name, method))
@@ -175,25 +160,23 @@ class CommandStatus(GatewayCommand):
 
 
 def build_menu_gateway_commands(
-  api_client: ApiClient, plugins_dir: Path, plugins_manifest: list[dict]
+  api_client: ApiClient, plugins: list[dict]
 ) -> dict[str, GatewayCommand]:
   """Build the `{command_name: handler}` map for a gateway's `<gateway>.command` method."""
   return {
-    "more": CommandMore(read_more_buttons(plugins_dir, plugins_manifest)),
-    "status": CommandStatus(api_client, read_status_methods(plugins_dir, plugins_manifest)),
+    "more": CommandMore(read_more_buttons(plugins)),
+    "status": CommandStatus(api_client, read_status_methods(plugins)),
   }
 
 
-def read_menu_commands(
-  plugins_dir: Path, plugins_manifest: list[dict], gateway_name: str
-) -> list[dict]:
+def read_menu_commands(plugins: list[dict], gateway_name: str) -> list[dict]:
   """Return the gateway's menu commands: plugin manifest commands plus `/more` & `/status`.
 
   The built-in commands are tagged with `plugin=gateway_name` so the gateway routes them
   to its own `<gateway>.command`. The result is sorted like `read_plugin_commands`
   (by `weigh` descending, then command name).
   """
-  commands = read_plugin_commands(plugins_dir, plugins_manifest)
+  commands = read_plugin_commands(plugins)
   commands.extend({**cmd, "plugin": gateway_name} for cmd in GATEWAY_MENU_COMMANDS)
   commands.sort(key=lambda c: (-(c.get("weigh") or 0), c.get("name") or ""))
   return commands

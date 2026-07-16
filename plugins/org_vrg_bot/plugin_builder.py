@@ -92,13 +92,11 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   # `/more` and `/status` are shared bot-menu commands handled by this gateway itself
   # (bot.command) via the standard gateway command flow. The logic lives in the SDK so
   # each bot gateway registers its own copy and stays independent of the others.
-  plugins_dir = runner.videoreg.app_path("plugins")
+  merged_plugins = runner.videoreg.merged_manifest()["plugins"]
   gateways = Gateway.parse_gateways(
     runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  gateway_commands = build_menu_gateway_commands(
-    plugin.api_client, plugins_dir, runner.videoreg.manifest.plugins
-  )
+  gateway_commands = build_menu_gateway_commands(plugin.api_client, merged_plugins)
 
   plugin.init_api_servier(
     methods={
@@ -122,9 +120,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   # Commands are declared in each plugin's manifest.yaml (plus the shared /more & /status);
   # read_menu_commands returns them sorted by `weigh` descending, which defines the bot
   # menu order. The built-in commands route to this gateway's own bot.command.
-  for manifest_command in read_menu_commands(
-    plugins_dir, runner.videoreg.manifest.plugins, plugin_manifest.get("name")
-  ):
+  for manifest_command in read_menu_commands(merged_plugins, plugin_manifest.get("name")):
     name = manifest_command.get("name")
     title = manifest_command.get("title")
     hidden = manifest_command.get("hidden", False)

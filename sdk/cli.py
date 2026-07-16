@@ -73,7 +73,7 @@ class CliRunner:
     self.args = parser.parse_args()
 
     manifest = load_manifest(self.args.project_home, self.args.env)
-    self.videoreg = Videoreg(home=self.args.project_home, manifest=manifest)
+    self.videoreg = Videoreg(home=self.args.project_home, manifest=manifest, env=self.args.env)
 
     await self.init_socket("cli")
 

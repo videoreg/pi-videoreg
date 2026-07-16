@@ -82,10 +82,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     }
   )
 
-  # Commands are declared in each plugin's manifest.yaml (read by read_plugin_commands).
-  plugins_dir = runner.videoreg.app_path("plugins")
+  # Commands are declared in each plugin's manifest.yaml (folded into the merged manifest).
   command_plugin_map: dict[str, str] = {}
-  for cmd in read_plugin_commands(plugins_dir, runner.videoreg.manifest.plugins):
+  for cmd in read_plugin_commands(runner.videoreg.merged_manifest()["plugins"]):
     cmd_name = cmd.get("name")
     if cmd_name:
       command_plugin_map[cmd_name] = cmd.get("plugin")

@@ -1,63 +1,36 @@
-"""Reading the per-plugin `manifest.yaml` `http` blocks.
+"""Reading the per-plugin `http` blocks from the merged manifest.
 
 Each plugin may declare a web-facing configuration in `plugins/<id>/manifest.yaml`
-under the `http` key (menu / menu_settings / components / api). The http plugin
-runs in its own service, so it scans every plugin directory itself rather than
-relying on the per-service plugin list from `videoreg.manifest.yaml`.
+under the `http` key (menu / menu_settings / components / api); `org_vrg_core` folds
+those into the merged manifest at startup, from which the http plugin reads them.
 """
 
-from pathlib import Path
 
-import yaml
-
-
-def enabled_plugin_ids(manifest) -> set[str]:
-  """Return the ids of plugins marked enabled in the central manifest.
-
-  A missing `enabled` key defaults to enabled (matches core.get_system).
-  """
-  return {p["id"] for p in manifest.plugins if p.get("enabled", True)}
-
-
-def read_plugin_http_configs(
-  plugins_dir: Path, enabled_ids: "set[str] | None" = None
-) -> list[dict]:
-  """Scan `plugins/*/manifest.yaml` and return the `http` config of each plugin.
+def read_plugin_http_configs(plugins: list[dict]) -> list[dict]:
+  """Return the `http` config of each enabled plugin from the merged `plugins` list.
 
   Args:
-    plugins_dir: path to the `plugins` directory.
-    enabled_ids: when provided, only plugins whose id is in this set are
-      included; plugins disabled in the central manifest are skipped. When
-      `None`, no filtering is applied.
+    plugins: the merged manifest's `plugins` list. Each entry carries its `enabled`
+      flag and its folded `http` block.
 
   Returns:
-    A list of dicts `{"id": <plugin_id>, "http": <http block>}` for every plugin
-    that defines a non-empty `http` block. Plugins without a manifest, without
-    an `http` key, or disabled in the central manifest are skipped.
+    A list of dicts `{"id": <plugin_id>, "http": <http block>}` for every enabled
+    plugin that defines a non-empty `http` block, sorted by plugin id so menu and
+    bundle order stay stable.
   """
   configs: list[dict] = []
 
-  for manifest_path in sorted(plugins_dir.glob("*/manifest.yaml")):
-    plugin_id = manifest_path.parent.name
-
-    if enabled_ids is not None and plugin_id not in enabled_ids:
+  for entry in plugins or []:
+    if not entry.get("enabled", True):
       continue
 
-    try:
-      with open(manifest_path, encoding="utf-8") as f:
-        manifest = yaml.safe_load(f)
-    except Exception:
-      continue
-
-    if not isinstance(manifest, dict):
-      continue
-
-    http = manifest.get("http")
+    http = entry.get("http")
     if not http:
       continue
 
-    configs.append({"id": plugin_id, "http": http})
+    configs.append({"id": entry.get("id"), "http": http})
 
+  configs.sort(key=lambda c: c["id"] or "")
   return configs
 
 

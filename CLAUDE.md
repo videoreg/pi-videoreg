@@ -214,3 +214,9 @@ Engage for UI work:
 | UI component only, no new API | frontender |
 | Where should logic live? | architector |
 | Code review | architector |
+
+### Work with GIT
+
+- Don't manipulate with GIT unless you're explicitly asked to do so
+- New features should be developed in feature-branches. Exception: minor fixes and changes
+- Don't add yourself as co-author

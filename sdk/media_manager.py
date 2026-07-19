@@ -56,7 +56,8 @@ class MediaManager:
 
     dir_path = self.get_dir(file_type)
     try:
-      files = [f for f in os.listdir(str(dir_path)) if os.path.isfile(str(dir_path / f))]
+      with os.scandir(str(dir_path)) as it:
+        files = [entry.name for entry in it if entry.is_file()]
     except Exception:
       files = []
 

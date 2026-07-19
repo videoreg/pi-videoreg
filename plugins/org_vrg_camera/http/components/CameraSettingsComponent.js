@@ -192,6 +192,53 @@ const CameraSettingsComponent = {
           </div>
         </div>
 
+        <!-- Storage: video files limit -->
+        <div class="info-block" style="margin-top: var(--spacing-lg);">
+          <div class="section-title">{{ $t('camera.camera.storage_title') }}</div>
+          <div style="max-width: 600px;">
+            <div class="form-group" style="margin-bottom: var(--spacing-sm);">
+              <label class="form-label">{{ $t('camera.camera.files_limit_label') }}</label>
+              <input
+                type="number"
+                class="form-input"
+                v-model.number="filesLimit"
+                :min="1"
+                :max="maxAllowedFiles || undefined"
+                step="1"
+                :disabled="savingLimit"
+              />
+              <div style="margin-top: var(--spacing-xs); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('camera.camera.files_limit_desc') }}
+              </div>
+            </div>
+
+            <!-- Smart counter: estimated footprint, recomputed on the frontend -->
+            <div v-if="storageStats" class="info-block" style="margin-top: var(--spacing-xs); padding: var(--spacing-sm) var(--spacing-md);">
+              <div style="font-size: 1.1rem; font-weight: 600;" :style="{ color: limitExceeded ? 'var(--color-error)' : 'var(--color-text)' }">
+                {{ $t('camera.camera.files_limit_estimate', { size: formatBytes(estimatedBytes) }) }}
+              </div>
+              <div style="margin-top: var(--spacing-xs); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ storageStats.h264_count > 0
+                    ? $t('camera.camera.files_limit_avg_measured', { size: formatBytes(avgFileBytes), count: storageStats.h264_count })
+                    : $t('camera.camera.files_limit_avg_estimated', { size: formatBytes(avgFileBytes) }) }}
+              </div>
+              <div v-if="maxAllowedFiles" style="margin-top: var(--spacing-xs); font-size: 0.875rem;"
+                   :style="{ color: limitExceeded ? 'var(--color-error)' : 'var(--color-text-secondary)' }">
+                {{ $t('camera.camera.files_limit_max', { max: maxAllowedFiles }) }}
+              </div>
+            </div>
+
+            <div v-if="limitExceeded" class="alert alert-error" style="margin-top: var(--spacing-sm);">
+              {{ $t('camera.camera.files_limit_exceeded', { max: maxAllowedFiles }) }}
+            </div>
+
+            <button class="btn btn-primary" style="margin-top: var(--spacing-md);"
+                    @click="saveFilesLimit" :disabled="savingLimit || limitExceeded || !isLimitValid">
+              {{ savingLimit ? $t('common.saving') : $t('common.save') }}
+            </button>
+          </div>
+        </div>
+
         <!-- Live stream settings -->
         <div class="info-block" style="margin-top: var(--spacing-lg);">
           <div class="section-title">{{ $t('camera.live.settings_title') }}</div>
@@ -288,6 +335,12 @@ const CameraSettingsComponent = {
       selectedStreamResolution: null,
       savingStream: false,
 
+      // Storage / files limit. storageStats is fetched once and cached; the
+      // estimate is recomputed on the frontend as filesLimit changes.
+      storageStats: null,
+      filesLimit: 400,
+      savingLimit: false,
+
       error: '',
       success: '',
       actionLoading: null
@@ -327,6 +380,37 @@ const CameraSettingsComponent = {
         overheated: this.$t('camera.camera.thermal_overheated'),
       };
       return labels[this.info?.thermal_status] || '—';
+    },
+
+    avgFileBytes() {
+      return this.storageStats?.avg_file_bytes || 0;
+    },
+
+    // Largest file count that still keeps the reserve (default 20%) of the disk free.
+    maxAllowedFiles() {
+      if (!this.storageStats) return null;
+      const disk = this.storageStats.disk_total_bytes || 0;
+      const reserve = this.storageStats.disk_reserve_fraction ?? 0.2;
+      if (!disk || !this.avgFileBytes) return null;
+      const usable = disk * (1 - reserve);
+      return Math.max(1, Math.floor(usable / this.avgFileBytes));
+    },
+
+    estimatedBytes() {
+      const n = parseInt(this.filesLimit, 10);
+      if (!n || n < 0 || !this.avgFileBytes) return 0;
+      return n * this.avgFileBytes;
+    },
+
+    isLimitValid() {
+      const n = parseInt(this.filesLimit, 10);
+      return Number.isInteger(n) && n >= 1;
+    },
+
+    limitExceeded() {
+      if (this.maxAllowedFiles === null) return false;
+      const n = parseInt(this.filesLimit, 10);
+      return Number.isInteger(n) && n > this.maxAllowedFiles;
     }
   },
 
@@ -517,6 +601,56 @@ const CameraSettingsComponent = {
       }
     },
 
+    formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let value = bytes;
+      let i = 0;
+      while (value >= 1024 && i < units.length - 1) {
+        value /= 1024;
+        i++;
+      }
+      const digits = value >= 100 || i === 0 ? 0 : 1;
+      return value.toFixed(digits) + ' ' + units[i];
+    },
+
+    async loadStorageStats() {
+      try {
+        const response = await fetch('/api/camera/storage_stats', { credentials: 'same-origin' });
+        const result = await response.json();
+        if (!response.ok) return;
+        this.storageStats = result;
+        this.filesLimit = result.max_files;
+      } catch (err) {
+        // Non-critical: the counter simply won't render without stats.
+      }
+    },
+
+    async saveFilesLimit() {
+      this.error = '';
+      this.success = '';
+      if (!this.isLimitValid || this.limitExceeded) return;
+      this.savingLimit = true;
+      try {
+        const response = await fetch('/api/camera/files_limit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ max_files: parseInt(this.filesLimit, 10) })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.error = result.error || this.$t('camera.camera.error_limit_save');
+          return;
+        }
+        this.success = this.$t('camera.camera.limit_saved');
+      } catch (err) {
+        this.error = this.$t('http.common.error_connection');
+      } finally {
+        this.savingLimit = false;
+      }
+    },
+
     async saveStreamSettings() {
       this.error = '';
       this.success = '';
@@ -548,6 +682,6 @@ const CameraSettingsComponent = {
   },
 
   async mounted() {
-    await Promise.all([this.loadInfo(), this.loadSettings()]);
+    await Promise.all([this.loadInfo(), this.loadSettings(), this.loadStorageStats()]);
   }
 };

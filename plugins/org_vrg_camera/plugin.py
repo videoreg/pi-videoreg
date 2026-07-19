@@ -443,8 +443,9 @@ class CameraPlugin(Plugin):
   async def _check_files_loop(self):
     await asyncio.sleep(15)
     while self.runner.is_running():
+      max_h264_files = self.state.get(const.KEY_MAX_H264_FILES, const.DEFAULT_MAX_H264_FILES)
       removed = self.runner.media_manager.remove_old_files(
-        MediaFileType.H264, max_files=400, companion_types=[MediaFileType.MP4]
+        MediaFileType.H264, max_files=max_h264_files, companion_types=[MediaFileType.MP4]
       )
       if removed > 0:
         self.logger.debug(f"removed h264 files {removed}")

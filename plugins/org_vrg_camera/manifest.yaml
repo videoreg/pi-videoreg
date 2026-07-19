@@ -128,6 +128,14 @@ http:
       method: post
       plugin: camera.set_stream_settings
 
+    - url: camera/storage_stats
+      method: get
+      plugin: camera.get_storage_stats
+
+    - url: camera/files_limit
+      method: post
+      plugin: camera.set_files_limit
+
 commands:
   - name: photo
     title: Take photo

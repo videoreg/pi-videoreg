@@ -19,6 +19,8 @@ from plugins.org_vrg_camera.methods.get_camera_modes import MethodGetCameraModes
 from plugins.org_vrg_camera.methods.get_info import MethodGetInfo
 from plugins.org_vrg_camera.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_camera.methods.get_last_media import MethodGetLastMedia
+from plugins.org_vrg_camera.methods.get_storage_stats import MethodGetStorageStats
+from plugins.org_vrg_camera.methods.set_files_limit import MethodSetFilesLimit
 from plugins.org_vrg_camera.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_camera.methods.list_media import MethodListMedia
 from plugins.org_vrg_camera.methods.photo import MethodPhoto
@@ -121,6 +123,8 @@ async def build_plugin(
       "get_camera_modes": MethodGetCameraModes(plugin),
       "set_video_settings": MethodSetVideoSettings(plugin),
       "set_stream_settings": MethodSetStreamSettings(plugin),
+      "get_storage_stats": MethodGetStorageStats(plugin),
+      "set_files_limit": MethodSetFilesLimit(plugin),
       "stream_start": MethodStreamStart(plugin),
       "stream_stop": MethodStreamStop(plugin),
       "stream_status": MethodStreamStatus(plugin),

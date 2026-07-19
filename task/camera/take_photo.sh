@@ -87,7 +87,7 @@ rpicam-jpeg \
   --width 2560 \
   --height 1440 \
   --hdr $HDR \
-  --sharpness 1.5 \
+  --sharpness 2.0 \
   --saturation 1.3 \
   --autofocus-mode manual \
   --lens-position 0.0 \

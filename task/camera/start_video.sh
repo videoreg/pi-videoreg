@@ -224,7 +224,7 @@ if [[ "${MODE}" == "file" ]]; then
     --bitrate $BITRATE \
     $TIMEOUT_ARG \
     --denoise cdn_off \
-    --sharpness 1.5 \
+    --sharpness 2.0 \
     --saturation 1.3 \
     --autofocus-mode manual \
     --lens-position 0.0 \
@@ -258,7 +258,7 @@ else
     --bitrate $BITRATE \
     $TIMEOUT_ARG \
     --denoise cdn_off \
-    --sharpness 1.5 \
+    --sharpness 2.0 \
     --saturation 1.3 \
     --autofocus-mode manual \
     --lens-position 0.0 \

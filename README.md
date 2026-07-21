@@ -82,9 +82,7 @@ When using a PiSugar 3 UPS, you can set the wakeup interval for parking mode in 
 
 ### SMS
 
-If you use a SIM7600 USB modem, you can set up command execution and SMS forwarding to your mobile phone. To do this, specify your phone number in the `SMS` settings.
-
-SMS features are not yet supported on the A7670 modem.
+If you use a USB modem, you can set up command execution and SMS forwarding to your mobile phone. To do this, specify your phone number in the `SMS` settings.
 
 ### SSH
 
@@ -173,7 +171,7 @@ Connecting to a WiFi router unlocks the following capabilities:
 > [!CAUTION]
 > Be sure to keep the WiFi access point enabled if you are not certain you can reach the Web UI through the connected USB modem. Only after WireGuard has been successfully configured should you disable the WiFi module.
 
-The device has been tested with the SIM7600 and A7670 modems (see the [A7670.md note](A7670.md) for details).
+The device has been tested with the SIM7600 and A7670 modems.
 
 Connecting a modem unlocks the following capabilities (in addition to the previous ones):
 
@@ -266,8 +264,6 @@ Possible solutions:
 2. Instead of cutting power to the USB modem, put it into sleep mode. This is not possible with the PiSugar 3, and no other off-the-shelf solution was found. So this likely requires designing a custom PCB with power management.
 
 ### Track: development
-
-**Unify the interaction with QMI-type USB modems and the rest:** as mentioned above, unlike the SIM7600, the A7670 modem requires manual configuration and is not supported by ModemManager (through which we access SMS and GPS). As a solution to the latter problem, we could drop ModemManager and read the data (SMS and location) directly from `/dev/ttyUSB2` and `/dev/ttyUSB3` respectively.
 
 **Improve the security of the initial setup:** on first boot the device automatically creates an `admin` user with a preset password, as well as a `videoreg` WiFi access point.
 

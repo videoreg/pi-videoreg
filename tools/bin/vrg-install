@@ -17,6 +17,7 @@ NC='\033[0m' # No Color
 PARAM_USER=""
 PARAM_GROUP=""
 PARAM_STORAGE_PATH=""
+PARAM_YES=""
 
 # Output helpers
 print_info() {
@@ -41,6 +42,22 @@ print_header() {
     echo -e "${BLUE}================================${NC}"
 }
 
+# Ask the user to confirm an optional step.
+# Returns 0 (yes) / 1 (no). With --yes always yes; on a non-interactive stdin
+# without --yes the step is skipped (returns 1) so the image build is unaffected.
+confirm() {
+    if [[ -n "$PARAM_YES" ]]; then
+        return 0
+    fi
+    if [[ ! -t 0 ]]; then
+        print_warning "Skipping (non-interactive; pass --yes to enable)"
+        return 1
+    fi
+    local answer
+    read -rp "$(echo -e "${YELLOW}[?]${NC} $1 [y/N] ")" answer
+    [[ "$answer" =~ ^[Yy]$ ]]
+}
+
 show_help() {
     cat << EOF
 Usage: vrg-install --user USER --group GROUP [OPTIONS]
@@ -53,16 +70,23 @@ REQUIRED OPTIONS:
 
 OPTIONAL OPTIONS:
   --storage-path PATH      Path for media storage (h264, mp4, jpeg, gps subdirs created automatically)
+  -y, --yes                Assume "yes" to all optional system-tweak prompts (non-interactive)
   -h, --help               Show this help and exit
 
 EXAMPLES:
   sudo vrg-install --user pi --group pi
   sudo vrg-install --user pi --group pi --storage-path /mnt/sdcard
+  sudo vrg-install --user pi --group pi --yes
 
 NOTES:
   - Must be run as root (sudo)
   - VIDEOREG_PROJECT_HOME must be set (source tools/init.sh)
   - User and group will be created if they do not exist
+  - The optional system-tweak steps (disable services, persistent journal,
+    daemon drop-ins, NetworkManager profiles, login auto-init) prompt for
+    confirmation. On a non-interactive stdin they are skipped unless --yes is
+    given, so the OS image build (which calls this script in chroot) is
+    unaffected.
 
 EOF
     exit 0
@@ -82,6 +106,10 @@ parse_arguments() {
             --storage-path)
                 PARAM_STORAGE_PATH="$2"
                 shift 2
+                ;;
+            -y|--yes|--force)
+                PARAM_YES="1"
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -545,6 +573,194 @@ setup_sudoers() {
     print_success "sudoers configured"
 }
 
+disable_system_services() {
+    if ! confirm "Disable unneeded system services (avahi, apt-daily timers, udisks2, cloud-init, ...)? Note: disabling avahi-daemon removes .local mDNS discovery."; then
+        print_info "Skipped disabling system services"
+        return 0
+    fi
+
+    # Services and timers not needed on a dedicated recorder. cloud-init is only
+    # disabled here (not purged), so it stays reversible on a live system.
+    local units=(
+        avahi-daemon
+        apt-daily.timer
+        apt-daily-upgrade.timer
+        rpi-eeprom-update.service
+        userconfig.service
+        console-setup.service
+        man-db.timer
+        dpkg-db-backup.timer
+        udisks2.service
+        e2scrub_all.timer
+        cloud-init.service
+        cloud-config.service
+        cloud-final.service
+        cloud-init-local.service
+    )
+
+    for unit in "${units[@]}"; do
+        # Skip units that don't exist on this system (avoids aborting under set -e).
+        # systemctl cat resolves the default .service suffix, matching what
+        # systemctl disable accepts, so bare names like "avahi-daemon" work too.
+        if ! systemctl cat "$unit" &>/dev/null; then
+            print_warning "Unit not present, skipping: $unit"
+            continue
+        fi
+
+        print_info "Disabling: $unit"
+        if systemctl disable "$unit" &>/dev/null; then
+            print_success "Disabled: $unit"
+        else
+            print_warning "Could not disable: $unit"
+        fi
+    done
+
+    print_success "System services processed"
+}
+
+setup_persistent_journal() {
+    if ! confirm "Enable persistent systemd journal (logs survive reboots, capped at 500M)?"; then
+        print_info "Skipped persistent journal setup"
+        return 0
+    fi
+
+    JOURNALD_SOURCE="$VIDEOREG_PROJECT_HOME/tools/install/journald/90-persistent-storage.conf"
+    JOURNALD_TARGET_DIR="/etc/systemd/journald.conf.d"
+
+    if [[ ! -f "$JOURNALD_SOURCE" ]]; then
+        print_error "Journald config not found: $JOURNALD_SOURCE"
+        exit 1
+    fi
+
+    mkdir -p "$JOURNALD_TARGET_DIR"
+    cp "$JOURNALD_SOURCE" "$JOURNALD_TARGET_DIR/90-persistent-storage.conf"
+    chmod 644 "$JOURNALD_TARGET_DIR/90-persistent-storage.conf"
+
+    print_info "Creating /var/log/journal..."
+    mkdir -p /var/log/journal
+    chown root:systemd-journal /var/log/journal 2>/dev/null || true
+    chmod 2755 /var/log/journal
+
+    print_info "Restarting systemd-journald..."
+    systemctl restart systemd-journald 2>/dev/null || print_warning "Could not restart systemd-journald (will apply on next boot)"
+
+    print_success "Persistent journal configured"
+}
+
+setup_daemon_dropins() {
+    if ! confirm "Install ModemManager/NetworkManager systemd drop-ins (info-level logging, 3s stop timeout)?"; then
+        print_info "Skipped daemon drop-ins"
+        return 0
+    fi
+
+    DROPINS_SOURCE_DIR="$VIDEOREG_PROJECT_HOME/tools/install/systemd-dropins"
+    SYSTEMD_DIR="/etc/systemd/system"
+
+    if [[ ! -d "$DROPINS_SOURCE_DIR" ]]; then
+        print_error "Drop-ins directory not found: $DROPINS_SOURCE_DIR"
+        exit 1
+    fi
+
+    # Layout mirrors the target: <unit>.service.d/override.conf
+    for unit_dir in "$DROPINS_SOURCE_DIR"/*.service.d; do
+        if [[ -d "$unit_dir" ]]; then
+            unit_dir_name=$(basename "$unit_dir")
+            target_dir="$SYSTEMD_DIR/$unit_dir_name"
+            print_info "Installing drop-in: $unit_dir_name/override.conf"
+            mkdir -p "$target_dir"
+            cp "$unit_dir/override.conf" "$target_dir/override.conf"
+            chmod 644 "$target_dir/override.conf"
+            print_success "Drop-in installed: $unit_dir_name"
+        fi
+    done
+
+    print_info "Reloading systemd daemon..."
+    systemctl daemon-reload
+
+    print_success "Daemon drop-ins configured"
+}
+
+setup_nm_connections() {
+    if ! confirm "Install NetworkManager connection profiles (vrg-wifi, vrg-ap, vrg-modem)? Existing profiles are kept; vrg-wifi/vrg-ap ship with placeholder credentials to configure via the web UI."; then
+        print_info "Skipped NetworkManager connection profiles"
+        return 0
+    fi
+
+    NM_SOURCE_DIR="$VIDEOREG_PROJECT_HOME/tools/install/nm-connections"
+    NM_TARGET_DIR="/etc/NetworkManager/system-connections"
+
+    if [[ ! -d "$NM_SOURCE_DIR" ]]; then
+        print_error "NM connections directory not found: $NM_SOURCE_DIR"
+        exit 1
+    fi
+
+    mkdir -p "$NM_TARGET_DIR"
+
+    for conn_file in "$NM_SOURCE_DIR"/*.nmconnection; do
+        if [[ -f "$conn_file" ]]; then
+            conn_name=$(basename "$conn_file")
+            target="$NM_TARGET_DIR/$conn_name"
+
+            if [[ -f "$target" ]]; then
+                print_warning "Profile exists, keeping current: $conn_name"
+                continue
+            fi
+
+            print_info "Installing profile: $conn_name"
+            cp "$conn_file" "$target"
+            # NetworkManager ignores profiles with loose permissions.
+            chmod 600 "$target"
+            chown root:root "$target"
+            print_success "Profile installed: $conn_name"
+        fi
+    done
+
+    if systemctl is-active --quiet NetworkManager 2>/dev/null; then
+        print_info "Reloading NetworkManager connections..."
+        nmcli connection reload 2>/dev/null || print_warning "Could not reload NetworkManager connections"
+    fi
+
+    print_success "NetworkManager connection profiles configured"
+}
+
+setup_login_autoinit() {
+    if ! confirm "Auto-initialize the project on SSH login (put the vrg-* tools on PATH via ~/.bashrc)?"; then
+        print_info "Skipped login auto-init"
+        return 0
+    fi
+
+    BASHRC="/home/$VIDEOREG_USER/.bashrc"
+    MARKER="# >>> vrg init >>>"
+
+    if [[ ! -f "$BASHRC" ]]; then
+        print_warning "$BASHRC not found, creating it"
+        touch "$BASHRC"
+    fi
+
+    if grep -qF "$MARKER" "$BASHRC"; then
+        print_success "Login auto-init already present, skipping"
+        return 0
+    fi
+
+    print_info "Appending project auto-init to $BASHRC"
+    # Mirror tools/init.sh, but with an absolute project home baked in so no
+    # working-directory change is needed on login (init.sh derives it from \$PWD).
+    cat >> "$BASHRC" << EOF
+
+$MARKER
+# Initialize the videoreg environment on interactive SSH sessions (vrg-* tools on PATH)
+if [ -d "$VIDEOREG_PROJECT_HOME" ]; then
+    export VIDEOREG_PROJECT_HOME="$VIDEOREG_PROJECT_HOME"
+    export VIDEOREG_TOOLS_HOME="$VIDEOREG_PROJECT_HOME/tools/bin"
+    export PATH="\$VIDEOREG_TOOLS_HOME:\$PATH"
+fi
+# <<< vrg init <<<
+EOF
+
+    chown "$VIDEOREG_USER:$VIDEOREG_GROUP" "$BASHRC"
+    print_success "Login auto-init configured"
+}
+
 parse_arguments "$@"
 
 print_header "VIDEOREG INSTALLATION SCRIPT"
@@ -593,5 +809,25 @@ setup_storage_paths
 
 print_header "14. SUDOERS"
 setup_sudoers
+
+# --- Optional system tweaks (ported from the OS image build) ------------------
+# Each step prompts for confirmation. On a non-interactive stdin they are skipped
+# unless --yes is given, so the image build (which already performs these itself)
+# is unaffected.
+
+print_header "15. SYSTEM SERVICE TWEAKS (optional)"
+disable_system_services
+
+print_header "16. PERSISTENT JOURNAL (optional)"
+setup_persistent_journal
+
+print_header "17. DAEMON DROP-INS (optional)"
+setup_daemon_dropins
+
+print_header "18. NETWORKMANAGER CONNECTION PROFILES (optional)"
+setup_nm_connections
+
+print_header "19. LOGIN AUTO-INIT (optional)"
+setup_login_autoinit
 
 print_success "Videoreg installed successfully!"

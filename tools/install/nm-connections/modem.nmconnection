@@ -1,0 +1,11 @@
+[connection]
+id=modem
+type=gsm
+autoconnect-priority=998
+
+[ipv4]
+method=auto
+route-metric=200
+
+[ipv6]
+method=disabled

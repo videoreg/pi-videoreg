@@ -33,14 +33,15 @@ class MethodSetWifiMode(ApiMethod):
     try:
       if mode == "off":
         # Bring both connections down, drop their autoconnect, then block the radio.
-        await self._net_controls.set_connection_enabled("wifi", False)
-        await self._net_controls.set_connection_enabled("ap", False)
-        await self._set_autoconnect("wifi", False)
-        await self._set_autoconnect("ap", False)
+        await self._net_controls.set_connection_enabled(const.NM_CONNECTION_WIFI, False)
+        await self._net_controls.set_connection_enabled(const.NM_CONNECTION_AP, False)
+        await self._set_autoconnect(const.NM_CONNECTION_WIFI, False)
+        await self._set_autoconnect(const.NM_CONNECTION_AP, False)
         await self._block_radio(True)
       else:
-        active = "wifi" if mode == "client" else "ap"
-        inactive = "ap" if mode == "client" else "wifi"
+        client, ap = const.NM_CONNECTION_WIFI, const.NM_CONNECTION_AP
+        active = client if mode == "client" else ap
+        inactive = ap if mode == "client" else client
 
         # Tear down the other mode first so only one connection stays up.
         await self._net_controls.set_connection_enabled(inactive, False)

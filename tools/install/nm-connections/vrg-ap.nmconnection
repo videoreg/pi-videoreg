@@ -1,5 +1,5 @@
 [connection]
-id=ap
+id=vrg-ap
 type=wifi
 autoconnect=true
 interface-name=wlan0

@@ -1,5 +1,6 @@
 import asyncio
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.net_controls import NetControls
 from sdk.socket.api import ApiMethod
 
@@ -25,20 +26,20 @@ class MethodGetConnections(ApiMethod):
     wifi_radio_enabled, ap_info, wifi_info, modem_info = await asyncio.gather(
       self._net_controls.get_wifi_radio_status(),
       self._net_controls.get_connection_info(
-        "ap",
+        const.NM_CONNECTION_AP,
         properties_map={
           "802-11-wireless.ssid": "ssid",
           # '802-11-wireless-security.psk': 'password'
         },
       ),
       self._net_controls.get_connection_info(
-        "wifi",
+        const.NM_CONNECTION_WIFI,
         properties_map={
           "802-11-wireless.ssid": "ssid",
           # '802-11-wireless-security.psk': 'password'
         },
       ),
-      self._net_controls.get_connection_info("modem"),
+      self._net_controls.get_connection_info(const.NM_CONNECTION_MODEM),
     )
 
     return {

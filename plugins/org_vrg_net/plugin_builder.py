@@ -1,5 +1,6 @@
 from argparse import Namespace
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_net.commands.get_connection import CommandGetConnection
 from plugins.org_vrg_net.commands.get_connections import CommandGetConnections
@@ -36,8 +37,8 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_socket(client_id=name, channels=[], socket_path=None)
 
   wg_monitor_config = Config(
-    connection_name_wifi="wifi",
-    connection_name_modem="modem",
+    connection_name_wifi=const.NM_CONNECTION_WIFI,
+    connection_name_modem=const.NM_CONNECTION_MODEM,
     wg_interface="wg0",
     wg_config_path="/etc/wireguard/wg0.conf",
     check_interval=10,

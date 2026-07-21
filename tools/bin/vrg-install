@@ -681,7 +681,7 @@ setup_daemon_dropins() {
 }
 
 setup_nm_connections() {
-    if ! confirm "Install NetworkManager connection profiles (wifi, ap, modem)? Existing profiles are kept; wifi/ap ship with placeholder credentials to configure via the web UI."; then
+    if ! confirm "Install NetworkManager connection profiles (vrg-wifi, vrg-ap, vrg-modem)? Existing profiles are kept; vrg-wifi/vrg-ap ship with placeholder credentials to configure via the web UI."; then
         print_info "Skipped NetworkManager connection profiles"
         return 0
     fi
@@ -724,7 +724,7 @@ setup_nm_connections() {
 }
 
 setup_login_autoinit() {
-    if ! confirm "Auto-initialize the project on SSH login (append 'cd + source tools/init.sh' to ~/.bashrc)?"; then
+    if ! confirm "Auto-initialize the project on SSH login (put the vrg-* tools on PATH via ~/.bashrc)?"; then
         print_info "Skipped login auto-init"
         return 0
     fi

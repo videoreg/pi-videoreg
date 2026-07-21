@@ -1,5 +1,5 @@
 [connection]
-id=modem
+id=vrg-modem
 type=gsm
 autoconnect-priority=998
 

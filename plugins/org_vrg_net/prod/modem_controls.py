@@ -41,20 +41,31 @@ class ModemControlsImpl(ModemControls):
     }
 
   async def _run_command(self, cmd):
-    """Runs a command and returns the result"""
-    proc = await asyncio.create_subprocess_exec(
-      *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await proc.communicate()
+    """Runs a command and returns the result.
 
+    A missing binary (ModemManager not installed) is reported as a non-zero
+    returncode rather than raised, so the caller degrades to
+    ``{"connected": False}`` and the AT-based fallback can take over.
+    """
+    try:
+      proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+      )
+      stdout, stderr = await proc.communicate()
+    except FileNotFoundError as e:
+      return self._result(127, "", str(e))
+
+    return self._result(
+      proc.returncode,
+      stdout.decode("utf-8", errors="ignore"),
+      stderr.decode("utf-8", errors="ignore"),
+    )
+
+  def _result(self, returncode, stdout, stderr):
     return type(
       "Result",
       (),
-      {
-        "returncode": proc.returncode,
-        "stdout": stdout.decode("utf-8", errors="ignore"),
-        "stderr": stderr.decode("utf-8", errors="ignore"),
-      },
+      {"returncode": returncode, "stdout": stdout, "stderr": stderr},
     )()
 
   def _extract_field(self, output, pattern):

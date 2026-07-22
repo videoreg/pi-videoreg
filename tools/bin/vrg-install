@@ -207,6 +207,9 @@ install_apt_packages() {
     APT_PACKAGES=(
         "ffmpeg"
         "minicom"
+        # Base Raspberry Pi OS images stopped shipping modemmanager (pi-gen stage2
+        # marks it "modemmanager-"), so install it here instead of relying on the image.
+        "modemmanager"
         "libqmi-utils"
         "udhcpc"
         "netcat-openbsd"

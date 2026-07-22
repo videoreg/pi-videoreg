@@ -19,7 +19,7 @@ class CommandGetCommands(GatewayCommand):
 
 WG: {ips["wg0"]}
 WiFi: {ips["wlan0"]}
-Modem: {ips["wwan0"]}
+Modem: {ips["modem"]}
 
 WiFi blocked: {wifi_blocked}
 
@@ -43,12 +43,15 @@ https://{ip.get_current_ip()}:8443
     )
 
   def _get_ip_map(self):
-    ips = {"wg0": None, "wlan0": None, "wwan0": None}
+    ips = {"wg0": None, "wlan0": None}
 
-    for gateway in ips:
+    for interface in ips:
       try:
-        ips[gateway] = ip.get_gateway_ip(gateway)
+        ips[interface] = ip.get_interface_ip(interface)
       except:
-        ips[gateway] = "error"
+        ips[interface] = "error"
+
+    # The modem interface is resolved by name at runtime, see ip.MODEM_INTERFACES
+    ips["modem"] = ip.get_modem_ip()
 
     return ips

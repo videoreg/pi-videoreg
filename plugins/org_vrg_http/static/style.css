@@ -408,6 +408,12 @@ select.form-input:disabled {
     border-color: var(--color-primary);
 }
 
+.alert-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
+    border-color: var(--color-warning);
+}
+
 /* === Status Indicator === */
 .status-indicator {
     display: inline-flex;

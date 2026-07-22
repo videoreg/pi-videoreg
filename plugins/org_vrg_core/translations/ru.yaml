@@ -10,6 +10,7 @@ core.datetime.continue: "Продолжить с этими настройкам
 core.datetime.browser_time_label: "Время в браузере"
 core.datetime.set_from_browser: "Установить как в браузере"
 core.datetime.timezone_select_label: "Часовой пояс"
+core.datetime.https_warning: "Изменение времени может разорвать HTTPS-соединение (сертификат окажется вне срока действия) и потребовать повторного входа. В этом случае перезагрузите страницу и войдите заново."
 core.datetime.not_supported: "Управление системным временем (timedatectl) здесь недоступно, значения доступны только для чтения."
 core.datetime.saved: "Сохранено"
 core.datetime.error_load: "Не удалось загрузить дату и время"

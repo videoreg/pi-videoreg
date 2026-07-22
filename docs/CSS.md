@@ -212,6 +212,7 @@ For a read-only field (e.g. keys):
 <div v-if="error" class="alert alert-error">{{ error }}</div>
 <div v-if="success" class="alert alert-success">{{ success }}</div>
 <div v-if="info" class="alert alert-info">{{ info }}</div>
+<div v-if="warning" class="alert alert-warning">{{ warning }}</div>
 ```
 
 Typically declared in `data()` as empty strings and shown via `v-if`:

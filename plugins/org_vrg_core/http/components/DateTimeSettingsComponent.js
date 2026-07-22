@@ -27,6 +27,7 @@ const DateTimeSettingsComponent = {
       <div v-if="error" class="alert alert-error">{{ error }}</div>
       <div v-if="success" class="alert alert-success">{{ success }}</div>
       <div v-if="state && !state.supported" class="alert alert-info">{{ $t('core.datetime.not_supported') }}</div>
+      <div v-if="httpsWarning" class="alert alert-warning">{{ $t('core.datetime.https_warning') }}</div>
 
       <div v-if="state" class="info-block">
         <div class="section-title">{{ $t('core.datetime.set_time_title') }}</div>
@@ -104,6 +105,9 @@ const DateTimeSettingsComponent = {
       browserTimer: null,
       timeSaving: false,
       tzInput: '',
+      // Shown once the user actually applies a new time: the shift can move the
+      // TLS certificate outside its validity period and drop the session.
+      httpsWarning: false,
     };
   },
 
@@ -191,6 +195,8 @@ const DateTimeSettingsComponent = {
     async setDatetime(payload) {
       this.error = '';
       this.success = '';
+      // Warn before the request goes out — the connection may not survive it.
+      this.httpsWarning = true;
       this.timeSaving = true;
       try {
         const response = await fetch('/api/core/datetime', {

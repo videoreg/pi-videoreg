@@ -1,4 +1,5 @@
 import asyncio
+import re
 import ssl
 import subprocess
 import time
@@ -208,15 +209,22 @@ class HttpPlugin(Plugin):
     return web.json_response({"status": "ok", "components": count})
 
   async def _get_local_ips(self) -> list[str]:
-    ips = ["10.0.0.1"]
+    ips = list(const.CERT_SAN_STATIC_IPS)
     try:
       proc = await asyncio.create_subprocess_exec(
-        "hostname", "-I",
+        "ip", "-o", "-4", "addr", "show",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
       )
       stdout, _ = await proc.communicate()
-      ips += [ip for ip in stdout.decode().split() if ip]
+      for line in stdout.decode().splitlines():
+        # Format: "3: wlan0    inet 192.168.1.5/24 brd 192.168.1.255 scope global wlan0"
+        parts = line.split()
+        if len(parts) < 4 or parts[2] != "inet":
+          continue
+        interface, ip = parts[1], parts[3].split("/")[0]
+        if interface in const.CERT_SAN_INTERFACES and ip not in ips:
+          ips.append(ip)
     except Exception as e:
       self.logger.warning(f"Could not determine local IPs: {e}")
     return ips
@@ -229,8 +237,8 @@ class HttpPlugin(Plugin):
         stderr=asyncio.subprocess.DEVNULL,
       )
       stdout, _ = await proc.communicate()
-      cert_text = stdout.decode()
-      return all(f"IP Address:{ip}" in cert_text for ip in ips)
+      cert_ips = set(re.findall(r"IP Address:([0-9.]+)", stdout.decode()))
+      return set(ips).issubset(cert_ips)
     except Exception as e:
       self.logger.warning(f"Could not inspect certificate SANs: {e}")
       return False

@@ -19,6 +19,10 @@ class WireguardMonitorImpl(WireguardMonitor):
     # Store the last state to prevent duplicate actions
     self.last_state = {"wifi": False, "modem": False, "wg_active": False}
 
+    # Whether to keep WireGuard down while the "wifi" client connection is active.
+    # Updated at runtime from the plugin state (KEY_WG_SKIP_ON_WIFI).
+    self.skip_on_wifi = True
+
     self._logger.info("NetworkMonitor initialized")
 
   def get_active_connections(self):
@@ -361,18 +365,14 @@ class WireguardMonitorImpl(WireguardMonitor):
       # self._logger.debug(f"State unchanged: wifi={wifi}, modem={modem}, wg={wg_active}")
 
     # Make a decision
-    if wifi:
-      # At home — stop WireGuard
+    if self.skip_on_wifi and wifi:
+      # At home (WiFi client connected) — stop WireGuard
       if wg_active:
         await self.stop_wireguard()
-    elif modem:
-      # Away from home with modem — start WireGuard
+    else:
+      # Away from home (or WiFi is not a reason to skip) — start WireGuard
       if not wg_active:
         await self.start_wireguard()
-    else:
-      # No active connections — stop WireGuard
-      if wg_active:
-        await self.stop_wireguard()
 
     return True
 

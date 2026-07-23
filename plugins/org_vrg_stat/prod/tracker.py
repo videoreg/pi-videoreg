@@ -7,19 +7,20 @@ import psutil
 
 from plugins.org_vrg_stat.dirs import Dirs
 from plugins.org_vrg_stat.tracker import Tracker
-from sdk.pisugar import PiSugar
+from sdk.power import PowerSupply
+from sdk.power.pisugar import PiSugar
 
 
 class TrackerImpl(Tracker):
   _stop_event: asyncio.Event
   _logger: Logger
-  _pisugar: PiSugar
+  _power_supply: PowerSupply
   _dirs: Dirs
 
-  def __init__(self, logger: Logger, pisugar: PiSugar, dirs: Dirs):
+  def __init__(self, logger: Logger, power_supply: PowerSupply, dirs: Dirs):
     self._stop_event = asyncio.Event()
     self._logger = logger
-    self._pisugar = pisugar
+    self._power_supply = power_supply
     self._dirs = dirs
 
     self.prev_traffic_timestamp_kbps = 0
@@ -60,11 +61,11 @@ class TrackerImpl(Tracker):
       os.remove(os.path.join(dir, oldest))
 
   async def _log_pisugar(self):
-    battery_percent = await self._pisugar.get_battery_percent()
-    charging_status = await self._pisugar.get_charging_status()
-    temp = await self._pisugar.get_temp()
+    battery_percent = await self._power_supply.get_battery_percent()
+    charging_status = await self._power_supply.get_charging_status()
+    temp = await self._power_supply.get_temp() if isinstance(self._power_supply, PiSugar) else None
     self._logger.debug(
-      f"pisugar: battery_percent={battery_percent} charging_status={charging_status} temp={temp}"
+      f"power: battery_percent={battery_percent} charging_status={charging_status} temp={temp}"
     )
     file_name = datetime.today().strftime("%Y-%m-%d.txt")
     file_path = f"{self._dirs.pisugar}/{file_name}"

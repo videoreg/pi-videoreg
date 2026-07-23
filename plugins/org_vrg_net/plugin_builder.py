@@ -1,20 +1,30 @@
 from argparse import Namespace
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_net.commands.get_connection import CommandGetConnection
 from plugins.org_vrg_net.commands.get_connections import CommandGetConnections
 from plugins.org_vrg_net.commands.set_wifi_blocked import CommandSetWifiBlocked
+from plugins.org_vrg_net.commands.wg_set_state import CommandWgSetState
 from plugins.org_vrg_net.methods.connection_update import MethodConnectionUpdate
+from plugins.org_vrg_net.methods.generate_wireguard_key import MethodGenerateWireguardKey
 from plugins.org_vrg_net.methods.get_connection import MethodGetConnection
 from plugins.org_vrg_net.methods.get_connections import MethodGetConnections
+from plugins.org_vrg_net.methods.get_modem_dashboard import MethodGetModemDashboard
 from plugins.org_vrg_net.methods.get_modem_info import MethodGetModemInfo
+from plugins.org_vrg_net.methods.get_wireguard_config import MethodGetWireguardConfig
+from plugins.org_vrg_net.methods.get_wireguard_settings import MethodGetWireguardSettings
+from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
+from plugins.org_vrg_net.methods.set_wifi_mode import MethodSetWifiMode
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
+from plugins.org_vrg_net.methods.wg_set_state import MethodWgSetState
 from plugins.org_vrg_net.methods.wg_show import MethodWgShow
+from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
 from plugins.org_vrg_net.plugin import NetPlugin
 from plugins.org_vrg_net.wg import Config
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
 
@@ -27,8 +37,8 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_socket(client_id=name, channels=[], socket_path=None)
 
   wg_monitor_config = Config(
-    connection_name_wifi="wifi",
-    connection_name_modem="modem",
+    connection_name_wifi=const.NM_CONNECTION_WIFI,
+    connection_name_modem=const.NM_CONNECTION_MODEM,
     wg_interface="wg0",
     wg_config_path="/etc/wireguard/wg0.conf",
     check_interval=10,
@@ -60,30 +70,44 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_wg_monitor(wg_monitor)
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "net": CommandGetCommands(plugin),
     "connections": CommandGetConnections(plugin, net_controls),
     "connection": CommandGetConnection(plugin, net_controls),
     "wifi_block": CommandSetWifiBlocked(net_controls, plugin.state, blocked=True),
     "wifi_unblock": CommandSetWifiBlocked(net_controls, plugin.state, blocked=False),
+    "wg_on": CommandWgSetState(plugin, enable=True),
+    "wg_off": CommandWgSetState(plugin, enable=False),
   }
+
+  # Shared instances reused by the modem-dashboard aggregate below.
+  method_connections = MethodGetConnections(net_controls)
+  method_modem_info = MethodGetModemInfo(plugin.logger, modem_controls, plugin.api_client)
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
-      "connections": MethodGetConnections(net_controls),
+      "command": GatewayCommandMethod(gateways, commands),
+      "connections": method_connections,
       "connection": MethodGetConnection(net_controls),
       "connection_update": MethodConnectionUpdate(plugin.logger, net_controls),
       "connection_up": MethodSetConnectionEnabled(net_controls, enabled=True),
       "connection_down": MethodSetConnectionEnabled(net_controls, enabled=False),
+      "set_wifi_mode": MethodSetWifiMode(net_controls, plugin.state),
       "wg_auto": MethodWgAuto(plugin),
+      "wg_set_state": MethodWgSetState(plugin),
+      "wg_skip_on_wifi": MethodWgSkipOnWifi(plugin),
+      "wg_settings": MethodGetWireguardSettings(plugin),
       "wg_show": MethodWgShow(plugin),
+      "get_wireguard_config": MethodGetWireguardConfig(plugin),
+      "save_wireguard_config": MethodSaveWireguardConfig(plugin),
+      "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),
-      "modem_info": MethodGetModemInfo(plugin.logger, modem_controls),
+      "modem_info": method_modem_info,
+      "modem_dashboard": MethodGetModemDashboard(method_modem_info, method_connections),
     }
   )
 

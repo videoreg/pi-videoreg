@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from datetime import datetime
 from enum import Enum
@@ -8,9 +9,11 @@ import plugins.org_vrg_camera.osd as osd
 from plugins.org_vrg_camera.camera_controls import CameraControls, VideoMode, VideoParams
 from plugins.org_vrg_camera.h264_watcher import H264FolderWatcher
 from plugins.org_vrg_camera.jpeg_watcher import JpegFolderWatcher
+from plugins.org_vrg_camera.thermal_throttle import ThermalAction, ThermalThrottle
 from plugins.org_vrg_stat.functions import get_cpu_temp
 from sdk.journal import JournalRecord
 from sdk.media_manager import MediaFileType
+from sdk.power import ChargingStatus
 from sdk.service import Plugin
 
 
@@ -18,33 +21,32 @@ class VideoState(Enum):
   STOP = "stop"
   START = "record"
   PAUSE = "pause"
+  STREAM = "stream"
 
   def print(self):
-    if self.value == "record":
-      emoji = "🟢 "
-    elif self.value == "pause":
-      emoji = "🟡 "
-    elif self.value == "stop":
-      emoji = "🔴 "
-    else:
-      emoji = ""
-    return f"Camera state: {emoji}{self.value}"
+    icons = {"record": "🟢 ", "pause": "🟡 ", "stop": "🔴 ", "stream": "🔵 "}
+    return f"Camera state: {icons.get(self.value, '')}{self.value}"
 
 
 _VIDEO_STATE_EVENTS = {
   VideoState.START: "video_start",
   VideoState.STOP: "video_stop",
   VideoState.PAUSE: "video_pause",
+  VideoState.STREAM: "stream_start",
 }
 
 
 class CameraPlugin(Plugin):
+  HLS_DIR = "/run/videoreg/hls"
+
   _video_state: VideoState
   _camera_controls: CameraControls
   _osd: osd.OSD
   is_first_loop_done = False
+  is_dev = False
   _jpeg_watcher: "JpegFolderWatcher"
   _suspended = False
+  _stream_timer_task: asyncio.Task = None
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
@@ -53,10 +55,17 @@ class CameraPlugin(Plugin):
     self._converting_names: set = set()
     self._h264_watcher: H264FolderWatcher = None
     self._jpeg_watcher: JpegFolderWatcher = None
+    self._stream_timer_task = None
+    self._thermal_throttle = ThermalThrottle()
+    self.HLS_DIR = runner.videoreg.plugin_private_path(id, "hls")
 
   @property
   def video_state(self) -> VideoState:
     return self._video_state
+
+  @property
+  def thermal_status(self) -> str:
+    return self._thermal_throttle.status.value
 
   @video_state.setter
   def video_state(self, value: VideoState):
@@ -73,6 +82,7 @@ class CameraPlugin(Plugin):
 
   async def start(self):
     await super().start()
+    os.makedirs(self.HLS_DIR, exist_ok=True)
     self._osd.reset()
     asyncio.create_task(self._lifecycle_loop())
     asyncio.create_task(self._check_files_loop())
@@ -99,29 +109,28 @@ class CameraPlugin(Plugin):
   async def _lifecycle_loop(self):
     try:
       while self.runner.is_running():
-        # 1 - check video process dead
         if self._camera_controls.is_recording_completed():
           await self.stop_video()
 
-        # 2 - do other stuff
-
-        is_charging = await self.runner.pisugar.get_charging_status_slow_but_safe()
-        bat_level = await self.runner.pisugar.get_battery_percent()
+        charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
+        bat_level = await self.runner.power_supply.get_battery_percent()
         cpu_temp = get_cpu_temp()
 
         self._osd.update(
           [
-            osd.Token(key="chrg", text=f"C:{is_charging}", weight=osd.WEIGHT_CHRG),
-            osd.Token(key="bat", text=f"B:{bat_level}", weight=osd.WEIGHT_BAT),
+            osd.Token(key="chrg", text=f"C:{charging_status.to_int()}", weight=osd.WEIGHT_CHRG),
+            osd.Token(key="bat", text=f"B:{bat_level if bat_level is not None else '--'}", weight=osd.WEIGHT_BAT),
             osd.Token(key="cpu", text=f"T:{cpu_temp}C", weight=osd.WEIGHT_CPU),
           ]
         )
 
-        if is_charging == -1:
-          if self.video_state == VideoState.START:
+        if charging_status == ChargingStatus.NOT_CHARGING:
+          self._thermal_throttle.reset_status()
+          if self.video_state in (VideoState.START, VideoState.STREAM):
             self.logger.info("Detect charging is off: will stop video")
             await self.stop_video()
           elif self.video_state == VideoState.STOP:
+            # One wakeup photo on first loop — device just powered on without charging
             if not self.is_first_loop_done:
               self.logger.info("Take wakeup photo")
               try:
@@ -133,25 +142,50 @@ class CameraPlugin(Plugin):
 
               self._is_wakeup_photo_taken = True
         else:
-          if self.video_state == VideoState.START:
-            if cpu_temp > 65:
-              self.logger.warning("CPU temp is to hight: will stop video")
-              await self.stop_video()
-          elif self.video_state == VideoState.STOP:
-            if cpu_temp < 60:
-              self.logger.info("Detect charging is ON and CPU temp is OK: will start video")
-              try:
-                await asyncio.wait_for(self.start_video(), timeout=15)
-              except TimeoutError:
-                self.logger.warning("start video timeout")
-              except Exception as e:
-                self.logger.error(f"start video error: {type(e).__name__}: {e}")
-            else:
-              self.logger.warning(
-                f"Detect charging is ON but CPU temp is to high {cpu_temp}. Will take photo"
-              )
-              await self.take_photo(is_screenshot=False, is_night=False)
-              await asyncio.sleep(15)  # extra sleep to cooldown
+          user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)
+          action = self._thermal_throttle.update(
+            cpu_temp,
+            user_width,
+            is_recording=self.video_state == VideoState.START,
+            is_active=self.video_state in (VideoState.START, VideoState.STREAM),
+            is_stopped=self.video_state == VideoState.STOP,
+          )
+          if action == ThermalAction.DOWNSCALE:
+            self.logger.warning(
+              f"CPU temp {cpu_temp}C > {const.TEMP_DOWNSCALE_ON}C: downscaling video to 720p/{const.THROTTLE_VIDEO_FPS}fps"
+            )
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_throttle_on", data={"temp": cpu_temp})
+            ))
+            await self.restart_video()
+          elif action == ThermalAction.RESTORE:
+            self.logger.info(
+              f"CPU temp {cpu_temp}C < {const.TEMP_DOWNSCALE_OFF}C: restoring full video resolution"
+            )
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_throttle_off", data={"temp": cpu_temp})
+            ))
+            await self.restart_video()
+          elif action == ThermalAction.STOP:
+            self.logger.warning("CPU temp is too high: will stop video")
+            asyncio.create_task(self.journal_client.write(
+              JournalRecord(type="thermal_overheated", data={"temp": cpu_temp})
+            ))
+            await self.stop_video()
+          elif action == ThermalAction.START:
+            self.logger.info("Detect charging is ON and CPU temp is OK: will start video")
+            try:
+              await asyncio.wait_for(self.start_video(), timeout=15)
+            except TimeoutError:
+              self.logger.warning("start video timeout")
+            except Exception as e:
+              self.logger.error(f"start video error: {type(e).__name__}: {e}")
+          elif action == ThermalAction.TAKE_PHOTO_AND_WAIT:
+            self.logger.warning(
+              f"Detect charging is ON but CPU temp is too high {cpu_temp}. Will take photo"
+            )
+            await self.take_photo(is_screenshot=False, is_night=False)
+            await asyncio.sleep(15)  # extra sleep to cooldown
 
         if not self.is_first_loop_done:
           self.logger.info("first loop done")
@@ -163,23 +197,54 @@ class CameraPlugin(Plugin):
     except asyncio.CancelledError:
       await self._camera_controls.shutdown()
 
+  def _build_video_params(self) -> VideoParams:
+    user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)
+    user_height = self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT)
+    user_mode = self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR)
+    user_fps = self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS)
+
+    if self._thermal_throttle.throttled and user_width > const.DEFAULT_STREAM_VIDEO_WIDTH:
+      camera_mode_str = const.DEFAULT_STREAM_CAMERA_MODE_STR
+      width = const.DEFAULT_STREAM_VIDEO_WIDTH
+      height = const.DEFAULT_STREAM_VIDEO_HEIGHT
+      fps = min(user_fps, const.THROTTLE_VIDEO_FPS)
+    else:
+      camera_mode_str = user_mode
+      width = user_width
+      height = user_height
+      fps = user_fps
+
+    return VideoParams(
+      fps=fps,
+      bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+      camera_mode_str=camera_mode_str,
+      width=width,
+      height=height,
+      hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+      vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+      screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
+      hls_dir=self.HLS_DIR,
+    )
+
+  def _build_stream_video_params(self) -> VideoParams:
+    return VideoParams(
+      fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
+      bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
+      camera_mode_str=self.state.get(const.KEY_STREAM_CAMERA_MODE_STR, const.DEFAULT_STREAM_CAMERA_MODE_STR),
+      width=self.state.get(const.KEY_STREAM_VIDEO_WIDTH, const.DEFAULT_STREAM_VIDEO_WIDTH),
+      height=self.state.get(const.KEY_STREAM_VIDEO_HEIGHT, const.DEFAULT_STREAM_VIDEO_HEIGHT),
+      hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
+      vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
+      screenshot=False,
+      hls_dir=self.HLS_DIR,
+    )
+
   async def start_video(self):
-    if self.video_state == VideoState.START:
+    if self.video_state == VideoState.START and self._camera_controls.is_recording():
       return
     self.video_state = VideoState.START
     try:
-      params = VideoParams(
-        fps=self.state.get(const.KEY_VIDEO_FPS, const.DEFAULT_VIDEO_FPS),
-        bitrate=self.state.get(const.KEY_VIDEO_BITRATE, const.DEFAULT_VIDEO_BITRATE),
-        camera_mode_str=self.state.get(const.KEY_CAMERA_MODE_STR, const.DEFAULT_CAMERA_MODE_STR),
-        width=self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH),
-        height=self.state.get(const.KEY_VIDEO_HEIGHT, const.DEFAULT_VIDEO_HEIGHT),
-        hflip=self.state.get(const.KEY_HFLIP, const.DEFAULT_HFLIP),
-        vflip=self.state.get(const.KEY_VFLIP, const.DEFAULT_VFLIP),
-        screenshot=self.state.get(const.KEY_SCREENSHOT, const.DEFAULT_SCREENSHOT),
-      )
-      await self._camera_controls.start_video(VideoMode.BOTH, params)
-      # self.runner.media_manager.invalidate(MediaFileType.H264)
+      await self._camera_controls.start_video(VideoMode.TO_FILE, self._build_video_params())
     except Exception:
       self.video_state = VideoState.STOP
       raise
@@ -190,7 +255,65 @@ class CameraPlugin(Plugin):
     await self.stop_video()
     await self.start_video()
 
+  async def stream_start(self):
+    if self.video_state == VideoState.STREAM:
+      self._reset_stream_timer()
+      return
+    if self._camera_controls.is_recording():
+      await self._camera_controls.stop_video()
+    self._clear_hls_dir()
+    await self._camera_controls.start_video(VideoMode.TO_STREAM, self._build_stream_video_params())
+    self.video_state = VideoState.STREAM
+    self._reset_stream_timer()
+
+  def _clear_hls_dir(self):
+    try:
+      for name in os.listdir(self.HLS_DIR):
+        if name.endswith(('.m3u8', '.ts')):
+          try:
+            os.unlink(os.path.join(self.HLS_DIR, name))
+          except OSError:
+            pass
+    except OSError:
+      pass
+
+  async def stream_stop(self):
+    if self.video_state != VideoState.STREAM:
+      return
+    self._cancel_stream_timer()
+    if self._camera_controls.is_recording():
+      await self._camera_controls.stop_video()
+    self.video_state = VideoState.STOP
+    await self.start_video()
+
+  def _cancel_stream_timer(self):
+    task = self._stream_timer_task
+    self._stream_timer_task = None
+    if task and not task.done() and task is not asyncio.current_task():
+      task.cancel()
+
+  def _reset_stream_timer(self):
+    self._cancel_stream_timer()
+    self._stream_timer_task = asyncio.create_task(self._stream_auto_stop())
+
+  async def _stream_auto_stop(self):
+    try:
+      await asyncio.sleep(60)
+      self.logger.info("Stream auto-stopped after 60s timeout")
+      await self.stream_stop()
+    except asyncio.CancelledError:
+      pass
+
+  def stream_status(self) -> dict:
+    streaming = self.video_state == VideoState.STREAM
+    return {
+      "streaming": streaming,
+      "hls_url": "/hls/stream.m3u8" if streaming else None,
+    }
+
   async def stop_video(self, pause: bool = False):
+    if self.video_state == VideoState.STREAM:
+      self._cancel_stream_timer()
     self.video_state = VideoState.PAUSE if pause else VideoState.STOP
     if self._camera_controls.is_recording():
       await self._camera_controls.stop_video()
@@ -205,7 +328,31 @@ class CameraPlugin(Plugin):
       await self.start_video()
       self._suspended = False
 
+  def _latest_jpeg_path(self) -> "str | None":
+    """Returns the most recent (by mtime) jpeg in the jpeg folder, or None."""
+    jpeg_dir = str(self.runner.videoreg.jpeg_path())
+    try:
+      files = [
+        os.path.join(jpeg_dir, f)
+        for f in os.listdir(jpeg_dir)
+        if f.lower().endswith((".jpg", ".jpeg"))
+      ]
+    except FileNotFoundError:
+      return None
+    if not files:
+      return None
+    return max(files, key=os.path.getmtime)
+
   async def take_photo(self, is_screenshot: bool, is_night: bool) -> str:
+    # In dev (e.g. running in Docker) the camera is a no-op and captures nothing,
+    # so return the latest existing jpeg to keep the send/feed flow working.
+    if self.is_dev:
+      latest = self._latest_jpeg_path()
+      if latest:
+        self.logger.info(f"dev mode: returning latest jpeg {latest}")
+        return latest
+      self.logger.warning("dev mode: no jpeg files found in jpeg folder")
+
     date = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
     try:
       path = str(self.runner.videoreg.jpeg_path(f"{date}.jpg"))
@@ -296,8 +443,9 @@ class CameraPlugin(Plugin):
   async def _check_files_loop(self):
     await asyncio.sleep(15)
     while self.runner.is_running():
+      max_h264_files = self.state.get(const.KEY_MAX_H264_FILES, const.DEFAULT_MAX_H264_FILES)
       removed = self.runner.media_manager.remove_old_files(
-        MediaFileType.H264, max_files=400, companion_types=[MediaFileType.MP4]
+        MediaFileType.H264, max_files=max_h264_files, companion_types=[MediaFileType.MP4]
       )
       if removed > 0:
         self.logger.debug(f"removed h264 files {removed}")

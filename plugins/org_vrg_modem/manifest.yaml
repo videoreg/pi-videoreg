@@ -1,0 +1,73 @@
+http:
+  menu:
+    - url: gps-tracks
+      title: $gps.gps_tracks.title
+      icon: map
+      component: GpsTracksComponent
+
+    - url: sms-inbox
+      title: $sms.sms_inbox.title
+      icon: sms
+      component: SmsInboxComponent
+
+  menu_settings:
+    - url: sms
+      title: $sms.settings.sms
+      icon: sms
+      component: SmsSettingsComponent
+
+  dashboard:
+    - component: DashboardLocationTile
+      method: modem.get_location
+      order: 40
+
+  components:
+    - GpsTracksComponent.js
+    - SmsIcons.js
+    - SmsInboxComponent.js
+    - SmsSettingsComponent.js
+    - DashboardLocationTile.js
+
+  api:
+    - url: gps/tracks
+      method: get
+      plugin: modem.get_tracks
+
+    # Filename is passed as a body parameter (was DELETE /api/gps/tracks/{filename})
+    - url: gps/delete_track
+      method: post
+      plugin: modem.delete_track
+
+    - url: sms/list
+      method: get
+      plugin: modem.get_all_sms
+
+    # Component sends {"filename": <name>} in the request body
+    - url: sms/delete
+      method: delete
+      plugin: modem.delete_sms
+
+    - url: modem/apn
+      method: get
+      plugin: modem.get_apn
+
+    # Component sends {"apn": <value>} in the request body
+    - url: modem/apn
+      method: post
+      plugin: modem.set_apn
+
+commands:
+  - name: gps
+    title: Location
+  - name: sms
+    title: SMS commands
+    hidden: true # reachable from the /more menu
+
+bot:
+  more_buttons:
+    - text: SMS
+      callback_data: command__modem__sms
+      weigh: 50
+
+power:
+  ask_before_shutdown: true # power calls modem.is_ready_to_die before shutting down

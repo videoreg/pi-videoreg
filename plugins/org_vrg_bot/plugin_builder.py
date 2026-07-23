@@ -2,21 +2,26 @@ from argparse import ArgumentParser, Namespace
 
 import sdk.log as log
 from plugins.org_vrg_bot.callbacks.command_callback import CommandCallback
+from plugins.org_vrg_bot.callbacks.command_edit_callback import CommandEditCallback
 from plugins.org_vrg_bot.commands.api import CommandApi
 from plugins.org_vrg_bot.commands.common import CommandCommon
 from plugins.org_vrg_bot.commands.start import CommandStart
 from plugins.org_vrg_bot.dispatcher import Dispatcher
 from plugins.org_vrg_bot.main import Bot, BotChat, BotCommand, Context
 from plugins.org_vrg_bot.methods.get_settings import MethodGetSettings
+from plugins.org_vrg_bot.methods.get_status import MethodGetStatus
 from plugins.org_vrg_bot.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_bot.methods.send_document import MethodSendDocument
 from plugins.org_vrg_bot.methods.send_image import MethodSendImage
 from plugins.org_vrg_bot.methods.send_status import MethodSendStatus
+from plugins.org_vrg_bot.methods.edit_message import MethodEditMessage
 from plugins.org_vrg_bot.methods.send_text import MethodSendText
 from plugins.org_vrg_bot.methods.send_video import MethodSendVideo
 from plugins.org_vrg_bot.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_bot.plugin import BotPlugin
 from plugins.org_vrg_bot.telegram_api import TelegramApi
+from sdk.gateway import Gateway, GatewayCommandMethod
+from sdk.gateway_menu import build_menu_gateway_commands, read_menu_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -84,15 +89,27 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   tg_api = TelegramApi(bot, http_logger)
 
+  # `/more` and `/status` are shared bot-menu commands handled by this gateway itself
+  # (bot.command) via the standard gateway command flow. The logic lives in the SDK so
+  # each bot gateway registers its own copy and stays independent of the others.
+  merged_plugins = runner.videoreg.merged_manifest()["plugins"]
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
+  )
+  gateway_commands = build_menu_gateway_commands(plugin.api_client, merged_plugins)
+
   plugin.init_api_servier(
     methods={
+      "command": GatewayCommandMethod(gateways, gateway_commands),
       "send_video": MethodSendVideo(plugin, bot, tg_api),
       "send_image": MethodSendImage(plugin, bot, tg_api),
       "send_text": MethodSendText(plugin, bot, tg_api),
+      "edit_message": MethodEditMessage(plugin, bot, tg_api),
       "send_document": MethodSendDocument(plugin, bot, tg_api),
       "send_status": MethodSendStatus(plugin, bot, tg_api),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_settings": MethodGetSettings(plugin),
+      "get_status": MethodGetStatus(plugin),
       "set_settings": MethodSetSettings(plugin, tg_api),
     }
   )
@@ -100,30 +117,32 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   bot_commands: list[BotCommand] = []
   common_commands: list[CommandCommon] = []
 
-  for plugin_manifest in runner.videoreg.manifest.plugins:
-    plugin_name = plugin_manifest.get("name")
-    for manifest_command in plugin_manifest.get("commands", []):
-      name = manifest_command.get("name")
-      title = manifest_command.get("title")
-      hidden = manifest_command.get("hidden", False)
-      default_args = manifest_command.get("args", None)
+  # Commands are declared in each plugin's manifest.yaml (plus the shared /more & /status);
+  # read_menu_commands returns them sorted by `weigh` descending, which defines the bot
+  # menu order. The built-in commands route to this gateway's own bot.command.
+  for manifest_command in read_menu_commands(merged_plugins, plugin_manifest.get("name")):
+    name = manifest_command.get("name")
+    title = manifest_command.get("title")
+    hidden = manifest_command.get("hidden", False)
+    default_args = manifest_command.get("args", None)
+    plugin_name = manifest_command.get("plugin")
 
-      if not name or not title:
-        plugin.logger.error(f"yaml wrong command format ({name}, {title}): {manifest_command}")
-        continue
+    if not name or not title:
+      plugin.logger.error(f"yaml wrong command format ({name}, {title}): {manifest_command}")
+      continue
 
-      if not hidden:
-        bot_commands.append(BotCommand(f"/{name}", title))
+    if not hidden:
+      bot_commands.append(BotCommand(f"/{name}", title))
 
-      common_commands.append(
-        CommandCommon(
-          name=name,
-          plugin_name=plugin_name,
-          default_args=default_args,
-          api_client=plugin.api_client,
-          tg_api=tg_api,
-        )
+    common_commands.append(
+      CommandCommon(
+        name=name,
+        plugin_name=plugin_name,
+        default_args=default_args,
+        api_client=plugin.api_client,
+        tg_api=tg_api,
       )
+    )
 
   commands = [
     CommandStart(plugin=plugin, tg_api=tg_api, name="start", commands=bot_commands),
@@ -133,9 +152,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   callbacks = [
     CommandCallback(prefix="command__", api_client=plugin.api_client, tg_api=tg_api),
+    CommandEditCallback(prefix="command_edit__", api_client=plugin.api_client, tg_api=tg_api),
   ]
 
-  plugin.dispatcher = Dispatcher(bot, tg_api, commands, callbacks, plugin.keep_alive)
+  plugin.dispatcher = Dispatcher(
+    bot, tg_api, commands, callbacks, plugin.keep_alive, plugin.health
+  )
   plugin.tg_api = tg_api
   plugin.bot = bot
   plugin.chats_loader = load_chats

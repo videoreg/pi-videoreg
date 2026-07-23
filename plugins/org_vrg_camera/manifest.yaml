@@ -1,0 +1,167 @@
+http:
+  menu:
+    - url: live-broadcast
+      title: $camera.live.menu
+      icon: live_tv
+      component: LiveBroadcastComponent
+
+    - url: media-feed
+      title: $camera.media
+      icon: media
+      component: MediaFeedComponent
+
+    - url: media-fave
+      title: $camera.favorites
+      icon: star
+      component: MediaFaveComponent
+
+  menu_settings:
+    - url: camera
+      title: $camera.settings.camera
+      icon: camera
+      component: CameraSettingsComponent
+
+  dashboard:
+    - component: DashboardLastMediaTile
+      method: camera.get_last_media
+      order: 10
+
+    - component: DashboardCameraActionsTile
+      order: 20
+
+    # DashboardMediaTile is intentionally NOT declared here: it is inserted
+    # imperatively at runtime after a capture (see DashboardCameraActionsTile),
+    # which passes the component object directly. It only needs to be bundled,
+    # hence its presence in `components` below.
+
+    - component: DashboardCameraTile
+      method: camera.get_info
+      order: 100
+
+  components:
+    - MediaFeedComponent.js
+    - MediaFaveComponent.js
+    - LiveBroadcastComponent.js
+    - CameraSettingsComponent.js
+    - DashboardLastMediaTile.js
+    - DashboardCameraActionsTile.js
+    - DashboardMediaTile.js
+    - DashboardCameraTile.js
+
+  api:
+    - url: camera/info
+      method: get
+      plugin: camera.get_info
+
+    - url: camera/modes
+      method: get
+      plugin: camera.get_camera_modes
+
+    - url: camera/settings
+      method: post
+      plugin: camera.set_video_settings
+
+    - url: camera/photo
+      method: post
+      plugin: camera.photo
+      timeout: 30
+
+    - url: camera/video_start
+      method: post
+      plugin: camera.video_start
+
+    - url: camera/video_pause
+      method: post
+      plugin: camera.video_pause
+
+    # Component sends {"is_sync": true}
+    - url: camera/short_video
+      method: post
+      plugin: camera.video
+      timeout: 75
+
+    # Component sends ?all=true
+    - url: camera/list_media
+      method: get
+      plugin: camera.list_media
+
+    # Component sends ?name=<name>
+    - url: camera/convert_check
+      method: get
+      plugin: camera.check_video_ready
+
+    # Component sends {"name": name}
+    - url: camera/convert
+      method: post
+      plugin: camera.convert_video
+
+    # Component sends ?fave=true&all=true
+    - url: camera/fave_list
+      method: get
+      plugin: camera.list_media
+
+    # Component sends {"type": file_type, "name": name}
+    - url: camera/fave
+      method: post
+      plugin: camera.add_to_fave
+
+    # Component sends {"type": file_type, "name": name} in the request body
+    - url: camera/fave
+      method: delete
+      plugin: camera.remove_from_fave
+
+    - url: camera/stream_status
+      method: get
+      plugin: camera.stream_status
+
+    - url: camera/stream_start
+      method: post
+      plugin: camera.stream_start
+      timeout: 30
+
+    - url: camera/stream_stop
+      method: post
+      plugin: camera.stream_stop
+      timeout: 30
+
+    - url: camera/stream_settings
+      method: post
+      plugin: camera.set_stream_settings
+
+    - url: camera/storage_stats
+      method: get
+      plugin: camera.get_storage_stats
+
+    - url: camera/files_limit
+      method: post
+      plugin: camera.set_files_limit
+
+commands:
+  - name: photo
+    title: Take photo
+    weigh: 100
+  - name: video
+    title: Take short video
+    weigh: 90
+  - name: camera
+    title: Camera commands
+    hidden: true # reachable from the /more menu
+  - name: video_pause
+    title: Pause video recording
+    hidden: true
+  - name: video_start
+    title: Start video recording
+    hidden: true
+  - name: stream
+    title: Start RTSP stream
+    hidden: true
+
+bot:
+  status_method: camera.get_status_text
+  more_buttons:
+    - text: Camera
+      callback_data: command__camera__camera
+      weigh: 40
+
+power:
+  ask_before_shutdown: true # power calls camera.is_ready_to_die before shutting down

@@ -3,11 +3,13 @@
 # systemd shutdown hook for PiSugar battery.
 # Called by systemd at system poweroff (argument "poweroff") or reboot (argument "reboot").
 # On reboot — exits immediately without touching the hardware.
-# On poweroff — if external power is connected and the wakeup alarm is set to
-#   a future time, reschedules the alarm to now+15s so the device wakes up while
-#   still on power. Then sends a delayed power-cut command to the PiSugar via I2C:
-#   disables write protection, sets the power-cut delay, clears the "auto power-on"
-#   bit in the power register, then re-enables write protection.
+# On poweroff — if external power is connected AND a wakeup alarm is set to a
+#   future time, the poweroff is converted into a forced reboot (reboot -f) so
+#   the device stays online while on external power instead of relying on the
+#   wakeup alarm (rescheduling it here proved unreliable). Otherwise sends a
+#   delayed power-cut command to the PiSugar via I2C: disables write protection,
+#   sets the power-cut delay, clears the "auto power-on" bit in the power
+#   register, then re-enables write protection.
 #
 # During installation (tools/bin/vrg-install) this script is placed at:
 #   /lib/systemd/system-shutdown/shutdown-pisugar.sh
@@ -35,13 +37,9 @@ bcd_to_dec() {
     echo $(( (val / 16) * 10 + (val % 16) ))
 }
 
-dec_to_bcd() {
-    local dec=$1
-    printf "0x%02x" $(( (dec / 10) * 16 + (dec % 10) ))
-}
-
-# If external power is connected and wakeup alarm is set to the future,
-# reschedule the alarm to now+15s so the device wakes up while still on power.
+# If external power is connected and a wakeup alarm is scheduled for the future,
+# convert this poweroff into a forced reboot: the device should stay online
+# while on external power instead of cycling through poweroff/wakeup.
 POWER_REG=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
 IS_CHARGING=$(( (POWER_REG >> 7) & 1 ))
 
@@ -81,19 +79,16 @@ if [ $IS_CHARGING -eq 1 ]; then
         fi
 
         if [ -n "$NEXT_ALARM_TS" ] && [ "$NEXT_ALARM_TS" -gt "$CURRENT_TS" ]; then
-            WAKEUP_TS=$(( CURRENT_TS + 15 ))
-            WAKEUP_HOUR=$(TZ=UTC date -d "@$WAKEUP_TS" +%-H)
-            WAKEUP_MIN=$(TZ=UTC date -d "@$WAKEUP_TS" +%-M)
-            WAKEUP_SEC=$(TZ=UTC date -d "@$WAKEUP_TS" +%-S)
-            WAKEUP_DOW=$(TZ=UTC date -d "@$WAKEUP_TS" +%w)
-            WAKEUP_WEEKDAY=$((1 << WAKEUP_DOW))
-
+            # Cancel the delayed power-cut previously armed by task/pisugar.sh
+            # `shutdown` (clears bit 5 of REG_POWER) — set bit 5 back so the
+            # PiSugar does not cut power mid-reboot.
             i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
-            i2cset -y $I2C_BUS $I2C_ADDR $REG_ALARM_WEEKDAY $WAKEUP_WEEKDAY
-            i2cset -y $I2C_BUS $I2C_ADDR $REG_ALARM_HOUR $(dec_to_bcd $WAKEUP_HOUR)
-            i2cset -y $I2C_BUS $I2C_ADDR $REG_ALARM_MIN $(dec_to_bcd $WAKEUP_MIN)
-            i2cset -y $I2C_BUS $I2C_ADDR $REG_ALARM_SEC $(dec_to_bcd $WAKEUP_SEC)
+            CURRENT_POWER=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
+            RESTORED_POWER=$(printf "0x%x" $(( CURRENT_POWER | 0x20 )))
+            i2cset -y $I2C_BUS $I2C_ADDR $REG_POWER $RESTORED_POWER
             i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
+
+            exec reboot -f
         fi
     fi
 fi

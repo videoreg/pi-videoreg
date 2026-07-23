@@ -3,7 +3,7 @@ import asyncio
 import plugins.org_vrg_bot.const as const
 from plugins.org_vrg_bot.backoff import Backoff
 from plugins.org_vrg_bot.keep_alive import KeepAlive
-from plugins.org_vrg_bot.main import Bot, BotChat, Callback, Command
+from plugins.org_vrg_bot.main import Bot, BotChat, BotHealth, Callback, Command
 from plugins.org_vrg_bot.telegram_api import TelegramApi
 
 
@@ -14,6 +14,7 @@ class Dispatcher:
   _callbacks: list[Callback]
   _stop_event: asyncio.Event
   _keep_alive: KeepAlive
+  _health: BotHealth
 
   def __init__(
     self,
@@ -22,6 +23,7 @@ class Dispatcher:
     commands: list[Command],
     callbacks: list[Callback],
     keep_alive: KeepAlive,
+    health: BotHealth,
   ):
     super().__init__()
     self._bot = bot
@@ -29,6 +31,7 @@ class Dispatcher:
     self._commands = commands
     self._callbacks = callbacks
     self._keep_alive = keep_alive
+    self._health = health
     self._stop_event = asyncio.Event()
     self._stop_event.set()  # initially not polling
     self._apitask = None
@@ -52,13 +55,14 @@ class Dispatcher:
       raise Exception("Bot pooling is already started")
 
     self._stop_event = asyncio.Event()
+    self._health.mark_polling(True)
     is_first_loop = True
     offset = self._bot.context.state.get("offset", 0)
 
     while not self._stop_event.is_set():
       has_user_interaction = False
       commands_to_exec: list[tuple[BotChat, str, str]] = []
-      callbacks_to_exec: list[tuple[BotChat, str]] = []
+      callbacks_to_exec: list[tuple[BotChat, str, int]] = []
 
       try:
         updates = await self._tg_api.get_updates(
@@ -66,6 +70,17 @@ class Dispatcher:
           http_timeout=backoff.get_http_timeout(),
           tg_timeout=backoff.get_tg_timeout(),
         )
+
+        # A response from Telegram (even with an empty result) means the bot is
+        # healthy. An `ok: false` payload means Telegram is reachable but rejected
+        # the request (e.g. invalid token) — that is an unhealthy state.
+        if isinstance(updates, dict) and updates.get("ok"):
+          self._health.mark_ok()
+        else:
+          description = (
+            updates.get("description") if isinstance(updates, dict) else "invalid response"
+          )
+          self._health.mark_error(description or "invalid response")
 
         if updates and "result" in updates:
           for update in updates["result"]:
@@ -109,10 +124,11 @@ class Dispatcher:
                 continue
 
               data = callback_query.get("data", "")
+              message_id = callback_query.get("message", {}).get("message_id")
 
               self._bot.context.logger.info(f"receive callback_query data: {data}")
 
-              callbacks_to_exec.append((chat, data))
+              callbacks_to_exec.append((chat, data, message_id))
 
             offset = update["update_id"] + 1
             self._bot.context.state.save({"offset": offset})
@@ -125,6 +141,7 @@ class Dispatcher:
 
       except TimeoutError:
         self._bot.context.http_logger.warning("getUpdates: timeout")
+        self._health.mark_error("timeout")
         backoff.consider_timeout()
         await self._delay(backoff)
         continue
@@ -135,6 +152,7 @@ class Dispatcher:
 
       except Exception as e:
         self._bot.context.http_logger.error(f"getUpdates error {type(e).__name__}: {e}")
+        self._health.mark_error(f"{type(e).__name__}: {e}")
         backoff.consider_connection_error()
         await self._delay(backoff)
         continue
@@ -155,11 +173,12 @@ class Dispatcher:
       for chat, command_name, command_args in commands_to_exec:
         asyncio.create_task(self._handle_command(chat, command_name, command_args))
 
-      for chat, callback_data in callbacks_to_exec:
-        asyncio.create_task(self._handle_callback(chat, callback_data))
+      for chat, callback_data, message_id in callbacks_to_exec:
+        asyncio.create_task(self._handle_callback(chat, callback_data, message_id))
 
       await self._delay(backoff)
 
+    self._health.mark_polling(False)
     self._bot.context.logger.warning("stop pooling")
 
   async def _handle_command(self, chat: BotChat, name: str, args: str):
@@ -169,8 +188,8 @@ class Dispatcher:
         await command.invoke(self._bot, chat, args)
         return
 
-  async def _handle_callback(self, chat: BotChat, data: str):
+  async def _handle_callback(self, chat: BotChat, data: str, message_id: int = None):
     for callback_handler in self._callbacks:
       if data.startswith(callback_handler.prefix):
-        await callback_handler.invoke(self._bot, chat, data)
+        await callback_handler.invoke(self._bot, chat, data, message_id)
         return

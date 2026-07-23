@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 from plugins.org_vrg_camera.commands.get_commands import CommandGetCommands
+from plugins.org_vrg_camera.commands.stream import CommandStream
 from plugins.org_vrg_camera.commands.list_photos import CommandListPhotos
 from plugins.org_vrg_camera.commands.list_videos import CommandListVideos
 from plugins.org_vrg_camera.commands.photo import CommandPhoto
@@ -16,18 +17,25 @@ from plugins.org_vrg_camera.methods.check_video_ready import MethodCheckVideoRea
 from plugins.org_vrg_camera.methods.convert_video import MethodConvertVideo
 from plugins.org_vrg_camera.methods.get_camera_modes import MethodGetCameraModes
 from plugins.org_vrg_camera.methods.get_info import MethodGetInfo
+from plugins.org_vrg_camera.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_camera.methods.get_last_media import MethodGetLastMedia
+from plugins.org_vrg_camera.methods.get_storage_stats import MethodGetStorageStats
+from plugins.org_vrg_camera.methods.set_files_limit import MethodSetFilesLimit
 from plugins.org_vrg_camera.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_camera.methods.list_media import MethodListMedia
 from plugins.org_vrg_camera.methods.photo import MethodPhoto
 from plugins.org_vrg_camera.methods.remove_from_fave import MethodRemoveFromFave
+from plugins.org_vrg_camera.methods.set_stream_settings import MethodSetStreamSettings
 from plugins.org_vrg_camera.methods.set_video_settings import MethodSetVideoSettings
+from plugins.org_vrg_camera.methods.stream_start import MethodStreamStart
+from plugins.org_vrg_camera.methods.stream_status import MethodStreamStatus
+from plugins.org_vrg_camera.methods.stream_stop import MethodStreamStop
 from plugins.org_vrg_camera.methods.video import MethodVideo
 from plugins.org_vrg_camera.methods.video_pause import MethodVideoPause
 from plugins.org_vrg_camera.methods.video_start import MethodVideoStart
 from plugins.org_vrg_camera.methods.video_stop import MethodVideoStop
 from plugins.org_vrg_camera.plugin import CameraPlugin
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ConnectionListenerFactory, PluginConnectionListener, ServiceRunner
 
 
@@ -55,6 +63,7 @@ async def build_plugin(
   name = plugin_manifest.get("name")
 
   plugin = CameraPlugin(id, name, runner)
+  plugin.is_dev = args.env == "dev"
   plugin.init_logger(args.log_level)
   plugin.init_socket(
     client_id=name,
@@ -77,10 +86,10 @@ async def build_plugin(
 
   plugin.init_api_client()
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "camera": CommandGetCommands(plugin),
     "list_photos": CommandListPhotos(plugin),
     "list_videos": CommandListVideos(plugin),
@@ -92,12 +101,14 @@ async def build_plugin(
     "send_photo_link": CommandSendPhotoLink(plugin),
     "send_video": CommandSendVideo(plugin),
     "send_video_link": CommandSendVideoLink(plugin),
+    "stream": CommandStream(plugin),
   }
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       "get_info": MethodGetInfo(plugin),
+      "get_status_text": MethodGetStatusText(plugin),
       # "get_commands": MethodGetCommands(plugin),
       "video_start": MethodVideoStart(plugin),
       "video_stop": MethodVideoStop(plugin),
@@ -111,6 +122,12 @@ async def build_plugin(
       "check_video_ready": MethodCheckVideoReady(plugin),
       "get_camera_modes": MethodGetCameraModes(plugin),
       "set_video_settings": MethodSetVideoSettings(plugin),
+      "set_stream_settings": MethodSetStreamSettings(plugin),
+      "get_storage_stats": MethodGetStorageStats(plugin),
+      "set_files_limit": MethodSetFilesLimit(plugin),
+      "stream_start": MethodStreamStart(plugin),
+      "stream_stop": MethodStreamStop(plugin),
+      "stream_status": MethodStreamStatus(plugin),
       "add_to_fave": MethodAddToFave(plugin),
       "remove_from_fave": MethodRemoveFromFave(plugin),
     }

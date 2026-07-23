@@ -1,4 +1,5 @@
 import asyncio
+import re
 import ssl
 import subprocess
 import time
@@ -11,22 +12,15 @@ import plugins.org_vrg_http.handlers.auth_handlers as auth_handlers
 import plugins.org_vrg_http.handlers.dashboard_handlers as dashboard_handlers
 import plugins.org_vrg_http.handlers.i18n_handlers as i18n_handlers
 import plugins.org_vrg_http.handlers.media_handlers as media_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_bot.bot_handlers as bot_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.camera_handlers as camera_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.media_feed_handlers as media_feed_handlers
+import plugins.org_vrg_http.handlers.plugins.org_vrg_camera.hls_handlers as hls_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_core.journal_handlers as journal_handlers
 import plugins.org_vrg_http.handlers.plugins.org_vrg_core.system_handlers as system_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_gps.gps_handlers as gps_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_net.modem_handlers as modem_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_net.nm_connection_handlers as nm_connection_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_net.wireguard_handlers as wireguard_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_power.power_handlers as power_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_sms.sms_handlers as sms_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_stat.stat_handlers as stat_handlers
-import plugins.org_vrg_http.handlers.plugins.org_vrg_stat.storage_handlers as storage_handlers
 import plugins.org_vrg_http.handlers.static_handlers as static_handlers
 import plugins.org_vrg_http.handlers.user_handlers as user_handlers
+from plugins.org_vrg_http.bundle import build_bundle
+from plugins.org_vrg_http.handlers.generic_api_handler import make_api_handler
 from plugins.org_vrg_http.jwt_handler import JwtHandler
+from plugins.org_vrg_http.manifest_reader import read_plugin_http_configs
 from plugins.org_vrg_http.middleware import create_auth_middleware
 from sdk.helper import stream_subprocess
 from sdk.service import Plugin
@@ -37,6 +31,7 @@ class HttpPlugin(Plugin):
   _runner: web.AppRunner = None
   _jwt_handler: JwtHandler = None
   _user_manager: UserManager = None
+  _http_manifests: list = None
 
   async def start(self):
     await super().start()
@@ -49,6 +44,22 @@ class HttpPlugin(Plugin):
     self._user_manager = UserManager(users_file_path)
 
     self.logger.info("Authorization components initialized")
+
+    # Read every enabled plugin's `http` manifest block once and keep it in
+    # memory. Plugins disabled in the merged manifest contribute no menu / api.
+    self._http_manifests = read_plugin_http_configs(
+      self.runner.videoreg.merged_manifest()["plugins"]
+    )
+    self.logger.info(
+      f"Loaded http manifests from {len(self._http_manifests)} plugin(s)"
+    )
+
+    # The http service only runs the http plugin, so i18n has loaded only its own
+    # translations. Load every plugin's translations so moved tokens (e.g. bot.*)
+    # are served by /api/i18n.
+    plugins_dir = self.runner.videoreg.app_path("plugins")
+    for plugin_dir in sorted(plugins_dir.glob("*/")):
+      self.runner.i18n.load_plugin(plugin_dir)
 
     asyncio.create_task(self._start_server())
 
@@ -71,6 +82,7 @@ class HttpPlugin(Plugin):
     app["api_client"] = self.api_client
     app["i18n"] = self.runner.i18n
     app["static_version"] = self._get_static_version()
+    app["http_manifests"] = self._http_manifests
 
     # Main page and SPA routes (all serve index.html)
     app.router.add_get("/", static_handlers.handle_index)
@@ -84,6 +96,7 @@ class HttpPlugin(Plugin):
       "trips",
       "media-feed",
       "media-fave",
+      "live-broadcast",
     ]:
       app.router.add_get(f"/{_spa_page}", static_handlers.handle_index)
     app.router.add_get("/settings/{sub:.*}", static_handlers.handle_index)
@@ -106,6 +119,7 @@ class HttpPlugin(Plugin):
 
     app.router.add_get("/api/i18n", i18n_handlers.handle_get_i18n)
     app.router.add_get("/api/dashboard/status", dashboard_handlers.handle_get_dashboard_status)
+    app.router.add_get("/api/statusbar/status", dashboard_handlers.handle_get_statusbar_status)
 
     # Users API endpoints
     app.router.add_get("/api/users", user_handlers.handle_get_users)
@@ -121,73 +135,14 @@ class HttpPlugin(Plugin):
     app.router.add_get("/fave_photo/{name}", media_handlers.handle_fave_photo)
     app.router.add_get("/gps/{name}", media_handlers.handle_gps_track)
 
-    # Net API endpoints
-    app.router.add_get(
-      "/api/net/wireguard_status", wireguard_handlers.handle_net_get_wireguard_status
-    )
-    app.router.add_get(
-      "/api/net/wireguard_config", wireguard_handlers.handle_net_get_wireguard_config
-    )
-    app.router.add_post(
-      "/api/net/wireguard_config", wireguard_handlers.handle_net_set_wireguard_config
-    )
-    app.router.add_post(
-      "/api/net/generate_wireguard_key", wireguard_handlers.handle_net_generate_wireguard_key
-    )
-    app.router.add_get("/api/net/modem_info", modem_handlers.handle_net_get_modem_info)
-    app.router.add_get(
-      "/api/net/connection_config", nm_connection_handlers.handle_net_get_connection_config
-    )
-    app.router.add_post(
-      "/api/net/connection_config", nm_connection_handlers.handle_net_post_connection_config
-    )
-    app.router.add_post(
-      "/api/net/connection_enable", nm_connection_handlers.handle_net_post_connection_enable
-    )
-    app.router.add_post("/api/net/wifi_block", nm_connection_handlers.handle_net_set_wifi_block)
+    # HLS live stream
+    app.router.add_get("/hls/{filename}", hls_handlers.handle_get_hls)
 
-    # Bot API endpoints
-    app.router.add_get("/api/bot/config", bot_handlers.handle_bot_get_config)
-    app.router.add_post("/api/bot/config", bot_handlers.handle_bot_config)
+    # Manifest-driven plugin API endpoints (authorized zone)
+    self._register_manifest_api_routes(app)
 
-    # Camera API endpoints
-    app.router.add_get("/api/camera/info", camera_handlers.handle_get_camera_info)
-    app.router.add_get("/api/camera/modes", camera_handlers.handle_get_camera_modes)
-    app.router.add_post("/api/camera/settings", camera_handlers.handle_post_camera_settings)
-    app.router.add_post("/api/camera/photo", camera_handlers.handle_post_camera_photo)
-    app.router.add_post("/api/camera/video_start", camera_handlers.handle_post_camera_video_start)
-    app.router.add_post("/api/camera/video_pause", camera_handlers.handle_post_camera_video_pause)
-    app.router.add_post("/api/camera/short_video", camera_handlers.handle_post_camera_short_video)
-    app.router.add_get("/api/camera/list_media", media_feed_handlers.handle_get_camera_list)
-    app.router.add_get(
-      "/api/camera/convert_check", media_feed_handlers.handle_get_camera_convert_check
-    )
-    app.router.add_post("/api/camera/convert", media_feed_handlers.handle_post_camera_convert)
-    app.router.add_get("/api/camera/fave_list", media_feed_handlers.handle_get_camera_fave_list)
-    app.router.add_post("/api/camera/fave", media_feed_handlers.handle_post_camera_fave)
-    app.router.add_delete("/api/camera/fave", media_feed_handlers.handle_delete_camera_fave)
-
-    # Power API endpoints
-    app.router.add_get("/api/power/status", power_handlers.handle_get_power_status)
-    app.router.add_get("/api/power/wakeup", power_handlers.handle_get_power_wakeup)
-    app.router.add_post("/api/power/wakeup", power_handlers.handle_set_power_wakeup)
-    app.router.add_post("/api/power/keep_alive", power_handlers.handle_post_power_keep_alive)
-    app.router.add_post("/api/power/reboot", power_handlers.handle_post_power_reboot)
-    app.router.add_post("/api/power/shutdown", power_handlers.handle_post_power_shutdown)
-
-    # Stat API endpoints
-    app.router.add_get("/api/stat/temp", stat_handlers.handle_get_stat_temp)
-    app.router.add_get("/api/stat/pisugar", stat_handlers.handle_get_stat_pisugar)
-    app.router.add_get("/api/stat/traffic", stat_handlers.handle_get_stat_traffic)
-    app.router.add_get("/api/stat/storage_info", storage_handlers.handle_get_stat_storage_info)
-
-    # SMS API endpoints
-    app.router.add_get("/api/sms", sms_handlers.handle_get_sms)
-    app.router.add_delete("/api/sms/{filename}", sms_handlers.handle_delete_sms)
-
-    # GPS API endpoints
-    app.router.add_get("/api/gps/tracks", gps_handlers.handle_get_gps_tracks)
-    app.router.add_delete("/api/gps/tracks/{filename}", gps_handlers.handle_delete_gps_track)
+    # Bundle (re)build endpoint
+    app.router.add_post("/api/http/bundle/rebuild", self._handle_bundle_rebuild)
 
     access_log = self.logger if self.logger.level == DEBUG else None
 
@@ -203,16 +158,73 @@ class HttpPlugin(Plugin):
     https_site = web.TCPSite(runner, host="0.0.0.0", port=const.HTTPS_PORT, ssl_context=ssl_ctx)
     await https_site.start()
 
+  def _register_manifest_api_routes(self, app: web.Application):
+    """Register one generic handler per `http.api` entry of every plugin.
+
+    During the http-decoupling transition a plugin's `http.api` may still overlap
+    with hardcoded routes (and the matching api-methods may not be migrated yet).
+    To keep the server bootable, a manifest route is skipped when its
+    (method, path) is already registered — hardcoded routes win until they are
+    removed, at which point the generic route takes over automatically.
+    """
+    method_map = {
+      "get": app.router.add_get,
+      "post": app.router.add_post,
+      "put": app.router.add_put,
+      "patch": app.router.add_patch,
+      "delete": app.router.add_delete,
+    }
+
+    existing = {(r.method, r.resource.canonical) for r in app.router.routes()}
+
+    for config in self._http_manifests:
+      for entry in config["http"].get("api") or []:
+        url = entry.get("url")
+        method = (entry.get("method") or "get").lower()
+        api_method = entry.get("plugin")
+        timeout = entry.get("timeout")
+
+        register = method_map.get(method)
+        if register is None or not url or not api_method:
+          self.logger.warning(f"Skipping invalid http.api entry: {entry}")
+          continue
+
+        path = f"/api/{url}"
+        key = (method.upper(), path)
+        if key in existing:
+          self.logger.info(f"Skipping {method.upper()} {path} (already registered)")
+          continue
+
+        register(path, make_api_handler(api_method, timeout))
+        existing.add(key)
+        self.logger.info(f"Registered {method.upper()} {path} -> {api_method}")
+
+  async def _handle_bundle_rebuild(self, request: web.Request):
+    plugins_dir = self.runner.videoreg.app_path("plugins")
+    out_path = self.runner.videoreg.app_path(
+      "plugins/org_vrg_http/static/js/bundle.js"
+    )
+    merged_plugins = self.runner.videoreg.merged_manifest()["plugins"]
+    count = build_bundle(plugins_dir, out_path, merged_plugins)
+    return web.json_response({"status": "ok", "components": count})
+
   async def _get_local_ips(self) -> list[str]:
-    ips = ["10.0.0.1"]
+    ips = list(const.CERT_SAN_STATIC_IPS)
     try:
       proc = await asyncio.create_subprocess_exec(
-        "hostname", "-I",
+        "ip", "-o", "-4", "addr", "show",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
       )
       stdout, _ = await proc.communicate()
-      ips += [ip for ip in stdout.decode().split() if ip]
+      for line in stdout.decode().splitlines():
+        # Format: "3: wlan0    inet 192.168.1.5/24 brd 192.168.1.255 scope global wlan0"
+        parts = line.split()
+        if len(parts) < 4 or parts[2] != "inet":
+          continue
+        interface, ip = parts[1], parts[3].split("/")[0]
+        if interface in const.CERT_SAN_INTERFACES and ip not in ips:
+          ips.append(ip)
     except Exception as e:
       self.logger.warning(f"Could not determine local IPs: {e}")
     return ips
@@ -225,8 +237,8 @@ class HttpPlugin(Plugin):
         stderr=asyncio.subprocess.DEVNULL,
       )
       stdout, _ = await proc.communicate()
-      cert_text = stdout.decode()
-      return all(f"IP Address:{ip}" in cert_text for ip in ips)
+      cert_ips = set(re.findall(r"IP Address:([0-9.]+)", stdout.decode()))
+      return set(ips).issubset(cert_ips)
     except Exception as e:
       self.logger.warning(f"Could not inspect certificate SANs: {e}")
       return False

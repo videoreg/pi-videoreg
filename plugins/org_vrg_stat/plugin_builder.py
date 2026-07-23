@@ -3,12 +3,14 @@ from argparse import Namespace
 from plugins.org_vrg_stat.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_stat.commands.get_temp import CommandGetTemp
 from plugins.org_vrg_stat.dirs import Dirs
+from plugins.org_vrg_stat.methods.get_current_temp import MethodGetCurrentTemp
+from plugins.org_vrg_stat.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_stat.methods.get_pisugar_history import MethodGetPisugarHistory
 from plugins.org_vrg_stat.methods.get_temp_history import MethodGetTempHistory
 from plugins.org_vrg_stat.methods.get_traffic_hourly_history import MethodGetTrafficHourlyHistory
 from plugins.org_vrg_stat.methods.storage_info import MethodStorageInfo
 from plugins.org_vrg_stat.plugin import StatPlugin
-from sdk.interface import Interface, InterfaceCommand, InterfaceCommandMethod
+from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
 
@@ -30,23 +32,25 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   else:
     from plugins.org_vrg_stat.prod.tracker import TrackerImpl
 
-    tracker = TrackerImpl(plugin.logger, runner.pisugar, dirs)
+    tracker = TrackerImpl(plugin.logger, runner.power_supply, dirs)
 
   plugin.init_tracker(tracker)
 
-  interfaces = Interface.parse_interfaces(
-    runner.videoreg.manifest.interfaces, plugin.logger, plugin.api_client
+  gateways = Gateway.parse_gateways(
+    runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
-  commands: dict[str, InterfaceCommand] = {
+  commands: dict[str, GatewayCommand] = {
     "stat": CommandGetCommands(),
     "temp": CommandGetTemp(),
   }
 
   plugin.init_api_servier(
     methods={
-      "command": InterfaceCommandMethod(interfaces, commands),
+      "command": GatewayCommandMethod(gateways, commands),
       # "get_commands": MethodGetCommands(),
       "storage_info": MethodStorageInfo(),
+      "get_current_temp": MethodGetCurrentTemp(),
+      "get_status_text": MethodGetStatusText(),
       "get_temp_history": MethodGetTempHistory(dirs),
       "get_pisugar_history": MethodGetPisugarHistory(dirs),
       "get_traffic_hourly_history": MethodGetTrafficHourlyHistory(dirs),

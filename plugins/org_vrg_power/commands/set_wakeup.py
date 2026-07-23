@@ -1,19 +1,20 @@
 import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.plugin import PowerPlugin
-from sdk.interface import Interface, InterfaceCommand
-from sdk.pisugar import PiSugar
+from sdk.gateway import Gateway, GatewayCommand
+from sdk.power import PowerSupply
+from sdk.power.pisugar import PiSugar
 
 
-class CommandSetWakeup(InterfaceCommand):
+class CommandSetWakeup(GatewayCommand):
   _plugin: PowerPlugin
-  _pisugar: PiSugar
+  _power_supply: PowerSupply
 
-  def __init__(self, plugin: PowerPlugin, pisugar: PiSugar):
+  def __init__(self, plugin: PowerPlugin, power_supply: PowerSupply):
     super().__init__()
     self._plugin = plugin
-    self._pisugar = pisugar
+    self._power_supply = power_supply
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     verified_value = None
 
     if args == "1m":
@@ -30,11 +31,12 @@ class CommandSetWakeup(InterfaceCommand):
       verified_value = "on-power-restore"
     elif args == "disabled":
       verified_value = None
-      await self._pisugar.set_alarm_wakeup_enabled(False)
+      if isinstance(self._power_supply, PiSugar):
+        await self._power_supply.set_alarm_wakeup_enabled(False)
     else:
       self._plugin.logger.warning(f"Command CommandSetWakeup wrong argument {args}")
       return
 
     self._plugin.state.save({const.STATE_KEY_WAKEUP: verified_value})
 
-    await interface.send_text(payload=payload, text=f"Did set to {verified_value}")
+    await gateway.send_text(payload=payload, text=f"Did set to {verified_value}")

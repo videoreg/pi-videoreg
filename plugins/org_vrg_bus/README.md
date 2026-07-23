@@ -110,8 +110,7 @@ Message parsing or processing error.
 | `stat` | `vrg-core` |
 | `camera` | `vrg-camera` |
 | `osd` | `vrg-camera` (for OSD data from GPS) |
-| `gps` | `vrg-modem` |
-| `sms` | `vrg-modem` |
+| `modem` | `vrg-modem` |
 | `bot` | `vrg-bot` |
 | `http` | `vrg-http` |
 

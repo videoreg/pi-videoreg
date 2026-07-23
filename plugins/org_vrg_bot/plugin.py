@@ -5,7 +5,7 @@ import plugins.org_vrg_bot.backoff as backoff
 import plugins.org_vrg_bot.const as const
 from plugins.org_vrg_bot.dispatcher import Dispatcher
 from plugins.org_vrg_bot.keep_alive import KeepAlive
-from plugins.org_vrg_bot.main import Bot, BotChat
+from plugins.org_vrg_bot.main import Bot, BotChat, BotHealth
 from plugins.org_vrg_bot.telegram_api import TelegramApi
 from sdk.service import Plugin
 
@@ -18,6 +18,7 @@ class BotPlugin(Plugin):
   bot: Bot = None
   chats_loader: Callable[[], list[BotChat]] = None
   keep_alive: KeepAlive
+  health: BotHealth
   _last_chargin_state = None
   _pooling_task: asyncio.Task = None
   _sync_task: asyncio.Task = None
@@ -26,6 +27,7 @@ class BotPlugin(Plugin):
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
     self.keep_alive = KeepAlive()
+    self.health = BotHealth()
 
   async def start(self):
     await super().start()

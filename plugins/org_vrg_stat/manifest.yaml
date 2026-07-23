@@ -1,0 +1,57 @@
+http:
+  menu:
+    - url: stat
+      title: $stat.stat.title
+      icon: chart
+      component: StatComponent
+
+  menu_settings:
+    - url: storage
+      title: $stat.settings.storage
+      icon: storage
+      component: StorageSettingsComponent
+
+  dashboard:
+    - component: DashboardSystemTile
+      method: stat.get_current_temp
+      order: 50
+
+  components:
+    - StatIcons.js
+    - StatComponent.js
+    - StorageSettingsComponent.js
+    - DashboardSystemTile.js
+
+  api:
+    # Date selection + file parsing moved into stat.get_temp_history.
+    - url: stat/temp
+      method: get
+      plugin: stat.get_temp_history
+
+    # Date selection + file parsing moved into stat.get_pisugar_history.
+    - url: stat/pisugar
+      method: get
+      plugin: stat.get_pisugar_history
+
+    # Date selection + file parsing moved into stat.get_traffic_hourly_history.
+    - url: stat/traffic
+      method: get
+      plugin: stat.get_traffic_hourly_history
+
+    - url: stat/storage_info
+      method: get
+      plugin: stat.storage_info
+
+commands:
+  - name: stat
+    title: Get stat commands
+    hidden: true
+  - name: temp
+    title: Get CPU temperature
+
+bot:
+  status_method: stat.get_status_text
+  more_buttons:
+    - text: Stat
+      callback_data: command__stat__stat
+      weigh: 10

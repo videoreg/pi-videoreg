@@ -3,17 +3,17 @@ from pathlib import Path
 import plugins.org_vrg_http.functions as functions
 from plugins.org_vrg_camera.convert import convert_h264_to_mp4
 from plugins.org_vrg_camera.plugin import CameraPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandSendVideoLink(InterfaceCommand):
+class CommandSendVideoLink(GatewayCommand):
   _plugin: CameraPlugin
 
   def __init__(self, plugin: CameraPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     file_name = str(args)
 
     if not file_name:
@@ -35,25 +35,25 @@ class CommandSendVideoLink(InterfaceCommand):
 
     if mp4_file_path.exists():
       self._plugin.logger.debug(f"mp4 exists will send: {mp4_file_path}")
-      await self._send_message_to_bot(interface, payload, file_name)
+      await self._send_message_to_bot(gateway, payload, file_name)
     else:
       self._plugin.logger.debug(f"mp4 not exists will convert: {mp4_file_path}")
-      await self._convert_and_send(interface, payload, file_name, h264_file_path, mp4_file_path)
+      await self._convert_and_send(gateway, payload, file_name, h264_file_path, mp4_file_path)
 
     # return {"status": "ok", "bot_message": f"Converting {mp4_file_name}..."}
 
   async def _convert_and_send(
-    self, interface: Interface, payload, file_name: str, h264_file_path: Path, mp4_file_path: Path
+    self, gateway: Gateway, payload, file_name: str, h264_file_path: Path, mp4_file_path: Path
   ):
     await self._plugin.suspend_video()
     await convert_h264_to_mp4(self._plugin, h264_file_path, mp4_file_path)
     await self._plugin.continue_video()
 
-    await self._send_message_to_bot(interface, payload, file_name)
+    await self._send_message_to_bot(gateway, payload, file_name)
 
-  async def _send_message_to_bot(self, interface: Interface, payload, file_name: str):
+  async def _send_message_to_bot(self, gateway: Gateway, payload, file_name: str):
     link = await functions.get_link(dir="video", file_name=file_name)
-    await interface.send_text(payload, link)
+    await gateway.send_text(payload, link)
 
     # try:
     #   link = await functions.get_link(dir="video", file_name=file_name)

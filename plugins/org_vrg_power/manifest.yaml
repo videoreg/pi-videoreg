@@ -1,0 +1,78 @@
+http:
+  menu_settings:
+    - url: power
+      title: Power
+      icon: battery
+      component: PowerSettingsComponent
+
+  dashboard:
+    - component: DashboardPowerTile
+      method: power.get_status
+      order: 90
+
+  components:
+    - PowerSettingsComponent.js
+    - DashboardPowerTile.js
+
+  api:
+    - url: power/status
+      method: get
+      plugin: power.get_status
+
+    - url: power/wakeup
+      method: get
+      plugin: power.get_wakeup_config
+
+    - url: power/wakeup
+      method: post
+      plugin: power.set_wakeup
+
+    - url: power/charging-protection
+      method: get
+      plugin: power.get_charging_protection
+
+    - url: power/charging-protection
+      method: post
+      plugin: power.set_charging_protection
+
+    # Component sends {"minutes": n}
+    - url: power/keep_alive
+      method: post
+      plugin: power.keep_alive
+
+    # Component sends {"reason": "manual"}
+    - url: power/reboot
+      method: post
+      plugin: power.reboot
+
+    # Component sends the bare string "manual"
+    - url: power/shutdown
+      method: post
+      plugin: power.shutdown
+
+    - url: power/capabilities
+      method: get
+      plugin: power.get_capabilities
+
+commands:
+  - name: keep
+    title: Keep alive for N min.
+    args: 5
+  - name: power
+    title: Power commands
+    hidden: true # reachable from the /more menu
+  - name: reboot
+    title: Reboot
+    hidden: true # reachable from the /power menu
+  - name: shutdown
+    title: Shutdown
+
+bot:
+  status_method: power.get_status_text
+  more_buttons:
+    - text: Power
+      callback_data: command__power__power
+      weigh: 30
+
+power:
+  ask_before_shutdown: true # power calls its own power.is_ready_to_die before shutting down

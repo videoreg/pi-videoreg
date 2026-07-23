@@ -1,15 +1,15 @@
 from plugins.org_vrg_camera.plugin import CameraPlugin
-from sdk.interface import Interface, InterfaceCommand
+from sdk.gateway import Gateway, GatewayCommand
 
 
-class CommandGetCommands(InterfaceCommand):
+class CommandGetCommands(GatewayCommand):
   _plugin: CameraPlugin
 
   def __init__(self, plugin: CameraPlugin):
     super().__init__()
     self._plugin = plugin
 
-  async def exec(self, interface: Interface, payload, args):
+  async def exec(self, gateway: Gateway, payload, args):
     camera_state = self._plugin.video_state.value
     if camera_state == "record":
       emoji = "🟢 "
@@ -20,9 +20,12 @@ class CommandGetCommands(InterfaceCommand):
     else:
       emoji = ""
 
-    await interface.send_text(
+    thermal_status = self._plugin.thermal_status
+    thermal_label = self._plugin.runner.i18n.t(f"camera.thermal_status_{thermal_status}")
+
+    await gateway.send_text(
       payload=payload,
-      text=f"Camera state: {emoji}{camera_state}",
+      text=f"Camera state: {emoji}{camera_state}\n\nThermal status: {thermal_label}",
       keyboard=[
         [
           {"text": "Start", "callback_data": "command__camera__start"},
@@ -32,5 +35,6 @@ class CommandGetCommands(InterfaceCommand):
         [{"text": "Take photo (night mode)", "callback_data": "command__camera__photo__night"}],
         [{"text": "List videos", "callback_data": "command__camera__list_videos"}],
         [{"text": "List photos", "callback_data": "command__camera__list_photos"}],
+        [{"text": "Start stream", "callback_data": "command__camera__stream"}],
       ],
     )

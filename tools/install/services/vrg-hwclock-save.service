@@ -1,0 +1,13 @@
+[Unit]
+Description=Save system time to hardware RTC after NTP sync
+After=time-sync.target
+Wants=time-sync.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 10
+ExecStart=/home/vrg/videoreg/task/service/vrg-hwclock-save.sh
+
+[Install]
+WantedBy=sysinit.target

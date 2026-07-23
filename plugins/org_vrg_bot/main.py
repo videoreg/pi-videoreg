@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from logging import Logger
 
+from sdk.bot_health import BotHealth  # noqa: F401 — re-exported for local imports
 from sdk.state import State
 
 
@@ -65,5 +66,5 @@ class Callback:
   def __init__(self, prefix: str):
     self.prefix = prefix
 
-  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str):
+  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str, message_id: int = None):
     pass

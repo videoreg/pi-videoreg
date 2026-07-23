@@ -1,4 +1,6 @@
 class WireguardMonitorImpl:
+  skip_on_wifi = True
+
   def get_active_connections(self):
     return []
 

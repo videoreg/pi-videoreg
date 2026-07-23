@@ -10,7 +10,7 @@ from asyncio import AbstractEventLoop
 from sdk.socket.api import ApiClient, ApiResponse, create_api_client
 from sdk.socket.client import Connection, DefaultConnectionListener
 from sdk.socket.requests import RequestsController
-from sdk.videoreg import Videoreg
+from sdk.videoreg import Videoreg, load_manifest
 
 
 class MyConnectionListener(DefaultConnectionListener):
@@ -60,11 +60,20 @@ class CliRunner:
     parser.add_argument(
       "--skill", dest="skill", type=str, help="Skill", choices=["api"], required=True
     )
+    parser.add_argument(
+      "--env",
+      dest="env",
+      type=str,
+      help="Environment: dev, prod, test, etc. If passed, the corresponding manifest file will be loaded (eg. 'videoreg.manifest.dev.yaml'). Exception: for 'prod' manifest will be 'videoreg.manifest.yaml'",
+      default="prod",
+      required=False,
+    )
     parser.add_argument("params", nargs="+", help="Arguments")
 
     self.args = parser.parse_args()
 
-    self.videoreg = Videoreg(home=self.args.project_home)
+    manifest = load_manifest(self.args.project_home, self.args.env)
+    self.videoreg = Videoreg(home=self.args.project_home, manifest=manifest, env=self.args.env)
 
     await self.init_socket("cli")
 

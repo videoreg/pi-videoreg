@@ -12,7 +12,9 @@ class MethodSetConnectionEnabled(ApiMethod):
     self._enabled = enabled
 
   async def exec(self, args):
-    connection = str(args)
+    # Accept either a bare connection name or {"type": <name>} (the http generic
+    # handler passes the JSON body as a dict).
+    connection = args.get("type") if isinstance(args, dict) else (str(args) if args else "")
 
     if not connection:
       return {"status": "error", "error": "Connection name not provided"}

@@ -7,19 +7,18 @@ from asyncio import AbstractEventLoop
 from logging.handlers import RotatingFileHandler
 from threading import Event
 
-import yaml
-
 import sdk.log as log
 from sdk.i18n import I18n
 from sdk.journal import JournalClient
 from sdk.media_manager import MediaManager
-from sdk.pisugar import PiSugar
+from sdk.power import PowerSupply, detect_power_supply
 from sdk.socket.api import ApiClient, ApiMethod, ApiServer, create_api_client, create_api_server
 from sdk.socket.client import ConnectionListener, DefaultConnectionListener, EasyConnection
 from sdk.socket.mux_connection import MuxConnection
 from sdk.socket.requests import RequestsController
 from sdk.state import State
-from sdk.videoreg import Manifest, Videoreg
+from sdk.systemd import sd_notify_ready
+from sdk.videoreg import Videoreg, load_manifest
 
 
 class PluginConnectionListener(DefaultConnectionListener):
@@ -141,7 +140,7 @@ class ServiceRunner:
 
   loop: AbstractEventLoop = None
   videoreg: Videoreg
-  pisugar: PiSugar
+  power_supply: PowerSupply
   media_manager: MediaManager
   i18n: I18n
   stop_event: asyncio.Event
@@ -217,37 +216,33 @@ class ServiceRunner:
 
     args, unknown = parser.parse_known_args()
 
-    if args.env == "prod":
-      manifest_file_name = "videoreg.manifest.yaml"
-    else:
-      manifest_file_name = f"videoreg.manifest.{args.env}.yaml"
+    manifest = load_manifest(args.project_home, args.env)
 
-    manifest_file_path = args.project_home / manifest_file_name
-
-    with open(manifest_file_path) as f:
-      manifest_dict = yaml.safe_load(f)
-
-    manifest = Manifest(**manifest_dict)
-
-    self.videoreg = Videoreg(home=args.project_home, manifest=manifest)
+    self.videoreg = Videoreg(home=args.project_home, manifest=manifest, env=args.env)
     self.log_level = args.log_level
     self._service_name = args.service
 
     self.init_logger(args.log_level, systemd_service_name=args.service)
 
-    self.pisugar = PiSugar(self.videoreg, self.logger)
+    self.power_supply = await detect_power_supply(self.videoreg, self.logger)
     self.media_manager = MediaManager(self.videoreg)
 
     sdk_path = args.project_home / "sdk"
     self.i18n = I18n(locale=manifest.locale)
     self.i18n.load_global(sdk_path)
 
-    if args.service not in manifest.services:
+    service_entry = next((s for s in manifest.services if s.get("name") == args.service), None)
+    if service_entry is None:
       raise ValueError(f"Missing systemd service in manifest: {args.service}")
 
-    plugins = [
-      vrg_plugin for vrg_plugin in manifest.plugins if vrg_plugin.get("service") == args.service
-    ]
+    plugin_ids = service_entry.get("plugins", []) or []
+    plugins_by_id = {p.get("id"): p for p in manifest.plugins}
+    plugins = []
+    for plugin_id in plugin_ids:
+      plugin_manifest = plugins_by_id.get(plugin_id)
+      if plugin_manifest is None:
+        raise ValueError(f"Plugin '{plugin_id}' referenced in service '{args.service}' is not defined in manifest.plugins")
+      plugins.append(plugin_manifest)
 
     for plugin_manifest in plugins:
       id = plugin_manifest.get("id")
@@ -270,6 +265,10 @@ class ServiceRunner:
 
     for plugin in self.runnung_plugins:
       await plugin.start()
+
+    # All plugins started: signal readiness to systemd (no-op unless Type=notify)
+    if sd_notify_ready():
+      self.logger.info("systemd READY sent")
 
     try:
       await self.stop_event.wait()

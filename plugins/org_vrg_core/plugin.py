@@ -1,12 +1,13 @@
 import asyncio
 
 from sdk.journal import JournalRecord, JournalServer
+from sdk.power import ChargingStatus
 from sdk.service import Plugin
 
 
 class CorePlugin(Plugin):
   journal_server: JournalServer = None
-  _last_charging_status: int = None
+  _last_charging_status = None
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
@@ -26,11 +27,11 @@ class CorePlugin(Plugin):
   async def _check_charging_loop(self):
     while self.runner.is_running():
       try:
-        is_charging = await self.runner.pisugar.get_charging_status_slow_but_safe()
-        if is_charging != self._last_charging_status and is_charging != 0:
-          event_type = "charging_on" if is_charging != -1 else "charging_off"
+        charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
+        if charging_status != self._last_charging_status and charging_status != ChargingStatus.UNKNOWN:
+          event_type = "charging_on" if charging_status == ChargingStatus.CHARGING else "charging_off"
           self.journal_server.write("org_vrg_power", JournalRecord(type=event_type, data=None))
-        self._last_charging_status = is_charging
+        self._last_charging_status = charging_status
       except Exception as e:
         self.logger.debug(f"charging status check error: {e}")
       await asyncio.sleep(5)

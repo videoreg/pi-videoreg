@@ -1,7 +1,14 @@
 from logging import Logger
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.net_controls import NetControls
 from sdk.socket.api import ApiMethod
+
+# API-level connection type -> NetworkManager profile name.
+CONNECTION_NAMES = {
+  "ap": const.NM_CONNECTION_AP,
+  "wifi": const.NM_CONNECTION_WIFI,
+}
 
 
 class MethodConnectionUpdate(ApiMethod):
@@ -20,8 +27,10 @@ class MethodConnectionUpdate(ApiMethod):
 
     connection_type = args.get("type")
 
-    if connection_type not in ["ap", "wifi", "modem"]:
+    if connection_type not in CONNECTION_NAMES:
       return {"status": "error", "error": 'Invalid connection type. Must be "ap" or "wifi"'}
+
+    connection = CONNECTION_NAMES[connection_type]
 
     try:
       # Update connection parameters
@@ -29,25 +38,21 @@ class MethodConnectionUpdate(ApiMethod):
         ssid = args["ssid"].strip()
         if ssid:
           await self._net_controls.set_connection_property(
-            connection_type, "802-11-wireless.ssid", ssid
+            connection, "802-11-wireless.ssid", ssid
           )
 
       if "password" in args:
         password = args["password"].strip()
         if password:
           await self._net_controls.set_connection_property(
-            connection_type, "802-11-wireless-security.psk", password
+            connection, "802-11-wireless-security.psk", password
           )
 
       if "autoconnect" in args:
         autoconnect = "yes" if args["autoconnect"] else "no"
         await self._net_controls.set_connection_property(
-          connection_type, "connection.autoconnect", autoconnect
+          connection, "connection.autoconnect", autoconnect
         )
-
-      if "apn" in args:
-        apn = args["apn"].strip()
-        await self._net_controls.set_connection_property("modem", "gsm.apn", apn)
 
       self._logger.info(f"{connection_type} configuration updated successfully")
 

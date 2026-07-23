@@ -62,7 +62,7 @@ class NetControlsImpl(NetControls):
       connection_name: Connection name in NetworkManager
       properties_map: Dictionary mapping nmcli properties to response keys.
                     Format: {'nmcli_property': 'response_key'}
-                    Example: {'802-11-wireless.ssid': 'ssid', 'gsm.apn': 'apn'}
+                    Example: {'802-11-wireless.ssid': 'ssid'}
 
     Returns:
       dict: Connection information with keys:
@@ -82,7 +82,6 @@ class NetControlsImpl(NetControls):
     try:
       # Check whether the connection exists
       process = await asyncio.create_subprocess_exec(
-        "sudo",
         "nmcli",
         "connection",
         "show",

@@ -212,6 +212,7 @@ For a read-only field (e.g. keys):
 <div v-if="error" class="alert alert-error">{{ error }}</div>
 <div v-if="success" class="alert alert-success">{{ success }}</div>
 <div v-if="info" class="alert alert-info">{{ info }}</div>
+<div v-if="warning" class="alert alert-warning">{{ warning }}</div>
 ```
 
 Typically declared in `data()` as empty strings and shown via `v-if`:
@@ -379,6 +380,35 @@ For displaying IP addresses, keys, and commands.
 | Class | Description |
 |---|---|
 | `.code-inline` | `background: --color-bg-tertiary`, `padding: 2px 6px`, `border-radius: --radius-sm` |
+
+---
+
+## Onboarding
+
+First-run steps (forced password change, clock setup) shown full-page before the
+app loads. All steps share one top-aligned wrapper with a fixed content width so
+they line up identically; the forms themselves use ordinary `.info-block` cards.
+The same components render as normal settings sub-pages when their `forced` /
+`onboarding` flag is off (using `.page-header` instead).
+
+```html
+<div class="onboarding-page">
+  <div class="onboarding-header">
+    <h1>Videoreg</h1>
+    <p>Short step instruction</p>
+  </div>
+  <div class="info-block">
+    <!-- form -->
+  </div>
+</div>
+```
+
+| Class | Description |
+|---|---|
+| `.onboarding-page` | `max-width: 560px`, centered horizontally, top-aligned, `padding: --spacing-xl --spacing-lg` |
+| `.onboarding-header` | Centered header block, `margin-bottom: --spacing-lg` |
+| `.onboarding-header h1` | Product title, `1.875rem`, bold |
+| `.onboarding-header p` | `--color-text-secondary`, `0.9375rem` step instruction |
 
 ---
 

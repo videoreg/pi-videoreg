@@ -1,0 +1,37 @@
+# botvk is a gateway plugin (VK community bot). It exposes no user-facing
+# commands of its own. Credentials are stored in plugin state (vk_bot_token,
+# vk_group_id) and per-user binding in plugin_fields.org_vrg_botvk.vk_user_id;
+# both are editable from the web UI (Settings -> VK Bot).
+
+http:
+  menu_settings:
+    - url: vk
+      title: $botvk.vk.menu
+      icon: vk
+      component: VkBotSettingsComponent
+
+  dashboard:
+    - component: DashboardBotvkTile
+      method: botvk.get_status
+      order: 120
+
+  components:
+    - BotvkIcons.js
+    - VkBotSettingsComponent.js
+    - DashboardBotvkTile.js
+
+  api:
+    - url: botvk/config
+      method: get
+      plugin: botvk.get_settings
+
+    - url: botvk/config
+      method: post
+      plugin: botvk.set_settings
+
+    - url: botvk/status
+      method: get
+      plugin: botvk.get_status
+
+power:
+  ask_before_shutdown: true # power calls botvk.is_ready_to_die before shutting down

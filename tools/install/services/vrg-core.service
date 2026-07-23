@@ -7,7 +7,10 @@ PartOf=vrg-boot.target
 User=$VIDEOREG_USER
 Group=$VIDEOREG_GROUP
 ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-core.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
-Type=simple
+Type=notify
+# The wrapper script launches python as a child, so READY=1 comes from a
+# non-main PID; allow any process in the cgroup to notify.
+NotifyAccess=all
 Restart=always
 TimeoutStopSec=4
 

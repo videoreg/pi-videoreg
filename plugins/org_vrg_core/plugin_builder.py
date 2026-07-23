@@ -1,11 +1,17 @@
 from argparse import Namespace
 
+from plugins.org_vrg_core.methods.get_datetime import MethodGetDatetime
 from plugins.org_vrg_core.methods.get_journal_files import MethodGetJournalFiles
+from plugins.org_vrg_core.methods.get_trip_state import MethodGetTripState
 from plugins.org_vrg_core.methods.get_system import MethodGetSystem
+from plugins.org_vrg_core.methods.mark_datetime_configured import MethodMarkDatetimeConfigured
 from plugins.org_vrg_core.methods.service_action import MethodServiceAction
+from plugins.org_vrg_core.methods.set_datetime import MethodSetDatetime
+from plugins.org_vrg_core.methods.set_ntp import MethodSetNtp
 from plugins.org_vrg_core.methods.set_plugin_enabled import MethodSetPluginEnabled
 from plugins.org_vrg_core.plugin import CorePlugin
 from sdk.journal import JournalRecord
+from sdk.merged_manifest import ensure_merged_manifest
 from sdk.service import ConnectionListenerFactory, PluginConnectionListener, ServiceRunner
 
 
@@ -31,6 +37,11 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   id = plugin_manifest.get("id")
   name = plugin_manifest.get("name")
 
+  # Generate the merged manifest (central + per-plugin sections) under `.videoreg/`
+  # if it does not exist yet. core is built before every other plugin/service that
+  # reads it (see sdk/merged_manifest.py), so the file is ready by the time they run.
+  ensure_merged_manifest(runner.videoreg)
+
   plugin = CorePlugin(id, name, runner)
   plugin.init_logger(args.log_level)
   plugin.init_socket(
@@ -47,6 +58,11 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "set_plugin_enabled": MethodSetPluginEnabled(plugin),
       "service_action": MethodServiceAction(plugin),
       "get_journal_files": MethodGetJournalFiles(plugin),
+      "get_trip_state": MethodGetTripState(plugin),
+      "get_datetime": MethodGetDatetime(plugin),
+      "set_datetime": MethodSetDatetime(plugin),
+      "mark_datetime_configured": MethodMarkDatetimeConfigured(plugin),
+      "set_ntp": MethodSetNtp(plugin),
     }
   )
 

@@ -1,91 +1,95 @@
-"""Dashboard summary status handler"""
+"""Dashboard status handler.
+
+The dashboard is assembled from blocks declared decoratively in each plugin's
+`manifest.yaml` under `http.dashboard` (see `manifest_reader.collect_dashboard_blocks`).
+The static block *structure* (component + order) is injected into the page as
+`window.__vrgDashboard` by `static_handlers`, so the frontend can render the
+tiles (with loading shimmers) immediately. This handler resolves only the block
+*data* — one videoreg-api call per block that declares a `method` — and returns
+a `{ "<block key>": <data> }` map. The http plugin stays agnostic about which
+plugins exist. Blocks added imperatively at runtime (e.g. captured media) are
+not manifest-declared and never reach this handler.
+"""
 
 import asyncio
 
 from aiohttp import web
 
+from plugins.org_vrg_http.manifest_reader import collect_dashboard_blocks
+
+# Default per-block data-resolution timeout, seconds. At cold first load most
+# block methods spawn a subprocess (rpicam-hello, nmcli, wg/ip) or read hardware
+# (I2C), which legitimately takes a few seconds — camera.get_info alone caps its
+# own rpicam probe at 3s. A tighter budget dropped such merely-slow-but-successful
+# calls, so the tile falsely rendered as off ("disabled"/"no data"). This gates
+# how long the (gathered) endpoint waits on its slowest block, so it stays bounded
+# rather than short. Blocks that can be slower still (the modem reading info over
+# AT under weak signal) declare a larger `timeout` in their manifest.
+DEFAULT_BLOCK_TIMEOUT = 5.0
+
 
 async def handle_get_dashboard_status(request: web.Request):
-  """System summary status for the main page"""
+  """Data for every manifest-declared dashboard block, keyed by block key."""
+  logger = request.app["logger"]
+  api_client = request.app["api_client"]
+  http_manifests = request.app.get("http_manifests")
+
+  # Only blocks that declare a data method are resolved here.
+  data_blocks = [b for b in collect_dashboard_blocks(http_manifests) if b["method"]]
+
+  responses = await asyncio.gather(
+    *(
+      api_client.exec(b["method"], {}, timeout=b.get("timeout") or DEFAULT_BLOCK_TIMEOUT)
+      for b in data_blocks
+    ),
+    return_exceptions=True,
+  )
+
+  data_by_key: dict = {}
+  for block, response in zip(data_blocks, responses):
+    if isinstance(response, Exception):
+      logger.warning(f"Dashboard: {block['method']} error: {response}")
+    elif response.is_ok():
+      data_by_key[block["key"]] = response.get_data()
+
+  return web.json_response(data_by_key)
+
+
+async def handle_get_statusbar_status(request: web.Request):
+  """Minimal status for the global status bar (camera + power only)"""
   logger = request.app["logger"]
   api_client = request.app["api_client"]
 
   (
-    connections_response,
-    modem_response,
-    wg_response,
     camera_response,
     power_response,
     last_media_response,
-    location_response,
   ) = await asyncio.gather(
-    api_client.exec("net.connections", None),
-    api_client.exec("net.modem_info", {}),
-    api_client.exec("net.wg_show", {}),
     api_client.exec("camera.get_info", {}),
     api_client.exec("power.get_status", {}),
     api_client.exec("camera.get_last_media", {}),
-    api_client.exec("gps.get_location", {}),
-    # api_client.exec("stat.storage_info", {}),
     return_exceptions=True,
   )
 
   result = {
-    "connections": None,
-    "modem": None,
-    "wireguard": None,
     "camera": None,
     "power": None,
-    "storage": None,
     "last_media": None,
-    "location": None,
   }
 
-  if isinstance(connections_response, Exception):
-    logger.warning(f"Dashboard: connections error: {connections_response}")
-  elif connections_response.is_ok():
-    result["connections"] = connections_response.get_data()
-
-  if isinstance(modem_response, Exception):
-    logger.warning(f"Dashboard: modem info error: {modem_response}")
-  elif modem_response.is_ok():
-    result["modem"] = modem_response.get_data()
-
-  if isinstance(wg_response, Exception):
-    logger.warning(f"Dashboard: wg_show error: {wg_response}")
-  elif wg_response.is_ok():
-    result["wireguard"] = wg_response.response.body.get("wg_info")
-
   if isinstance(camera_response, Exception):
-    logger.warning(f"Dashboard: camera info error: {camera_response}")
+    logger.warning(f"Statusbar: camera info error: {camera_response}")
   elif camera_response.is_ok():
     result["camera"] = camera_response.get_data()
 
   if isinstance(power_response, Exception):
-    logger.warning(f"Dashboard: power status error: {power_response}")
+    logger.warning(f"Statusbar: power status error: {power_response}")
   elif power_response.is_ok():
     result["power"] = power_response.get_data()
 
   if isinstance(last_media_response, Exception):
-    logger.warning(f"Dashboard: last media error: {last_media_response}")
+    logger.warning(f"Statusbar: last media error: {last_media_response}")
   elif last_media_response.is_ok():
     result["last_media"] = last_media_response.get_data()
-
-  if isinstance(location_response, Exception):
-    logger.warning(f"Dashboard: location error: {location_response}")
-  elif location_response.is_ok():
-    result["location"] = location_response.get_data()
-
-  # if isinstance(storage_response, Exception):
-  #   logger.warning(f"Dashboard: storage info error: {storage_response}")
-  # elif storage_response.is_ok():
-  #   data = storage_response.get_data()
-  #   partitions = data.get("partitions", [])
-  #   data_partition = next(
-  #     (p for p in partitions if p["mountpoint"] == "/mnt/data"),
-  #     None
-  #   )
-  #   if data_partition:
-  #     result["storage"] = {"data_use_percent": data_partition["use_percent"]}
 
   return web.json_response(result)

@@ -1,4 +1,11 @@
-// Компонент главной страницы с дашбордом
+// Home page — a thin host for manifest-driven dashboard blocks.
+//
+// Blocks are declared decoratively in each plugin's manifest.yaml under
+// `http.dashboard` (component + optional api method + order). The backend
+// (/api/dashboard/status) resolves the data and returns the ordered blocks;
+// this host merely renders each block's Vue component. Interactive tiles can
+// inject the provided `dashboard` API to push ephemeral blocks at runtime
+// (e.g. a freshly captured photo).
 const HomeComponent = {
   emits: ['navigate'],
 
@@ -6,187 +13,89 @@ const HomeComponent = {
     <div>
       <div class="page-header">
         <h1 class="page-title">{{ $t('http.home.title') }}</h1>
+        <div style="display: flex; gap: var(--spacing-sm);">
+          <div v-if="loading" class="spinner spinner-sm"></div>
+          <button v-else class="btn btn-icon" @click="load" :title="$t('http.common.refresh')">↻</button>
+        </div>
       </div>
 
-      <div v-if="loading" class="alert alert-info">{{ $t('http.home.loading') }}</div>
       <div v-if="error" class="alert alert-error">{{ error }}</div>
 
       <div class="dashboard-tiles">
-
-        <!-- WiFi / AP -->
-        <div class="dashboard-tile" @click="$emit('navigate', 'wifi')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">📶</span>
-            <span class="dashboard-tile-title">WiFi / AP</span>
-          </div>
-          <template v-if="connections">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">WiFi</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: connections.wifi && connections.wifi.enabled }"></span>
-                <span>{{ connections.wifi && connections.wifi.enabled ? (connections.wifi.ssid || $t('http.home.wifi_connected')) : $t('http.home.off') }}</span>
-              </span>
-            </div>
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">AP</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: connections.ap && connections.ap.enabled }"></span>
-                <span>{{ connections.ap && connections.ap.enabled ? (connections.ap.ssid || $t('http.home.ap_active')) : $t('http.home.off') }}</span>
-              </span>
-            </div>
-            <div v-if="connections.wifi && connections.wifi.ip" class="dashboard-tile-meta">IP: {{ connections.wifi.ip }}</div>
-            <div v-else-if="connections.ap && connections.ap.ip" class="dashboard-tile-meta">IP: {{ connections.ap.ip }}</div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
-        <!-- Модем -->
-        <div class="dashboard-tile" @click="$emit('navigate', 'modem')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">📡</span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.modem') }}</span>
-          </div>
-          <template v-if="connections && connections.modem">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.connection_label') }}</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: connections.modem.enabled }"></span>
-                <span>{{ connections.modem.enabled ? $t('http.home.modem_active') : $t('http.home.off') }}</span>
-              </span>
-            </div>
-            <div v-if="modem" class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.signal_label') }}</span>
-              <span :style="{ color: signalColor }">{{ modem.signal_quality }}%</span>
-            </div>
-            <div v-if="modem && modem.operator" class="dashboard-tile-meta">{{ modem.operator }} · {{ modem.access_tech }}</div>
-            <div v-else-if="connections.modem.ip" class="dashboard-tile-meta">IP: {{ connections.modem.ip }}</div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
-        <!-- WireGuard -->
-        <div class="dashboard-tile" @click="$emit('navigate', 'wireguard')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">🔐</span>
-            <span class="dashboard-tile-title">WireGuard</span>
-          </div>
-          <template v-if="wireguard !== null">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.interface_label') }}</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: wireguard.active }"></span>
-                <span>{{ wireguard.active ? $t('http.home.wg_active') : $t('http.home.wg_inactive') }}</span>
-              </span>
-            </div>
-            <div v-if="wireguard.ip_address" class="dashboard-tile-meta">IP: {{ wireguard.ip_address }}</div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
-        <!-- Камера -->
-        <div class="dashboard-tile" @click="$emit('navigate', 'camera')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">📷</span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.camera') }}</span>
-          </div>
-          <template v-if="camera !== null">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.record_label') }}</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: camera.video_state === 'record' }"></span>
-                <span>{{ cameraStateLabel }}</span>
-              </span>
-            </div>
-            <div v-if="camera.model" class="dashboard-tile-meta">{{ camera.model }}</div>
-            <div v-else class="dashboard-tile-meta">{{ $t('http.home.camera_no_found') }}</div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
-        <!-- Питание -->
-        <div class="dashboard-tile" @click="$emit('navigate', 'power')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">🔋</span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.power') }}</span>
-          </div>
-          <template v-if="power !== null">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.charge_label') }}</span>
-              <strong>{{ power.battery_percent }}%</strong>
-            </div>
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.power_label') }}</span>
-              <span class="status-indicator" style="padding: 3px 8px;">
-                <span class="status-dot" :class="{ active: power.charging }"></span>
-                <span>{{ power.charging ? $t('http.home.charging') : $t('http.home.on_battery') }}</span>
-              </span>
-            </div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
-        <!-- Хранилище -->
-        <div v-if="false" class="dashboard-tile" @click="$emit('navigate', 'storage')">
-          <div class="dashboard-tile-header">
-            <span class="dashboard-tile-icon">💾</span>
-            <span class="dashboard-tile-title">{{ $t('http.settings.storage') }}</span>
-          </div>
-          <template v-if="storage !== null">
-            <div class="dashboard-tile-row">
-              <span class="dashboard-tile-label">{{ $t('http.home.data_label') }}</span>
-              <strong :style="{ color: storageColor }">{{ storage.data_use_percent }}%</strong>
-            </div>
-            <div class="dashboard-tile-meta">{{ $t('http.home.storage_fill') }}</div>
-          </template>
-          <div v-else-if="!loading" class="dashboard-tile-meta">{{ $t('http.home.no_data') }}</div>
-        </div>
-
+        <component
+          v-for="block in orderedBlocks"
+          :is="blockComponent(block.component)"
+          :key="block.key"
+          :data="block.data"
+          :loading="loading"
+          @navigate="$emit('navigate', $event)"
+        ></component>
       </div>
     </div>
   `,
 
   data() {
     return {
-      connections: null,
-      modem: null,
-      wireguard: null,
-      camera: null,
-      power: null,
-      storage: null,
+      // Static block structure ({ key, component, order }) from the manifests,
+      // injected by the server so tiles render (as shimmers) before data loads.
+      manifestBlocks: (window.__vrgDashboard || []).slice(),
+      // Per-block data map { key: data } fetched from /api/dashboard/status.
+      dataByKey: {},
+      runtimeBlocks: [],
       error: '',
-      loading: false
+      loading: true,
+      _seq: 0,
+    };
+  },
+
+  provide() {
+    return {
+      // Runtime block API for interactive tiles. `addBlock` expects a block
+      // descriptor `{ key, component, order, data }`, where `component` may be a
+      // registered name string or a component object (passed directly since it
+      // is bundled). Object components are marked raw so Vue does not make the
+      // definition reactive. Newer blocks sort before older ones sharing the
+      // same order (see orderedBlocks).
+      dashboard: {
+        addBlock: (block) => {
+          const component = block.component && typeof block.component === 'object'
+            ? Vue.markRaw(block.component)
+            : block.component;
+          this.runtimeBlocks.unshift({ ...block, component, _seq: this._seq++ });
+        },
+        removeBlock: (key) => {
+          this.runtimeBlocks = this.runtimeBlocks.filter((b) => b.key !== key);
+        },
+      },
     };
   },
 
   computed: {
-    signalColor() {
-      if (!this.modem) return 'var(--color-text-secondary)';
-      const q = this.modem.signal_quality;
-      if (q >= 70) return 'var(--color-success)';
-      if (q >= 40) return 'var(--color-warning)';
-      return 'var(--color-error)';
+    orderedBlocks() {
+      const manifest = this.manifestBlocks.map((b) => ({
+        key: b.key,
+        component: b.component,
+        order: b.order,
+        data: this.dataByKey[b.key] ?? null,
+        _seq: -1,
+      }));
+      return manifest
+        .concat(this.runtimeBlocks)
+        .slice()
+        .sort((a, b) => (a.order - b.order) || (b._seq - a._seq));
     },
-
-    cameraStateLabel() {
-      if (!this.camera) return '—';
-      const labels = {
-        record: this.$t('http.camera.state_record'),
-        pause: this.$t('http.camera.state_pause'),
-        stop: this.$t('http.camera.state_stop')
-      };
-      return labels[this.camera.video_state] || '—';
-    },
-
-    storageColor() {
-      if (!this.storage) return 'var(--color-text-secondary)';
-      const p = this.storage.data_use_percent;
-      if (p >= 90) return 'var(--color-error)';
-      if (p >= 70) return 'var(--color-warning)';
-      return 'var(--color-success)';
-    }
   },
 
   methods: {
+    // Resolve a block's component. Manifest blocks carry a component *name*
+    // string; it must be resolved to the definition here because the tiles are
+    // registered on the root app instance, not on this child. Runtime blocks
+    // already carry the component object, which is returned as-is.
+    blockComponent(component) {
+      if (component && typeof component === 'object') return component;
+      return (window.__vrgComponents && window.__vrgComponents[component]) || component;
+    },
+
     async load() {
       this.loading = true;
       this.error = '';
@@ -194,24 +103,19 @@ const HomeComponent = {
         const response = await fetch('/api/dashboard/status', { credentials: 'same-origin' });
         const data = await response.json();
         if (!response.ok) {
-          this.error = data.error || this.$t('http.home.error_load');
+          this.error = (data && data.error) || this.$t('http.home.error_load');
         } else {
-          this.connections = data.connections;
-          this.modem = data.modem;
-          this.wireguard = data.wireguard;
-          this.camera = data.camera;
-          this.power = data.power || null;
-          this.storage = data.storage || null;
+          this.dataByKey = data && typeof data === 'object' ? data : {};
         }
       } catch (err) {
         this.error = this.$t('http.common.error_connection');
       } finally {
         this.loading = false;
       }
-    }
+    },
   },
 
   async mounted() {
     await this.load();
-  }
+  },
 };

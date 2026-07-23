@@ -7,6 +7,7 @@
 - OSD overlay with metadata (time, GPS, temperature, battery) on top of the video
 - Automatic management: stops recording on overheating (>65°C) or when running on battery, starts when power is available and temperature is normal
 - File rotation: keeps at most 400 H.264 and 400 JPEG files, deletes the oldest
+- Live streaming to Mediamtx HLS
 
 ## Key files
 

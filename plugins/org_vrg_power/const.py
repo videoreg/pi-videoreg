@@ -1,3 +1,4 @@
 STATE_KEY_WAKEUP = "wakeup"
 STATE_KEY_LAST_SHUTDOWN_CONFIG = "last_shutdown_config"
+STATE_KEY_CHARGING_PROTECTION = "charging_protection"
 SHUTDOWN_DELAY_SEC = 5

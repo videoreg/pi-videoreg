@@ -1,0 +1,11 @@
+[Unit]
+Description=Set system clock from hardware RTC at boot
+After=sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/vrg/videoreg/task/service/vrg-hwclock-load.sh
+
+[Install]
+WantedBy=sysinit.target

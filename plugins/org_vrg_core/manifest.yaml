@@ -1,0 +1,51 @@
+http:
+  menu:
+    - url: trips
+      title: $http.trips
+      icon: gps_tracks
+      component: TripsComponent
+
+  menu_settings:
+    - url: system
+      title: $http.settings.system
+      icon: core
+      component: SystemSettingsComponent
+    - url: datetime
+      title: $core.datetime.title
+      icon: schedule
+      component: DateTimeSettingsComponent
+
+  dashboard:
+    - component: DashboardTripTile
+      method: core.get_trip_state
+      order: 30
+
+  components:
+    - TripsComponent.js
+    - SystemSettingsComponent.js
+    - CoreIcons.js
+    - DateTimeSettingsComponent.js
+    - DashboardTripTile.js
+
+  api:
+    # Было: "/api/core/journal" -> handle_get_journal
+    # TODO: логику чтения из файла переместить из хендлера в core.get_journal_files
+    - url: core/journal
+      method: get
+      plugin: core.get_journal_files
+
+    - url: core/datetime
+      method: get
+      plugin: core.get_datetime
+
+    - url: core/datetime
+      method: post
+      plugin: core.set_datetime
+
+    - url: core/datetime-configured
+      method: post
+      plugin: core.mark_datetime_configured
+
+    - url: core/ntp
+      method: post
+      plugin: core.set_ntp

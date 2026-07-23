@@ -2,7 +2,8 @@
 const LineChart = {
   props: {
     data: { type: Array, required: true }, // [{ts, dt, value}]
-    unit: { type: String, default: '' }
+    unit: { type: String, default: '' },
+    thresholds: { type: Array, default: () => [] } // [{value, color}]
   },
 
   computed: {
@@ -24,8 +25,11 @@ const LineChart = {
       const tsRange = maxTs - minTs || 1;
 
       const values = d.map(p => p.value);
-      const minVal = Math.min(...values);
-      const maxVal = Math.max(...values);
+      // Include threshold values so the lines always fit within the Y range
+      const thresholdValues = this.thresholds.map(t => t.value);
+      const allValues = values.concat(thresholdValues);
+      const minVal = Math.min(...allValues);
+      const maxVal = Math.max(...allValues);
       const valPad = (maxVal - minVal) * 0.1 || 1;
       const yMin = minVal - valPad;
       const yMax = maxVal + valPad;
@@ -57,7 +61,14 @@ const LineChart = {
         return { y: toY(val), label: val.toFixed(1) };
       });
 
-      return { W, H, padL, padR, padT, padB, w, h, path, xTicks, yTicks };
+      // Пороговые линии
+      const thresholdLines = this.thresholds.map(t => ({
+        y: toY(t.value),
+        value: t.value,
+        color: t.color || 'var(--color-error, #ef4444)'
+      }));
+
+      return { W, H, padL, padR, padT, padB, w, h, path, xTicks, yTicks, thresholdLines };
     }
   },
 
@@ -133,6 +144,20 @@ const LineChart = {
           stroke-linejoin="round"
           stroke-linecap="round"
         />
+
+        <!-- Пороговые линии -->
+        <g v-for="line in chart.thresholdLines" :key="'threshold-' + line.value">
+          <line
+            :x1="chart.padL" :y1="line.y"
+            :x2="chart.W - chart.padR" :y2="line.y"
+            :stroke="line.color" stroke-width="1.5" opacity="0.5"
+          />
+          <text
+            :x="chart.W - chart.padR - 4" :y="line.y - 4"
+            text-anchor="end" font-size="11" font-weight="600"
+            :fill="line.color" opacity="0.65"
+          >{{ line.value }}{{ unit }}</text>
+        </g>
       </svg>
     </div>
   `

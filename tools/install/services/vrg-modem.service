@@ -1,6 +1,7 @@
 [Unit]
 Description=Videoreg Modem
-After=vrg-boot.target ModemManager.service
+After=vrg-boot.target ModemManager.service vrg-core.service
+Requires=vrg-core.service
 PartOf=vrg-boot.target
 
 [Service]

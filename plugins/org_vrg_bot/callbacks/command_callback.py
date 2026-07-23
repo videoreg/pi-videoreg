@@ -14,7 +14,7 @@ class CommandCallback(Callback):
     self._api_client = api_client
     self._tg_api = tg_api
 
-  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str):
+  async def invoke(self, bot: Bot, chat: BotChat, callback_data: str, message_id: int = None):
     try:
       parts = callback_data.split("__")
       if len(parts) < 3:
@@ -29,7 +29,7 @@ class CommandCallback(Callback):
         "command": command_name,
         "payload": {"chat_id": chat.chat_id},
         "args": command_args,
-        "interface": "bot",
+        "gateway": "bot",
       }
 
       response: ApiResponse = await self._api_client.exec(f"{plugin_name}.command", args=api_args)

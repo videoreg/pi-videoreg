@@ -1,6 +1,7 @@
 import asyncio
 
 from plugins.org_vrg_core.plugin import CorePlugin
+from sdk.merged_manifest import read_merged
 from sdk.socket.api import ApiMethod
 
 
@@ -28,20 +29,28 @@ class MethodGetSystem(ApiMethod):
 
   async def exec(self, args):
     try:
-      manifest = self._plugin.runner.videoreg.manifest
-      services = manifest.services
-      plugins = manifest.plugins
+      # Read fresh from the merged manifest so a just-toggled `enabled` (written by
+      # set_plugin_enabled) is reflected immediately in the same process.
+      merged = read_merged(self._plugin.runner.videoreg)
+      services = merged.get("services", [])
+      plugins_by_id = {p["id"]: p for p in merged.get("plugins", [])}
 
-      statuses = await asyncio.gather(*[self._get_service_status(s) for s in services])
+      service_names = [s.get("name") for s in services]
+      statuses = await asyncio.gather(*[self._get_service_status(s) for s in service_names])
 
       result_services = []
-      for service_name, status in zip(services, statuses):
-        service_plugins = [
-          {"id": p["id"], "name": p.get("name", ""), "enabled": p.get("enabled", True)}
-          for p in plugins
-          if p.get("service") == service_name
-        ]
-        result_services.append({"name": service_name, "status": status, "plugins": service_plugins})
+      for service_entry, status in zip(services, statuses):
+        service_plugins = []
+        for plugin_id in service_entry.get("plugins", []) or []:
+          p = plugins_by_id.get(plugin_id)
+          if p is None:
+            continue
+          service_plugins.append(
+            {"id": p["id"], "name": p.get("name", ""), "enabled": p.get("enabled", True)}
+          )
+        result_services.append(
+          {"name": service_entry.get("name"), "status": status, "plugins": service_plugins}
+        )
 
       return {"status": "ok", "data": {"services": result_services}}
     except Exception as e:

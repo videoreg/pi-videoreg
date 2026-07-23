@@ -1,0 +1,38 @@
+gps.tracks: "GPS Tracks"
+gps.track_count:
+  one: "{{n}} track"
+  other: "{{n}} tracks"
+gps.delete_track: "Delete track"
+gps.no_tracks: "No tracks"
+
+gps.gps_tracks.title: "GPS Tracks"
+gps.gps_tracks.no_tracks: "No tracks"
+gps.gps_tracks.download: "Download"
+gps.gps_tracks.confirm_delete: "Delete track {{time}}?"
+gps.gps_tracks.error_load: "Load error"
+gps.gps_tracks.error_delete: "Delete error"
+
+sms.inbox: "SMS Inbox"
+sms.delete: "Delete SMS"
+sms.no_messages: "No messages"
+sms.message_count:
+  one: "{{n}} message"
+  other: "{{n}} messages"
+
+# Web UI tokens (migrated from org_vrg_http)
+sms.sms.title: "SMS settings"
+sms.sms.tab_users: "Users"
+sms.sms.phone_format_title: "Phone number format"
+sms.sms.phone_format_hint1: "Enter the phone number in international format"
+sms.sms.phone_format_hint2: "Leave the field empty to unlink the number from the user"
+sms.sms.phone_format_example: "Example"
+sms.sms.users_saved: "Users saved successfully"
+sms.sms.error_load_users: "Failed to load users"
+sms.sms.error_save_user: "Failed to save user {{username}}"
+sms.sms_inbox.title: "SMS"
+sms.sms_inbox.no_messages: "No messages"
+sms.sms_inbox.confirm_delete: "Delete SMS from {{number}}?"
+sms.sms_inbox.error_load: "Load error"
+sms.sms_inbox.error_delete: "Delete error"
+sms.sms_inbox.more: "More.."
+sms.settings.sms: "SMS"

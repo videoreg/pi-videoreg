@@ -177,9 +177,9 @@ The app has a built-in i18n engine (`js/i18n.js`). Translations load before Vue 
 {{ $t('bot.command_error', { status: 404 }) }}          // with variable substitution
 ```
 
-**Adding new strings:** add the key to `plugins/<plugin_id>/translations/ru.yaml` and `en.yaml`. The backend developer handles the YAML files. Format: flat key, namespaced with dot (`camera.*`, `http.*`, `common.*`).
-
 **Do not hardcode user-facing strings** — always use `$t`/`$p` for new text in components.
+
+For key format, plural rules, translation file layout and how to add new keys → `videoreg-i18n`.
 
 ---
 
@@ -245,7 +245,7 @@ The frontend layer does **not** implement HTTP handlers — that lives in the ba
 
 1. Describe the endpoint requirement: method (`GET`/`POST`), path, request/response schema
 2. Use a stub or `console.warn` in the component until the endpoint exists
-3. Implement the backend side using the `videoreg-backend` skill (or delegate to `videoreg-agent-backender` for non-trivial work)
+3. Implement the backend side using the `videoreg-api` and `videoreg-http-backend` skills (or delegate to `videoreg-agent-backender` for non-trivial work)
 
 To find existing methods: read `plugins/<plugin>/plugin_builder.py` — all registered methods are listed there.
 
@@ -257,7 +257,7 @@ To find existing methods: read `plugins/<plugin>/plugin_builder.py` — all regi
 2. **New settings sub-page** → create JS file with back button, include in `index.html`, add to `app.js` (`currentComponent` + `settingsPages`), add card to `SettingsComponent.js`
 3. **Editing existing code** → find and read the file before modifying
 4. **New icon needed** → ask user for SVG `<path d="...">`, add to `Icon.js`
-5. **New API needed** → describe the requirement (method, path, schema), implement via `videoreg-backend` or delegate to the backender agent
+5. **New API needed** → describe the requirement (method, path, schema), implement via `videoreg-api` + `videoreg-http-backend` or delegate to the backender agent
 6. **New style needed** → use the `videoreg-design-system` skill (or delegate to `videoreg-agent-designer`); after the new class exists, use it in the component
 7. **New reusable component created** → add a description of it to `docs/Vue-components.md` (name, purpose, props, usage example)
 8. **No specific task** → explore the current `static/js/` structure and ask what needs to be done

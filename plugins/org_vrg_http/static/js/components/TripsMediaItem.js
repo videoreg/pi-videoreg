@@ -108,7 +108,7 @@ const TripsMediaItem = {
       if (!this.item.date) return '—';
       try {
         const d = new Date(this.item.date);
-        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString(VrgI18n.locale, { hour: '2-digit', minute: '2-digit' });
       } catch (e) {
         return this.item.date;
       }

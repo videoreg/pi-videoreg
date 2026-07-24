@@ -1,0 +1,28 @@
+[Unit]
+Description=Videoreg PiSugar poweroff arming
+# systemd stops units in reverse start order, so ordering this one before
+# basic.target is what makes its ExecStop run after every other service has
+# stopped — while journald, local filesystems and the I2C bus are still up.
+# DefaultDependencies=no is required to get that ordering, which means the
+# shutdown.target dependencies that normally come for free must be spelled out:
+# without Conflicts= the unit would never be stopped and ExecStop would never run.
+DefaultDependencies=no
+After=sysinit.target
+Before=basic.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+# Without this the unit would go inactive immediately after ExecStart and run its
+# ExecStop at boot instead of at shutdown.
+RemainAfterExit=yes
+RuntimeDirectory=vrg
+RuntimeDirectoryPreserve=yes
+User=$VIDEOREG_USER
+Group=$VIDEOREG_GROUP
+ExecStart=/bin/true
+ExecStop=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-poweroff.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+TimeoutStopSec=20
+
+[Install]
+WantedBy=basic.target

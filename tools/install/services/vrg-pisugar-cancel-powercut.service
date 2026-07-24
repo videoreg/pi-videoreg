@@ -1,0 +1,22 @@
+[Unit]
+Description=Videoreg PiSugar power cut cancellation
+# Runs as early as the filesystems allow: a power cut armed by a shutdown that
+# ended up rebooting is still counting down, and cancelling it late is the same
+# as not cancelling it.
+DefaultDependencies=no
+After=sysinit.target
+Before=basic.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+RuntimeDirectory=vrg
+RuntimeDirectoryPreserve=yes
+User=$VIDEOREG_USER
+Group=$VIDEOREG_GROUP
+ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-pisugar-cancel-powercut.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+TimeoutStartSec=30
+
+[Install]
+WantedBy=sysinit.target

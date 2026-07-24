@@ -10,8 +10,15 @@
 # (bit 0 = Sunday … bit 6 = Saturday). Write operations temporarily disable
 # the write-protect register (0x0b) and re-enable it after.
 #
+# Every register access goes through read_register/write_register, which retry
+# transient bus errors and confirm writes by reading them back. A command that
+# could not read what it needed exits non-zero and prints nothing, so callers
+# never mistake a bus failure for a valid value.
+#
 # Usage: pisugar.sh <command> [arguments]
 # Run without arguments or with an unknown command to see available commands.
+
+set -u
 
 # Check if i2c-tools is installed
 if ! command -v i2cset &> /dev/null || ! command -v i2cget &> /dev/null; then
@@ -30,10 +37,16 @@ BIT_NUM=7
 # POWER
 REG_POWER=0x02
 BIT_NUM_WAKEUP_ON_POWER_RESTORE=4
+BIT_NUM_POWER_CUT=5 # 0 = power cut armed, cut happens after REG_SHUTDOWN_DELAY
 BIT_NUM_CHARGING_ENABLED=6
 BIT_NUM_CHARGIN_STATUS=7
 
 REG_SHUTDOWN_DELAY=0x09
+
+# Default delay between arming the power cut and the PiSugar actually cutting
+# power. Chosen to outlast whatever remains of the shutdown once
+# vrg-poweroff.service has run (unmount + halt), with margin.
+POWER_CUT_DELAY_SECONDS=30
 
 # CHARGING PROTECTION
 REG_CHARGING_PROTECTION=0x20
@@ -63,32 +76,200 @@ REG_ALARM_HOUR=0x45
 REG_ALARM_MIN=0x46
 REG_ALARM_SEC=0x47
 
+# I2C ACCESS
+#
+# The PiSugar MCU shares the bus and NACKs while it is busy, so any single
+# i2cget/i2cset can fail at any moment. Two rules follow, and both matter most on
+# the shutdown path:
+#
+# 1. Never derive a value from a failed read. An empty i2cget result is 0 in bash
+#    arithmetic, so `<empty> & 0xDF` is 0x00 — writing that to REG_POWER clears
+#    not only the power-cut bit but also charging-enabled and
+#    wakeup-on-power-restore, leaving the device unable to charge or wake.
+# 2. Confirm every write by reading it back. This also covers a failed unlock:
+#    if 0x0b never took 0x29, the write is silently ignored by the MCU.
+
+I2C_RETRY_COUNT=5
+I2C_RETRY_DELAY=0.05
+
+BUS_LOCK_FILE="/run/lock/vrg-pisugar.lock"
+BUS_LOCK_WAIT_SEC=5
+
+# Serialize register access across processes. vrg-pisugar-watchdog.sh feeds the
+# watchdog every 5 seconds; an unlucky interleaving drops another process's write
+# or re-enables write protection in the middle of its sequence. The lock is held
+# for the lifetime of the process through fd 9. It is skipped rather than fatal
+# when the lock file cannot be created, and nested invocations do not re-lock.
+acquire_bus_lock() {
+    if [ -n "${VRG_PISUGAR_BUS_LOCKED-}" ]; then
+        return 0
+    fi
+
+    if ! exec 9>"$BUS_LOCK_FILE" 2>/dev/null; then
+        return 0
+    fi
+
+    export VRG_PISUGAR_BUS_LOCKED=1
+    flock -w "$BUS_LOCK_WAIT_SEC" 9 2>/dev/null || true
+}
+
+# Read a register, retrying transient bus errors. Prints the value in decimal,
+# exits non-zero when the register could not be read at all.
+read_register() {
+    local reg="$1"
+    local attempt=0
+    local raw=""
+
+    while [ "$attempt" -lt "$I2C_RETRY_COUNT" ]; do
+        raw=$(i2cget -y "$I2C_BUS" "$I2C_ADDR" "$reg" 2>/dev/null)
+
+        if [[ "$raw" =~ ^0[xX][0-9a-fA-F]+$ ]]; then
+            printf "%d" "$raw"
+            return 0
+        fi
+
+        attempt=$((attempt + 1))
+        sleep "$I2C_RETRY_DELAY"
+    done
+
+    return 1
+}
+
+# Write a register with write protection lifted, then confirm it by reading back.
+# The whole unlock/write/lock sequence is the retry unit, because a half-applied
+# sequence is exactly what we are protecting against.
+write_register() {
+    local reg="$1"
+    local target=$(( $2 ))
+    local attempt=0
+    local readback=""
+
+    while [ "$attempt" -lt "$I2C_RETRY_COUNT" ]; do
+        i2cset -y "$I2C_BUS" "$I2C_ADDR" "$REG_WRITE_PROTECT" 0x29 2>/dev/null
+        i2cset -y "$I2C_BUS" "$I2C_ADDR" "$reg" "$(printf '0x%02x' "$target")" 2>/dev/null
+        readback=$(read_register "$reg") || readback=""
+        i2cset -y "$I2C_BUS" "$I2C_ADDR" "$REG_WRITE_PROTECT" 0x00 2>/dev/null
+
+        if [ -n "$readback" ] && [ "$readback" -eq "$target" ]; then
+            return 0
+        fi
+
+        attempt=$((attempt + 1))
+        sleep "$I2C_RETRY_DELAY"
+    done
+
+    return 1
+}
+
+# Set or clear a single bit, preserving the rest of the register.
+write_register_bit() {
+    local reg="$1"
+    local bit="$2"
+    local value="$3"
+    local current
+    local target
+
+    current=$(read_register "$reg") || return 1
+
+    if [ "$value" -eq 1 ]; then
+        target=$(( current | (1 << bit) ))
+    else
+        target=$(( current & ~(1 << bit) ))
+    fi
+
+    write_register "$reg" "$target"
+}
+
+# Print bit $2 of register $1 as true/false.
+read_register_bit_bool() {
+    local reg="$1"
+    local bit="$2"
+    local current
+
+    current=$(read_register "$reg") || return 1
+
+    if [ $(( (current >> bit) & 1 )) -eq 1 ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 shutdown() {
-    # In theory, PiSugar is powered off by /lib/systemd/system-shutdown/shutdown-pisugar.sh,
-    # which runs early after `shutdown now`. In practice it does not always fire,
-    # so we set a longer delay here as a fallback.
-
-    local DELAY_SECONDS=20
-
-    # Disable Write Protection (Write 0x29 to 0x0b)
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
-
-    # Set the desired delay time (Write DELAY_SECONDS to 0x09)
-    local DELAY_HEX=$(printf "0x%x" $DELAY_SECONDS)
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_SHUTDOWN_DELAY $DELAY_HEX
-
-    # Read original value of 0x02 register
-    local ORIGINAL_VAL_HEX=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
-    # Clear Bit 5 of 0x02 to enable delayed shutdown
-    local NEW_VAL_DEC=$(( ORIGINAL_VAL_HEX & 0xDF ))
-    local NEW_VAL_HEX=$(printf "0x%x" $NEW_VAL_DEC)
-
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_POWER $NEW_VAL_HEX
-
-    # Enable Write Protection (Write 0x00 to 0x0b)
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
-
+    # Only asks the OS to go down. The power cut is armed by vrg-poweroff.service
+    # (see task/service/vrg-poweroff.sh), which runs once every other service has
+    # stopped but while the system is still healthy enough to read the bus, retry
+    # and log. Arming here instead would start the countdown before the teardown,
+    # which on a slow shutdown can cut power in the middle of unmounting.
     sudo systemd-run --on-active=1s --timer-property=AccuracySec=1s shutdown now
+}
+
+# Arm the delayed power cut. Prints the byte written to REG_POWER so the caller
+# can hand it to the last-resort shutdown hook, which must not read the bus.
+arm_powercut() {
+    local delay="${1:-$POWER_CUT_DELAY_SECONDS}"
+    local current
+    local target
+
+    current=$(read_register $REG_POWER)
+    if [ $? -ne 0 ]; then
+        echo "Error: cannot read power register, refusing to arm" >&2
+        return 1
+    fi
+
+    # A rejected delay is not fatal: the register keeps its previous value and the
+    # cut still happens, just on a different schedule.
+    if ! write_register $REG_SHUTDOWN_DELAY "$delay"; then
+        echo "Warning: cannot set power cut delay, keeping the previous one" >&2
+    fi
+
+    target=$(( current & ~(1 << BIT_NUM_POWER_CUT) ))
+
+    if ! write_register $REG_POWER "$target"; then
+        echo "Error: cannot arm power cut" >&2
+        return 1
+    fi
+
+    printf "0x%02x\n" "$target"
+    return 0
+}
+
+# Cancel a power cut that was armed but never carried out — the case where a
+# poweroff turned into a reboot. Runs at boot, see
+# task/service/vrg-pisugar-cancel-powercut.sh.
+cancel_powercut() {
+    if ! write_register_bit $REG_POWER $BIT_NUM_POWER_CUT 1; then
+        echo "Error: cannot cancel power cut" >&2
+        return 1
+    fi
+
+    echo "ok"
+    return 0
+}
+
+# The byte that arms the power cut, without writing it. Published at boot so the
+# shutdown hook has a valid value even if nothing else ran during shutdown.
+get_powercut_byte() {
+    local current
+
+    current=$(read_register $REG_POWER) || return 1
+
+    printf "0x%02x\n" $(( current & ~(1 << BIT_NUM_POWER_CUT) ))
+    return 0
+}
+
+# Full decode of REG_POWER, used by the boot-time health check.
+get_power_flags() {
+    local current
+
+    current=$(read_register $REG_POWER) || return 1
+
+    printf "power_reg=0x%02x\n" "$current"
+    echo "charging_status=$(( (current >> BIT_NUM_CHARGIN_STATUS) & 1 ))"
+    echo "charging_enabled=$(( (current >> BIT_NUM_CHARGING_ENABLED) & 1 ))"
+    echo "wakeup_on_power_restore=$(( (current >> BIT_NUM_WAKEUP_ON_POWER_RESTORE) & 1 ))"
+    echo "power_cut_armed=$(( ( (current >> BIT_NUM_POWER_CUT) & 1 ) ^ 1 ))"
+    return 0
 }
 
 bcd_to_dec() {
@@ -103,14 +284,23 @@ dec_to_bcd() {
 }
 
 get_rtc_time() {
-    # local REG_RTC_VALUE_YEAR=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_YEAR)) # all registers except year in BCD format
-    local REG_RTC_VALUE_YEAR=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_YEAR)) # hwclock writes BCD to year also
-    local REG_RTC_VALUE_MONTH=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_MONTH))
-    local REG_RTC_VALUE_DAY=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_DAY))
+    local RAW_YEAR RAW_MONTH RAW_DAY RAW_HOUR RAW_MIN RAW_SEC
 
-    local REG_RTC_VALUE_HOUR=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_HOUR))
-    local REG_RTC_VALUE_MIN=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_MIN))
-    local REG_RTC_VALUE_SEC=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_RTC_SEC))
+    # hwclock writes the year in BCD too, so every register is decoded the same way
+    RAW_YEAR=$(read_register $REG_RTC_YEAR) || return 1
+    RAW_MONTH=$(read_register $REG_RTC_MONTH) || return 1
+    RAW_DAY=$(read_register $REG_RTC_DAY) || return 1
+    RAW_HOUR=$(read_register $REG_RTC_HOUR) || return 1
+    RAW_MIN=$(read_register $REG_RTC_MIN) || return 1
+    RAW_SEC=$(read_register $REG_RTC_SEC) || return 1
+
+    local REG_RTC_VALUE_YEAR=$(bcd_to_dec "$RAW_YEAR")
+    local REG_RTC_VALUE_MONTH=$(bcd_to_dec "$RAW_MONTH")
+    local REG_RTC_VALUE_DAY=$(bcd_to_dec "$RAW_DAY")
+
+    local REG_RTC_VALUE_HOUR=$(bcd_to_dec "$RAW_HOUR")
+    local REG_RTC_VALUE_MIN=$(bcd_to_dec "$RAW_MIN")
+    local REG_RTC_VALUE_SEC=$(bcd_to_dec "$RAW_SEC")
 
     local RTC_RAW_DATETIME="20${REG_RTC_VALUE_YEAR}-${REG_RTC_VALUE_MONTH}-${REG_RTC_VALUE_DAY} ${REG_RTC_VALUE_HOUR}:${REG_RTC_VALUE_MIN}:${REG_RTC_VALUE_SEC}"
 
@@ -120,7 +310,7 @@ get_rtc_time() {
 }
 
 set_rtc_time() {
-    local PARAM_DATETIME=$1
+    local PARAM_DATETIME=${1-}
 
     if [ -z "$PARAM_DATETIME" ]; then
         echo "Usage: $0 <datetime>"
@@ -179,83 +369,65 @@ set_rtc_time() {
 }
 
 get_bat_level() {
-    printf "%d\n" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_BAT_LEVEL)
+    local REG_VALUE
+
+    REG_VALUE=$(read_register $REG_BAT_LEVEL) || return 1
+
+    echo "$REG_VALUE"
     return 0
 }
 
 get_charging_status() {
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
-    local BIT4_VALUE=$((($REG_VALUE >> $BIT_NUM_CHARGIN_STATUS) & 1))
-
-    if [ $BIT4_VALUE -eq 1 ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
-
-    return 0
+    read_register_bit_bool $REG_POWER $BIT_NUM_CHARGIN_STATUS
 }
 
 get_charging_enabled() {
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
-    local BIT4_VALUE=$((($REG_VALUE >> $BIT_NUM_CHARGING_ENABLED) & 1))
-
-    if [ $BIT4_VALUE -eq 1 ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
-
-    return 0
+    read_register_bit_bool $REG_POWER $BIT_NUM_CHARGING_ENABLED
 }
 
-get_temp() {
-    local REG_VALUE=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_TEMP))
-    echo $(( $REG_VALUE - 40 ))
-    return 0
-}
-
-get_alarm_wakeup_enabled() {
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM)
-    local BIT7_VALUE=$((($REG_VALUE >> $BIT_NUM_ALARM_ENABLED) & 1))
-
-    if [ $BIT7_VALUE -eq 1 ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
-
-    return 0
-}
-
-set_alarm_wakeup_enabled() {
-    local TARGET_BIT_VALUE="$1"
+set_charging_enabled() {
+    local TARGET_BIT_VALUE="${1-}"
 
     if [[ $TARGET_BIT_VALUE != "0" && $TARGET_BIT_VALUE != "1" ]]; then
         echo "Error: parameter must be 0 or 1" >&2
         exit 1
     fi
 
-    # Disable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
-
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM)
-
-    if [ $TARGET_BIT_VALUE -eq "1" ]; then
-        local NEW_VALUE=$(($REG_VALUE | 0x80))
-    else
-        local NEW_VALUE=$(($REG_VALUE & 0x7F))
+    if ! write_register_bit $REG_POWER $BIT_NUM_CHARGING_ENABLED "$TARGET_BIT_VALUE"; then
+        echo "Error: cannot set charging enabled" >&2
+        return 1
     fi
 
-    local NEW_VAL_HEX=$(printf "0x%x" $NEW_VALUE)
+    echo "ok"
 
-    echo "NEW_VALUE=${NEW_VALUE} NEW_VAL_HEX=${NEW_VAL_HEX}"
+    return 0
+}
 
-    # Write value
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_ALARM $NEW_VAL_HEX
+get_temp() {
+    local REG_VALUE
 
-    # Enable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
+    REG_VALUE=$(read_register $REG_TEMP) || return 1
+
+    echo $(( REG_VALUE - 40 ))
+    return 0
+}
+
+get_alarm_wakeup_enabled() {
+    read_register_bit_bool $REG_ALARM $BIT_NUM_ALARM_ENABLED
+}
+
+set_alarm_wakeup_enabled() {
+    local TARGET_BIT_VALUE="${1-}"
+
+    if [[ $TARGET_BIT_VALUE != "0" && $TARGET_BIT_VALUE != "1" ]]; then
+        echo "Error: parameter must be 0 or 1" >&2
+        exit 1
+    fi
+
+    if ! write_register_bit $REG_ALARM $BIT_NUM_ALARM_ENABLED "$TARGET_BIT_VALUE"; then
+        echo "Error: cannot set alarm wakeup enabled" >&2
+        return 1
+    fi
 
     echo "ok"
 
@@ -263,8 +435,8 @@ set_alarm_wakeup_enabled() {
 }
 
 get_nearest_weekday_bitmask() {
-    local bitmask="$1"  # 0-127 (binary: 0000000-1111111)
-    local time="$2"     # HH:MM:SS (in UTC)
+    local bitmask="${1-}"  # 0-127 (binary: 0000000-1111111)
+    local time="${2-}"     # HH:MM:SS (in UTC)
 
     # Validate bitmask
     if [ "$bitmask" -lt 0 ] || [ "$bitmask" -gt 127 ]; then
@@ -314,23 +486,23 @@ get_nearest_weekday_bitmask() {
 }
 
 get_alarm_wakeup_time() {
-    local REG_VALUE_WEEKDAY=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_WEEKDAY))
-    # local REG_VALUE_HOUR=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_HOUR))
-    # local REG_VALUE_MIN=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_MIN))
-    # local REG_VALUE_SEC=$(printf "%d" $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_SEC))
+    local REG_VALUE_WEEKDAY RAW_HOUR RAW_MIN RAW_SEC
 
-    local REG_VALUE_HOUR=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_HOUR))
-    local REG_VALUE_MIN=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_MIN))
-    local REG_VALUE_SEC=$(bcd_to_dec $(i2cget -y $I2C_BUS $I2C_ADDR $REG_ALARM_SEC))
+    REG_VALUE_WEEKDAY=$(read_register $REG_ALARM_WEEKDAY) || return 1
+    RAW_HOUR=$(read_register $REG_ALARM_HOUR) || return 1
+    RAW_MIN=$(read_register $REG_ALARM_MIN) || return 1
+    RAW_SEC=$(read_register $REG_ALARM_SEC) || return 1
+
+    local REG_VALUE_HOUR=$(bcd_to_dec "$RAW_HOUR")
+    local REG_VALUE_MIN=$(bcd_to_dec "$RAW_MIN")
+    local REG_VALUE_SEC=$(bcd_to_dec "$RAW_SEC")
 
     get_nearest_weekday_bitmask $REG_VALUE_WEEKDAY "${REG_VALUE_HOUR}:${REG_VALUE_MIN}:${REG_VALUE_SEC}"
-
-    return 0
 }
 
 set_alarm_wakeup_time() {
-    local PARAM_DATETIME=$1
-    local PARAM_WEEK_DAY=$2
+    local PARAM_DATETIME=${1-}
+    local PARAM_WEEK_DAY=${2-}
 
     if [ -z "$PARAM_DATETIME" ] || [ -z "$PARAM_WEEK_DAY" ]; then
         echo "Usage: $0 <datetime> <number>"
@@ -382,44 +554,21 @@ set_alarm_wakeup_time() {
 }
 
 get_wakeup_on_power_restore() {
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
-    local BIT_VALUE=$((($REG_VALUE >> $BIT_NUM_WAKEUP_ON_POWER_RESTORE) & 1))
-
-    if [ $BIT_VALUE -eq 1 ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
-
-    return 0
+    read_register_bit_bool $REG_POWER $BIT_NUM_WAKEUP_ON_POWER_RESTORE
 }
 
 set_wakeup_on_power_restore() {
-    local TARGET_BIT_VALUE="$1"
+    local TARGET_BIT_VALUE="${1-}"
 
     if [[ $TARGET_BIT_VALUE != "0" && $TARGET_BIT_VALUE != "1" ]]; then
         echo "Error: parameter must be 0 or 1" >&2
         exit 1
     fi
 
-    # Disable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
-
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_POWER)
-
-    if [ $TARGET_BIT_VALUE -eq "1" ]; then
-        NEW_VALUE=$(($REG_VALUE | 0x10))
-    else
-        NEW_VALUE=$(($REG_VALUE & 0xEF))
+    if ! write_register_bit $REG_POWER $BIT_NUM_WAKEUP_ON_POWER_RESTORE "$TARGET_BIT_VALUE"; then
+        echo "Error: cannot set wakeup on power restore" >&2
+        return 1
     fi
-
-    local NEW_VAL_HEX=$(printf "0x%x" $NEW_VALUE)
-
-    # Write value
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_POWER $NEW_VAL_HEX
-
-    # Enable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
 
     echo "ok"
 
@@ -427,44 +576,21 @@ set_wakeup_on_power_restore() {
 }
 
 get_charging_protection() {
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_CHARGING_PROTECTION)
-    local BIT_VALUE=$((($REG_VALUE >> $BIT_NUM_CHARGING_PROTECTION) & 1))
-
-    if [ $BIT_VALUE -eq 1 ]; then
-        echo "true"
-    else
-        echo "false"
-    fi
-
-    return 0
+    read_register_bit_bool $REG_CHARGING_PROTECTION $BIT_NUM_CHARGING_PROTECTION
 }
 
 set_charging_protection() {
-    local TARGET_BIT_VALUE="$1"
+    local TARGET_BIT_VALUE="${1-}"
 
     if [[ $TARGET_BIT_VALUE != "0" && $TARGET_BIT_VALUE != "1" ]]; then
         echo "Error: parameter must be 0 or 1" >&2
         exit 1
     fi
 
-    # Disable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x29
-
-    local REG_VALUE=$(i2cget -y $I2C_BUS $I2C_ADDR $REG_CHARGING_PROTECTION)
-
-    if [ $TARGET_BIT_VALUE -eq "1" ]; then
-        NEW_VALUE=$(($REG_VALUE | 0x80))
-    else
-        NEW_VALUE=$(($REG_VALUE & 0x7F))
+    if ! write_register_bit $REG_CHARGING_PROTECTION $BIT_NUM_CHARGING_PROTECTION "$TARGET_BIT_VALUE"; then
+        echo "Error: cannot set charging protection" >&2
+        return 1
     fi
-
-    local NEW_VAL_HEX=$(printf "0x%x" $NEW_VALUE)
-
-    # Write value
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_CHARGING_PROTECTION $NEW_VAL_HEX
-
-    # Enable RW protect
-    i2cset -y $I2C_BUS $I2C_ADDR $REG_WRITE_PROTECT 0x00
 
     echo "ok"
 
@@ -489,12 +615,19 @@ Commands:
     set_alarm_wakeup_time 2020-06-26T16:09:34+08:00 127
     set_alarm_wakeup_enabled 0/1
     set_wakeup_on_power_restore 0/1
+    set_charging_enabled 0/1
     set_charging_protection 0/1
-    shutdown [0-255]
+    shutdown
+    arm_powercut [delay_seconds]
+    cancel_powercut
+    get_powercut_byte
+    get_power_flags
 EOF
 }
 
-case "$1" in
+acquire_bus_lock
+
+case "${1-}" in
     get_bat_level)
         get_bat_level
         ;;
@@ -551,6 +684,11 @@ case "$1" in
         set_wakeup_on_power_restore "$@"
         ;;
 
+    set_charging_enabled)
+        shift
+        set_charging_enabled "$@"
+        ;;
+
     get_charging_protection)
         get_charging_protection
         ;;
@@ -563,6 +701,23 @@ case "$1" in
     shutdown)
         shift
         shutdown
+        ;;
+
+    arm_powercut)
+        shift
+        arm_powercut "$@"
+        ;;
+
+    cancel_powercut)
+        cancel_powercut
+        ;;
+
+    get_powercut_byte)
+        get_powercut_byte
+        ;;
+
+    get_power_flags)
+        get_power_flags
         ;;
 
     "")

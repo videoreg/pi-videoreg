@@ -18,8 +18,12 @@ Type=oneshot
 RemainAfterExit=yes
 RuntimeDirectory=vrg
 RuntimeDirectoryPreserve=yes
-User=$VIDEOREG_USER
-Group=$VIDEOREG_GROUP
+# Runs as root on purpose. ExecStop is ordered right around dbus.service, which
+# has usually already stopped by the time this runs; a non-root `systemctl
+# list-jobs` reaches PID 1 over the D-Bus system bus and fails once dbus is gone,
+# so the poweroff/reboot detection would always come back "unknown". Root talks
+# to PID 1 over /run/systemd/private, which needs no dbus and stays up to the end.
+# The i2c writes and the append-only log work the same as root.
 ExecStart=/bin/true
 ExecStop=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-poweroff.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
 TimeoutStopSec=20

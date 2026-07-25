@@ -1,0 +1,25 @@
+[Unit]
+Description=Videoreg PiSugar power cut cancellation
+# Runs as early as the filesystems allow: a power cut armed by a shutdown that
+# ended up rebooting is still counting down, and cancelling it late is the same
+# as not cancelling it.
+DefaultDependencies=no
+After=sysinit.target
+Before=basic.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+RuntimeDirectory=vrg
+RuntimeDirectoryPreserve=yes
+# Runs as root, matching vrg-poweroff.service and the shutdown hook. The two units
+# share RuntimeDirectory=/run/vrg; systemd stamps that directory with the owning
+# unit's user, so a root vrg-poweroff and a non-root cancel service would fight
+# over it and whichever lost could no longer write there. Root is the right level
+# anyway: this drives the PiSugar power chip over i2c, the same as the hook.
+ExecStart=bash $VIDEOREG_PROJECT_HOME/task/service/vrg-pisugar-cancel-powercut.sh --videoreg-project-home $VIDEOREG_PROJECT_HOME
+TimeoutStartSec=30
+
+[Install]
+WantedBy=sysinit.target

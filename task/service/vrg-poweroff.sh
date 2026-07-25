@@ -61,7 +61,16 @@ STATE_FILE="$RUNTIME_DIR/pisugar-poweroff"
 LOG_DIR="$VIDEOREG_PROJECT_HOME/.videoreg/log/services"
 LOG_FILE="$LOG_DIR/vrg-poweroff.log"
 
-POWER_CUT_DELAY_SECONDS=30
+# Forced as short as it can safely be, overriding the pisugar.sh default. This
+# ExecStop runs only after every other service has already stopped, so the sole
+# thing left before the cut is the systemd teardown (unmount + halt, ~1-2s) —
+# no service work can still be racing it. Keeping the delay minimal shrinks the
+# window in which the OS is already down but power is not yet cut: if external
+# power appears in that window the cut executes with power present, a state the
+# PiSugar wakes from via neither the RTC alarm nor power-restore. The window is
+# fixed in hardware and cannot be closed, only made as small as the teardown
+# allows.
+POWER_CUT_DELAY_SECONDS=4
 
 log() {
     local line

@@ -43,10 +43,13 @@ BIT_NUM_CHARGIN_STATUS=7
 
 REG_SHUTDOWN_DELAY=0x09
 
-# Default delay between arming the power cut and the PiSugar actually cutting
-# power. Chosen to outlast whatever remains of the shutdown once
-# vrg-poweroff.service has run (unmount + halt), with margin.
-POWER_CUT_DELAY_SECONDS=30
+# Conservative default delay between arming the power cut and the PiSugar
+# actually cutting power. Used when arm_powercut is called from userspace while
+# the system may still be running, so it must outlast whatever services still
+# need to finish. The real shutdown path (vrg-poweroff.service) overrides this
+# with a much shorter value, because by the time its ExecStop arms the cut every
+# service has already stopped.
+POWER_CUT_DELAY_SECONDS=15
 
 # CHARGING PROTECTION
 REG_CHARGING_PROTECTION=0x20

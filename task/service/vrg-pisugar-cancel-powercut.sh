@@ -101,12 +101,12 @@ if [ "$wakeup_on_power_restore" == "0" ]; then
 fi
 
 POWER_BYTE=$(bash "$PISUGAR" get_powercut_byte 2>/dev/null)
-if [ $? -eq 0 ] && [ -n "$POWER_BYTE" ]; then
-    mkdir -p "$RUNTIME_DIR" 2>/dev/null
-    echo "$POWER_BYTE" > "$POWER_BYTE_FILE"
+if [ $? -ne 0 ] || [ -z "$POWER_BYTE" ]; then
+    log "cannot read the power cut byte to publish"
+elif mkdir -p "$RUNTIME_DIR" 2>/dev/null && echo "$POWER_BYTE" > "$POWER_BYTE_FILE" 2>/dev/null; then
     log "published power cut byte $POWER_BYTE"
 else
-    log "cannot publish the power cut byte"
+    log "FAILED to write power cut byte to $POWER_BYTE_FILE"
 fi
 
 exit 0

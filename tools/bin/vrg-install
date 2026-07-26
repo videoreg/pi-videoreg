@@ -458,6 +458,44 @@ enable_i2c() {
 }
 
 setup_bluetooth() {
+    # NOTE: this script runs in the image-build chroot, so it can only bake FILES into the
+    # image — it cannot touch the target device's live radio. rfkill state lives in the
+    # running kernel (/sys/class/rfkill belongs to the build host here), so the unblock must
+    # happen at runtime on the device. We install it as a bluetooth.service drop-in whose
+    # ExecStartPre runs at every boot, before bluetoothd powers the controller on. This
+    # heals a stale systemd-rfkill soft-block left over from images/devices that once had
+    # `dtoverlay=disable-bt`. On a clean BT-enabled image there is simply nothing to unblock.
+    bt_dropin_dir="/etc/systemd/system/bluetooth.service.d"
+    print_info "Installing Bluetooth rfkill-unblock drop-in..."
+    mkdir -p "$bt_dropin_dir"
+    cat > "$bt_dropin_dir/vrg-rfkill-unblock.conf" <<'EOF'
+[Service]
+# Clear any rfkill soft-block on the BT radio before bluetoothd starts, so AutoEnable can
+# power the controller on and bleak can scan for the BLE beacon (power plugin).
+ExecStartPre=/bin/sh -c 'for f in /sys/class/rfkill/*; do [ "$(cat "$f/type" 2>/dev/null)" = bluetooth ] && echo 0 > "$f/soft" 2>/dev/null; done; exit 0'
+EOF
+    chmod 644 "$bt_dropin_dir/vrg-rfkill-unblock.conf"
+    print_success "Bluetooth rfkill-unblock drop-in installed"
+
+    # Make BlueZ power the controller on automatically. Without AutoEnable the adapter
+    # comes up DOWN (Powered: no) and bleak reports POWERED_OFF — so the beacon scan and
+    # the boot-grace re-check after an alarm wake-up would silently fail. This edits the
+    # image's main.conf, so it does carry into the device.
+    bt_conf="/etc/bluetooth/main.conf"
+    print_info "Enabling BlueZ AutoEnable..."
+    if [[ -f "$bt_conf" ]]; then
+        if grep -qE '^[[:space:]]*#?[[:space:]]*AutoEnable[[:space:]]*=' "$bt_conf"; then
+            sed -i -E 's/^[[:space:]]*#?[[:space:]]*AutoEnable[[:space:]]*=.*/AutoEnable=true/' "$bt_conf"
+        elif grep -qE '^[[:space:]]*\[Policy\]' "$bt_conf"; then
+            sed -i '/^[[:space:]]*\[Policy\]/a AutoEnable=true' "$bt_conf"
+        else
+            printf '\n[Policy]\nAutoEnable=true\n' >> "$bt_conf"
+        fi
+        print_success "BlueZ AutoEnable=true set"
+    else
+        print_warning "BlueZ config $bt_conf not found; skipping AutoEnable"
+    fi
+
     # Enable the BlueZ daemon so bleak can scan for the BLE beacon (power plugin).
     print_info "Enabling bluetooth service..."
     if systemctl enable --now bluetooth.service > /dev/null 2>&1; then

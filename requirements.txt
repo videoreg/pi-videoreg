@@ -7,3 +7,4 @@ psutil
 PyYAML
 inotify-simple
 pyserial
+bleak

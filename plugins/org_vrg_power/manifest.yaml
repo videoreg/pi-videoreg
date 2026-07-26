@@ -54,6 +54,28 @@ http:
       method: get
       plugin: power.get_capabilities
 
+    # BLE beacon external-power detection
+    - url: power/ble/config
+      method: get
+      plugin: power.get_ble_config
+
+    - url: power/ble/enabled
+      method: post
+      plugin: power.set_ble_enabled
+
+    - url: power/ble/target
+      method: post
+      plugin: power.set_ble_target
+
+    - url: power/ble/clear
+      method: post
+      plugin: power.clear_ble_target
+
+    - url: power/ble/scan
+      method: get
+      plugin: power.ble_scan
+      timeout: 15 # one-shot scan runs ~6s
+
 commands:
   - name: keep
     title: Keep alive for N min.

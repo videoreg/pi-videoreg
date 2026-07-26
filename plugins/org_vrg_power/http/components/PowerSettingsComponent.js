@@ -147,6 +147,91 @@ const PowerSettingsComponent = {
           </div>
         </div>
       </div>
+
+      <!-- Вкладка: Маяк (BLE) -->
+      <div v-show="activeTab === 'beacon'">
+        <div v-if="bleError" class="alert alert-error">{{ bleError }}</div>
+
+        <div v-if="ble.supported === false" class="alert alert-error">
+          {{ $t('power.power.ble_unsupported') }}
+        </div>
+
+        <template v-else>
+          <div class="info-block">
+            <div class="section-title">{{ $t('power.power.ble_title') }}</div>
+            <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
+              {{ $t('power.power.ble_hint') }}
+            </p>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md);">
+              <span>{{ $t('power.power.ble_enable_label') }}</span>
+              <toggle-switch
+                v-model="ble.enabled"
+                :disabled="bleBusy"
+                @update:modelValue="onBleToggle"
+              ></toggle-switch>
+            </div>
+          </div>
+
+          <!-- Выбранный маяк -->
+          <div v-if="ble.target" class="info-block">
+            <div class="section-title">{{ $t('power.power.ble_target_label') }}</div>
+            <div class="info-rows">
+              <div class="info-row">
+                <span class="info-label">{{ ble.target.name || $t('power.power.ble_unnamed') }}</span>
+                <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ ble.target.mac }}</code>
+              </div>
+              <div v-if="ble.enabled" class="info-row">
+                <span class="info-label">{{ $t('power.power.ble_status_label') }}</span>
+                <span class="status-indicator" style="padding: 3px 8px;">
+                  <span class="status-dot" :class="{ active: ble.present }"></span>
+                  <span>{{ ble.present ? $t('power.power.ble_present') : $t('power.power.ble_absent') }}</span>
+                </span>
+              </div>
+            </div>
+            <button class="btn btn-ghost" style="margin-top: var(--spacing-md);" @click="changeBeacon" :disabled="bleBusy">
+              {{ $t('power.power.ble_change') }}
+            </button>
+            <p style="margin-top: var(--spacing-md); color: var(--color-text-secondary); font-size: 0.875rem;">
+              {{ $t('power.power.ble_wakeup_hint') }}
+            </p>
+          </div>
+
+          <!-- Сканирование и выбор устройства -->
+          <div v-else class="info-block">
+            <div class="section-title">{{ $t('power.power.ble_select_title') }}</div>
+            <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
+              {{ $t('power.power.ble_select_hint') }}
+            </p>
+            <button class="btn btn-primary" @click="scanBle" :disabled="bleScanning">
+              {{ bleScanning ? $t('power.power.ble_scanning') : $t('power.power.ble_scan_btn') }}
+            </button>
+
+            <div v-if="bleScanned && !bleScanning && bleDevices.length === 0" style="margin-top: var(--spacing-md); color: var(--color-text-secondary);">
+              {{ $t('power.power.ble_no_devices') }}
+            </div>
+
+            <div style="margin-top: var(--spacing-md);">
+              <div
+                v-for="dev in bleDevices"
+                :key="dev.mac"
+                class="info-block"
+                style="display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin-bottom: var(--spacing-sm);"
+              >
+                <div>
+                  <div class="section-title" style="margin-bottom: 4px;">{{ dev.name || $t('power.power.ble_unnamed') }}</div>
+                  <p style="margin: 0; color: var(--color-text-secondary);">
+                    <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ dev.mac }}</code>
+                    <span v-if="dev.rssi != null"> · {{ dev.rssi }} dBm</span>
+                  </p>
+                </div>
+                <button class="btn btn-ghost" @click="selectBeacon(dev)" :disabled="bleBusy">
+                  {{ $t('power.power.ble_select') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
     </div>
   `,
 
@@ -174,6 +259,14 @@ const PowerSettingsComponent = {
       chargingProtectionLoading: false,
 
       capabilities: null,
+
+      // Вкладка Маяк (BLE)
+      ble: { supported: null, enabled: false, target: null, present: false },
+      bleDevices: [],
+      bleScanning: false,
+      bleScanned: false,
+      bleBusy: false,
+      bleError: '',
     };
   },
 
@@ -182,6 +275,7 @@ const PowerSettingsComponent = {
       return [
         { value: 'status',   label: this.$t('power.power.tab_status') },
         { value: 'settings', label: this.$t('power.power.tab_settings') },
+        { value: 'beacon',   label: this.$t('power.power.tab_beacon') },
       ];
     },
 
@@ -404,10 +498,128 @@ const PowerSettingsComponent = {
       } finally {
         this.saving = false;
       }
+    },
+
+    async loadBleConfig() {
+      try {
+        const response = await fetch('/api/power/ble/config', { credentials: 'same-origin' });
+        const result = await response.json();
+        if (response.ok) {
+          this.ble = {
+            supported: !!result.supported,
+            enabled: !!result.enabled,
+            target: result.target || null,
+            present: !!result.present,
+          };
+        }
+      } catch (err) {
+        // non-fatal: leave defaults (hide the tab body only on explicit unsupported)
+      }
+    },
+
+    async onBleToggle(value) {
+      this.bleError = '';
+      this.bleBusy = true;
+      try {
+        const response = await fetch('/api/power/ble/enabled', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: value })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.bleError = result.error || this.$t('power.power.error_save');
+          this.ble.enabled = !value;
+          return;
+        }
+        await this.loadBleConfig();
+      } catch (err) {
+        this.bleError = this.$t('http.common.error_connection');
+        this.ble.enabled = !value;
+      } finally {
+        this.bleBusy = false;
+      }
+    },
+
+    async scanBle() {
+      this.bleError = '';
+      this.bleScanning = true;
+      this.bleScanned = false;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch('/api/power/ble/scan', {
+          credentials: 'same-origin',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const result = await response.json();
+        if (!response.ok) {
+          this.bleError = result.error || this.$t('power.power.ble_error_scan');
+          return;
+        }
+        this.bleDevices = result.devices || [];
+        this.bleScanned = true;
+      } catch (err) {
+        this.bleError = err.name === 'AbortError'
+          ? this.$t('power.power.error_timeout')
+          : this.$t('http.common.error_connection');
+      } finally {
+        this.bleScanning = false;
+      }
+    },
+
+    async selectBeacon(dev) {
+      this.bleError = '';
+      this.bleBusy = true;
+      try {
+        const response = await fetch('/api/power/ble/target', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mac: dev.mac, name: dev.name || null })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.bleError = result.error || this.$t('power.power.error_save');
+          return;
+        }
+        this.bleDevices = [];
+        this.bleScanned = false;
+        await this.loadBleConfig();
+      } catch (err) {
+        this.bleError = this.$t('http.common.error_connection');
+      } finally {
+        this.bleBusy = false;
+      }
+    },
+
+    async changeBeacon() {
+      this.bleError = '';
+      this.bleBusy = true;
+      try {
+        const response = await fetch('/api/power/ble/clear', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.bleError = result.error || this.$t('power.power.error_save');
+          return;
+        }
+        await this.loadBleConfig();
+      } catch (err) {
+        this.bleError = this.$t('http.common.error_connection');
+      } finally {
+        this.bleBusy = false;
+      }
     }
   },
 
   async mounted() {
-    await Promise.all([this.loadStatus(), this.loadSettings(), this.loadCapabilities()]);
+    await Promise.all([this.loadStatus(), this.loadSettings(), this.loadCapabilities(), this.loadBleConfig()]);
   }
 };

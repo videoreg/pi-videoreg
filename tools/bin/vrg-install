@@ -221,6 +221,8 @@ install_apt_packages() {
         "python3-dbus"
         "python3-venv"
         "python3-netifaces"
+        # BlueZ stack for BLE beacon external-power detection (bleak talks to it over D-Bus)
+        "bluez"
     )
 
     print_info "Updating package list..."
@@ -456,6 +458,22 @@ enable_i2c() {
 }
 
 setup_bluetooth() {
+    # Enable the BlueZ daemon so bleak can scan for the BLE beacon (power plugin).
+    print_info "Enabling bluetooth service..."
+    if systemctl enable --now bluetooth.service > /dev/null 2>&1; then
+        print_success "Bluetooth service enabled"
+    else
+        print_warning "Could not enable bluetooth.service (bluetooth may be disabled in config.txt)"
+    fi
+
+    # BlueZ D-Bus discovery requires membership in the 'bluetooth' group.
+    print_info "Adding $VIDEOREG_USER to the bluetooth group..."
+    if usermod -aG bluetooth "$VIDEOREG_USER" > /dev/null 2>&1; then
+        print_success "$VIDEOREG_USER added to bluetooth group"
+    else
+        print_warning "Could not add $VIDEOREG_USER to bluetooth group"
+    fi
+
     print_info "Setting bluetooth supervision timeout..."
     if sudo echo '500' | sudo tee /sys/kernel/debug/bluetooth/hci0/supervision_timeout > /dev/null 2>&1; then
         print_success "Bluetooth supervision timeout set to 500"

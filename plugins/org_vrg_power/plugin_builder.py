@@ -7,8 +7,14 @@ from plugins.org_vrg_power.commands.keep_alive import CommandKeepAlive
 from plugins.org_vrg_power.commands.reboot import CommandReboot
 from plugins.org_vrg_power.commands.set_wakeup import CommandSetWakeup
 from plugins.org_vrg_power.commands.shutdown import CommandShutdown
+from plugins.org_vrg_power.ble_beacon import BleBeaconMonitor
+from plugins.org_vrg_power.methods.ble_scan import MethodBleScan
+from plugins.org_vrg_power.methods.clear_ble_target import MethodClearBleTarget
+from plugins.org_vrg_power.methods.get_ble_config import MethodGetBleConfig
 from plugins.org_vrg_power.methods.get_capabilities import MethodGetCapabilities
 from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
+from plugins.org_vrg_power.methods.set_ble_enabled import MethodSetBleEnabled
+from plugins.org_vrg_power.methods.set_ble_target import MethodSetBleTarget
 from plugins.org_vrg_power.methods.get_status import MethodGetStatus
 from plugins.org_vrg_power.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_power.methods.get_wakeup_config import MethodGetWakeupConfig
@@ -40,8 +46,12 @@ async def build_plugin(
     defaults={
       const.STATE_KEY_WAKEUP: "on-power-restore",
       const.STATE_KEY_CHARGING_PROTECTION: True,
+      const.STATE_KEY_BLE_ENABLED: False,
+      const.STATE_KEY_BLE_TARGET: None,
     }
   )
+
+  plugin.init_ble_monitor(BleBeaconMonitor(plugin, plugin.logger))
 
   previous_shutdown_config = ShutdownConfig.from_json(
     plugin.state.get(const.STATE_KEY_LAST_SHUTDOWN_CONFIG, None)
@@ -116,6 +126,11 @@ async def build_plugin(
       "reboot": MethodReboot(plugin),
       "keep_alive": MethodKeepAlive(plugin),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
+      "get_ble_config": MethodGetBleConfig(plugin),
+      "set_ble_enabled": MethodSetBleEnabled(plugin),
+      "set_ble_target": MethodSetBleTarget(plugin),
+      "clear_ble_target": MethodClearBleTarget(plugin),
+      "ble_scan": MethodBleScan(plugin),
     }
   )
 

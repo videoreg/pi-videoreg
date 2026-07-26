@@ -4,6 +4,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import plugins.org_vrg_power.const as const
+from plugins.org_vrg_power.ble_beacon import BleBeaconMonitor
 from plugins.org_vrg_power.power_controls import PowerControls
 from plugins.org_vrg_power.shutdown import ShutdownController, ShutdownLogic
 from sdk.helper import stream_subprocess
@@ -20,6 +21,7 @@ class PowerPlugin(Plugin):
   _shutdown_controller: ShutdownController
   _power_controls: PowerControls
   keep_alive: KeepAlive
+  ble_monitor: BleBeaconMonitor = None
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
@@ -40,7 +42,37 @@ class PowerPlugin(Plugin):
       asyncio.create_task(ps.set_alarm_wakeup_enabled(False))
       asyncio.create_task(ps.set_wakeup_on_power_restore(True))
       asyncio.create_task(self._apply_charging_protection())
+    if self.ble_monitor and self.ble_monitor.is_active():
+      # Give the scanner ~1 presence window to discover the beacon before the
+      # shutdown loop is allowed to treat its absence as a power cut. This is the
+      # boot grace enforced through the is_ready_to_die engine (keep_alive reason).
+      self.keep_alive.have_to_wait("ble_initial", const.BLE_PRESENCE_WINDOW)
+      asyncio.create_task(self.ble_monitor.start())
     asyncio.create_task(self._start_check_charging_loop())
+
+  async def stop(self):
+    if self.ble_monitor:
+      await self.ble_monitor.stop()
+    await super().stop()
+
+  def init_ble_monitor(self, ble_monitor: BleBeaconMonitor):
+    self.ble_monitor = ble_monitor
+
+  def effective_charging_status(self, charging_status: ChargingStatus) -> ChargingStatus:
+    """Fold BLE beacon presence into the charging status.
+
+    Power is present only if PiSugar reports charging AND (the beacon feature is
+    inactive OR the beacon is present). A vanished beacon therefore looks exactly like
+    a NOT_CHARGING reading and flows through the existing shutdown logic unchanged.
+    """
+    if (
+      charging_status == ChargingStatus.CHARGING
+      and self.ble_monitor
+      and self.ble_monitor.is_active()
+      and not self.ble_monitor.is_present()
+    ):
+      return ChargingStatus.NOT_CHARGING
+    return charging_status
 
   async def _apply_charging_protection(self):
     ps = self.runner.power_supply
@@ -98,6 +130,7 @@ class PowerPlugin(Plugin):
     _initial_captured = False
     while self.runner.is_running():
       charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
+      charging_status = self.effective_charging_status(charging_status)
 
       if not _initial_captured:
         _initial_captured = True

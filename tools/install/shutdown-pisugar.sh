@@ -107,6 +107,7 @@ POWER_BYTE=""
 CHARGING=0
 ALARM_IN_FUTURE=0
 ARMED="no"
+FORCE_POWERCUT="no"
 
 if [ -f "$STATE_FILE" ]; then
     while IFS='=' read -r key value; do
@@ -116,6 +117,7 @@ if [ -f "$STATE_FILE" ]; then
             charging) CHARGING="$value" ;;
             alarm_in_future) ALARM_IN_FUTURE="$value" ;;
             armed) ARMED="$value" ;;
+            force_powercut) FORCE_POWERCUT="$value" ;;
         esac
     done < "$STATE_FILE"
 fi
@@ -133,7 +135,10 @@ fi
 
 # On external power with a pending wakeup alarm, stay online: reboot instead of
 # cutting power. Safe here because the filesystems are already unmounted.
-if [ "$CHARGING" == "1" ] && [ "$ALARM_IN_FUTURE" == "1" ]; then
+# Exception: a BLE-beacon-forced shutdown (force_powercut=yes, set by
+# vrg-poweroff.sh) must actually power off and wait for the RTC alarm — the
+# beacon is gone though external power stayed — so we let the armed cut proceed.
+if [ "$FORCE_POWERCUT" != "yes" ] && [ "$CHARGING" == "1" ] && [ "$ALARM_IN_FUTURE" == "1" ]; then
     if [ "$ARMED" == "yes" ] && [ -n "$POWER_BYTE" ]; then
         # vrg-poweroff.sh armed the cut before the power appeared — undo it, or
         # the PiSugar will pull power in the middle of the reboot.

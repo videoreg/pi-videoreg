@@ -33,6 +33,9 @@ class PowerPlugin(Plugin):
 
   async def start(self):
     await super().start()
+    # Drop any stale beacon marker from a previous session so it can never force a
+    # power cut on an unrelated shutdown (freshness is also checked by the scripts).
+    self._clear_force_powercut_marker()
     alarm_time = await self._is_alarm_wakeup_pending()
     if alarm_time:
       self.logger.info(f"alarm wakeup pending: {alarm_time.isoformat()}")
@@ -88,13 +91,38 @@ class PowerPlugin(Plugin):
     except Exception as e:
       self.logger.error(f"failed to apply charging protection: {e}", exc_info=True)
 
-  async def delayed_shutdown(self):
+  async def delayed_shutdown(self, force_powercut: bool = False):
     self.logger.info("shutdown")
     ps = self.runner.power_supply
     if isinstance(ps, PiSugar):
+      if force_powercut:
+        self._write_force_powercut_marker()
       await ps.shutdown()
     else:
       subprocess.run(["sudo", "shutdown", "now"])
+
+  def _force_powercut_marker_path(self):
+    return self.runner.videoreg.plugin_private_path(self.id, const.FORCE_POWERCUT_MARKER)
+
+  def _write_force_powercut_marker(self):
+    # Tell the PiSugar poweroff scripts (task/service/vrg-poweroff.sh and the
+    # shutdown hook) to cut power even though PiSugar still reports external power:
+    # the beacon is gone and only the RTC alarm should bring the device back.
+    # Without this they turn a charging+alarm poweroff into a reboot. The scripts
+    # honour the marker only when fresh, so a leftover cannot force a cut later.
+    try:
+      path = self._force_powercut_marker_path()
+      path.parent.mkdir(parents=True, exist_ok=True)
+      path.write_text(f"{int(time.time())}\n")
+      self.logger.info(f"force-powercut marker written: {path}")
+    except Exception as e:
+      self.logger.error(f"failed to write force-powercut marker: {e}", exc_info=True)
+
+  def _clear_force_powercut_marker(self):
+    try:
+      self._force_powercut_marker_path().unlink(missing_ok=True)
+    except Exception as e:
+      self.logger.warning(f"failed to clear force-powercut marker: {e}")
 
   async def delayed_reboot(self):
     self.logger.info("reboot")
@@ -170,7 +198,7 @@ class PowerPlugin(Plugin):
 
             self.state.save({const.STATE_KEY_LAST_SHUTDOWN_CONFIG: shutdown_config.to_json()})
 
-            asyncio.create_task(self.delayed_shutdown())
+            asyncio.create_task(self.delayed_shutdown(force_powercut=external_power_present))
             break
 
       self._last_charging_status = charging_status

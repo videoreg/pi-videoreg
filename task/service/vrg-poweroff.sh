@@ -22,10 +22,14 @@
 #   charging=1|0         charging status observed here
 #   alarm_in_future=1|0  a wakeup alarm is enabled and scheduled ahead of now
 #   armed=yes|no         whether the cut was armed and verified here
+#   force_powercut=yes|no  BLE-beacon shutdown: cut power even while charging
 #   ts=<epoch>
 #
 # On external power with a future wakeup alarm the poweroff is turned into a
-# reboot instead — the device should stay online while it has power. The reboot
+# reboot instead — the device should stay online while it has power. The one
+# exception is a BLE-beacon-forced shutdown (force_powercut=yes): there the
+# beacon vanished while external power stayed, and the device must actually power
+# off and wait for the RTC alarm, so the cut is armed despite charging. The reboot
 # itself is left to the shutdown hook (`reboot -f`), which runs once filesystems
 # are already unmounted; issuing it here, mid-transaction with everything still
 # mounted, would risk the filesystem.
@@ -57,6 +61,14 @@ PISUGAR="$VIDEOREG_PROJECT_HOME/task/pisugar.sh"
 
 RUNTIME_DIR="/run/vrg"
 STATE_FILE="$RUNTIME_DIR/pisugar-poweroff"
+
+# The power plugin drops this marker (in its own data dir) right before a shutdown
+# that must cut power despite external power being present — a vanished BLE beacon,
+# where only the RTC alarm brings the device back. Honoured only when fresh, so a
+# leftover marker cannot force a cut on an unrelated shutdown.
+FORCE_POWERCUT_MARKER="$VIDEOREG_PROJECT_HOME/.videoreg/data/plugins/org_vrg_power/force-powercut"
+FORCE_POWERCUT_MAX_AGE_SECONDS=120
+FORCE_POWERCUT=no
 
 LOG_DIR="$VIDEOREG_PROJECT_HOME/.videoreg/log/services"
 LOG_FILE="$LOG_DIR/vrg-poweroff.log"
@@ -95,6 +107,7 @@ power_byte=$power_byte
 charging=$charging
 alarm_in_future=$alarm_in_future
 armed=$armed
+force_powercut=$FORCE_POWERCUT
 ts=$(date +%s)
 EOF
 }
@@ -143,6 +156,19 @@ is_alarm_in_future() {
     return 0
 }
 
+# The power plugin's BLE-beacon handoff: cut power even though external power is
+# present. Only honoured when the marker is fresh, so a marker left behind by an
+# earlier beacon shutdown cannot force a cut on a later, unrelated poweroff.
+is_force_powercut() {
+    [ -f "$FORCE_POWERCUT_MARKER" ] || return 1
+
+    local mtime now
+    mtime=$(stat -c %Y "$FORCE_POWERCUT_MARKER" 2>/dev/null) || return 1
+    now=$(date +%s)
+
+    [ $(( now - mtime )) -le "$FORCE_POWERCUT_MAX_AGE_SECONDS" ]
+}
+
 MODE=$(get_shutdown_mode) || MODE="unknown"
 
 if [ "$MODE" == "reboot" ] || [ "$MODE" == "none" ]; then
@@ -166,7 +192,11 @@ fi
 
 ALARM_IN_FUTURE=$(is_alarm_in_future) || ALARM_IN_FUTURE=0
 
-log "mode=$MODE power_byte=$POWER_BYTE charging=$CHARGING_RAW alarm_in_future=$ALARM_IN_FUTURE"
+if is_force_powercut; then
+    FORCE_POWERCUT=yes
+fi
+
+log "mode=$MODE power_byte=$POWER_BYTE charging=$CHARGING_RAW alarm_in_future=$ALARM_IN_FUTURE force_powercut=$FORCE_POWERCUT"
 
 if [ "$MODE" == "unknown" ]; then
     # Could not tell poweroff from reboot. Publish what we measured and leave the
@@ -176,10 +206,14 @@ if [ "$MODE" == "unknown" ]; then
     exit 0
 fi
 
-if [ "$CHARGING" -eq 1 ] && [ "$ALARM_IN_FUTURE" -eq 1 ]; then
+if [ "$FORCE_POWERCUT" != "yes" ] && [ "$CHARGING" -eq 1 ] && [ "$ALARM_IN_FUTURE" -eq 1 ]; then
     write_state "reboot" "$POWER_BYTE" "$CHARGING" "$ALARM_IN_FUTURE" "no"
     log "on external power with a pending alarm: the shutdown hook will reboot instead"
     exit 0
+fi
+
+if [ "$FORCE_POWERCUT" == "yes" ]; then
+    log "force-powercut marker present (BLE beacon): arming the cut despite charging=$CHARGING"
 fi
 
 if bash "$PISUGAR" arm_powercut "$POWER_CUT_DELAY_SECONDS" > /dev/null 2>&1; then

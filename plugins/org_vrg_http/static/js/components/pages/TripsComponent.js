@@ -66,6 +66,12 @@ const TripsComponent = {
                 {{ entry.type === 'beacon_found' ? $t('http.trips.beacon_found') : $t('http.trips.beacon_lost') }}
               </li>
             </ul>
+            <ul v-if="block.shutdownLog && block.shutdownLog.length > 0" class="trips-thermal-log">
+              <li v-for="(entry, eIdx) in block.shutdownLog" :key="'shutdown' + eIdx">
+                <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span>
+                {{ shutdownLabel(entry.reason) }}
+              </li>
+            </ul>
           </div>
         </template>
       </div>
@@ -134,7 +140,7 @@ const TripsComponent = {
     buildBlocks(events) {
       const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
       const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost']);
-      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES, ...BEACON_TYPES]);
+      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'shutdown', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES, ...BEACON_TYPES]);
       const blocks = [];
       let current = null;
 
@@ -147,7 +153,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'trip') {
-            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [] };
+            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [], shutdownLog: [] };
             blocks.push(current);
           }
 
@@ -157,7 +163,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'parking') {
-            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [] };
+            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [], shutdownLog: [] };
             blocks.push(current);
           }
 
@@ -201,6 +207,11 @@ const TripsComponent = {
           if (current) {
             current.beaconLog.push({ type: event.type, date: event.date });
           }
+
+        } else if (event.type === 'shutdown') {
+          if (current) {
+            current.shutdownLog.push({ reason: event.data && event.data.reason, date: event.date });
+          }
         }
       }
 
@@ -215,6 +226,15 @@ const TripsComponent = {
 
       for (const b of blocks) b.media.reverse();
       return blocks.reverse();
+    },
+
+    shutdownLabel(reason) {
+      const labels = {
+        forced: this.$t('http.trips.shutdown_forced'),
+        power_loss: this.$t('http.trips.shutdown_power_loss'),
+        beacon_lost: this.$t('http.trips.shutdown_beacon_lost')
+      };
+      return labels[reason] || this.$t('http.trips.shutdown_unknown');
     },
 
     blockLabel(block) {

@@ -28,7 +28,7 @@ class CommandShutdown(GatewayCommand):
     if shutdown_config:
       self._plugin.state.save({const.STATE_KEY_LAST_SHUTDOWN_CONFIG: shutdown_config.to_json()})
       await gateway.send_text(payload, "Will shudown")
-      asyncio.create_task(self._plugin.delayed_shutdown())
+      asyncio.create_task(self._plugin.delayed_shutdown(const.SHUTDOWN_REASON_FORCED))
     else:
       self._plugin.logger.warning("Command CommandShutdown error")
       await gateway.send_text(payload, "Shutdown error")

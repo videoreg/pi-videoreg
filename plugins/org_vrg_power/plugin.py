@@ -106,8 +106,16 @@ class PowerPlugin(Plugin):
     except Exception as e:
       self.logger.error(f"failed to apply charging protection: {e}", exc_info=True)
 
-  async def delayed_shutdown(self, force_powercut: bool = False):
-    self.logger.info("shutdown")
+  async def delayed_shutdown(self, reason: str, force_powercut: bool = False):
+    self.logger.info(f"shutdown (reason={reason})")
+    # Record why we are powering off before the teardown begins. Awaited (not
+    # fire-and-forget) so the record reaches the journal — which lives in this same
+    # vrg-core service — before ps.shutdown() triggers systemd stop.
+    if self.journal_client:
+      try:
+        await self.journal_client.write(JournalRecord(type="shutdown", data={"reason": reason}))
+      except Exception as e:
+        self.logger.warning(f"failed to journal shutdown reason: {e}")
     ps = self.runner.power_supply
     if isinstance(ps, PiSugar):
       if force_powercut:
@@ -213,7 +221,16 @@ class PowerPlugin(Plugin):
 
             self.state.save({const.STATE_KEY_LAST_SHUTDOWN_CONFIG: shutdown_config.to_json()})
 
-            asyncio.create_task(self.delayed_shutdown(force_powercut=external_power_present))
+            # external_power_present here means the beacon vanished while PiSugar still
+            # sees power (force-powercut); otherwise external power was actually lost.
+            reason = (
+              const.SHUTDOWN_REASON_BEACON_LOST
+              if external_power_present
+              else const.SHUTDOWN_REASON_POWER_LOSS
+            )
+            asyncio.create_task(
+              self.delayed_shutdown(reason, force_powercut=external_power_present)
+            )
             break
 
       self._last_charging_status = charging_status

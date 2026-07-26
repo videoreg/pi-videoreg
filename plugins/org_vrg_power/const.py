@@ -6,6 +6,11 @@ STATE_KEY_BLE_TARGET = "ble_target"  # {"mac": "AA:BB:...", "name": "..."} or No
 STATE_KEY_BLE_GRACE_MINUTES = "ble_grace_minutes"  # grace before a lost beacon shuts down
 SHUTDOWN_DELAY_SEC = 5
 
+# Reasons recorded in the "shutdown" journal event (why the device is powering off).
+SHUTDOWN_REASON_FORCED = "forced"  # manual: web button, API or bot command
+SHUTDOWN_REASON_POWER_LOSS = "power_loss"  # external power actually disconnected
+SHUTDOWN_REASON_BEACON_LOST = "beacon_lost"  # BLE beacon gone past its grace, power still present
+
 # BLE beacon external-power detection.
 # A beacon is considered "present" if it was last seen within this many seconds.
 # This short window drives the live UI indicator and the beacon_found / beacon_lost

@@ -27,7 +27,7 @@ class MethodShutdown(ApiMethod):
     shutdown_config = await self._shutdown_controller.shutdown(reason, self._force_wakeup_config)
     if shutdown_config:
       self._plugin.state.save({const.STATE_KEY_LAST_SHUTDOWN_CONFIG: shutdown_config.to_json()})
-      asyncio.create_task(self._plugin.delayed_shutdown())
+      asyncio.create_task(self._plugin.delayed_shutdown(const.SHUTDOWN_REASON_FORCED))
       return {"status": "ok", "shutdown_config": shutdown_config.to_json()}
     else:
       return {"status": "error"}

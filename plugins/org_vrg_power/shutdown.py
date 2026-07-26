@@ -93,9 +93,7 @@ class ShutdownController:
     new_time = current_time + timedelta(seconds=seconds + 5)  # +5 for _delayed_shutdown()
     return new_time
 
-  async def shutdown(
-    self, reason: str, force_wakeup_config: str = None, external_power_present: bool = False
-  ) -> ShutdownConfig:
+  async def shutdown(self, reason: str, force_wakeup_config: str = None) -> ShutdownConfig:
 
     self._shutdown_logic.last_attempt_shutdown_timestamp = time.time()
 
@@ -106,6 +104,7 @@ class ShutdownController:
     shutdown_config = ShutdownConfig()
     shutdown_config.reason = reason
     shutdown_config.wakeup = wakeup
+    shutdown_config.wakeup_on_power_restore_enabled = True  # always
     shutdown_config.previous = self._previous_config
 
     if wakeup == "1m":
@@ -125,15 +124,6 @@ class ShutdownController:
       shutdown_config.wakeup_alarm_time = self._add_seconds_to_now(3600)
     else:  # disabled/on-power-restore
       shutdown_config.wakeup_alarm_enabled = False
-
-    # When external power is still present (e.g. the BLE beacon vanished while PiSugar
-    # keeps charging), rely solely on the RTC alarm to wake and do NOT wake on power
-    # restore — the unchanged external power would otherwise re-power the device
-    # immediately. If no alarm is armed we keep power-restore as the only fallback.
-    if external_power_present and shutdown_config.wakeup_alarm_enabled:
-      shutdown_config.wakeup_on_power_restore_enabled = False
-    else:
-      shutdown_config.wakeup_on_power_restore_enabled = True
 
     if not shutdown_config.verify():
       self._logger.debug("shutdown_config not verified")

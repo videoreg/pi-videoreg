@@ -182,16 +182,16 @@ class PowerPlugin(Plugin):
         if charging_status != ChargingStatus.UNKNOWN:
           should_shutdown = await self._shutdown_logic.should_shutdown(charging_status)
           if should_shutdown:
-            # Beacon lost while PiSugar still reports external power: keep the device
-            # off until the RTC alarm rather than waking on power restore (power never
-            # actually left, so power-restore would re-power it right away).
+            # Beacon lost while PiSugar still reports external power: the shutdown must
+            # actually cut power (force_powercut) rather than reboot, and rely on the
+            # RTC alarm to wake. Wake-on-power-restore stays enabled (as on develop) so
+            # that if external power really does drop and return during the sleep, the
+            # device wakes early instead of waiting out the alarm.
             external_power_present = (
               raw_charging_status == ChargingStatus.CHARGING
               and charging_status == ChargingStatus.NOT_CHARGING
             )
-            shutdown_config = await self._shutdown_controller.shutdown(
-              "stop_charging", external_power_present=external_power_present
-            )
+            shutdown_config = await self._shutdown_controller.shutdown("stop_charging")
             if not shutdown_config:
               self._last_charging_status = charging_status
               continue

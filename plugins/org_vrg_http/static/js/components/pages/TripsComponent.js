@@ -33,13 +33,6 @@ const TripsComponent = {
           </template>
         </div>
 
-        <ul v-if="block.beaconLog && block.beaconLog.length > 0" class="trips-thermal-log">
-          <li v-for="(entry, eIdx) in block.beaconLog" :key="'beacon' + eIdx">
-            <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span>
-            {{ entry.type === 'beacon_found' ? $t('http.trips.beacon_found') : $t('http.trips.beacon_lost') }}
-          </li>
-        </ul>
-
         <template v-if="block.media && block.media.length > 0">
           <button class="trips-block-expand" @click="toggleExpand(idx)">
             {{ expanded[idx] ? $t('http.trips.collapse') : $t('http.trips.expand', { count: block.media.length }) }}
@@ -65,6 +58,12 @@ const TripsComponent = {
             <ul v-if="block.thermalLog && block.thermalLog.length > 0" class="trips-thermal-log">
               <li v-for="(entry, eIdx) in block.thermalLog" :key="eIdx">
                 <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span> {{ entry.type }}{{ entry.data ? ' ' + JSON.stringify(entry.data) : '' }}
+              </li>
+            </ul>
+            <ul v-if="block.beaconLog && block.beaconLog.length > 0" class="trips-thermal-log">
+              <li v-for="(entry, eIdx) in block.beaconLog" :key="'beacon' + eIdx">
+                <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span>
+                {{ entry.type === 'beacon_found' ? $t('http.trips.beacon_found') : $t('http.trips.beacon_lost') }}
               </li>
             </ul>
           </div>

@@ -33,6 +33,13 @@ const TripsComponent = {
           </template>
         </div>
 
+        <ul v-if="block.beaconLog && block.beaconLog.length > 0" class="trips-thermal-log">
+          <li v-for="(entry, eIdx) in block.beaconLog" :key="'beacon' + eIdx">
+            <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span>
+            {{ entry.type === 'beacon_found' ? $t('http.trips.beacon_found') : $t('http.trips.beacon_lost') }}
+          </li>
+        </ul>
+
         <template v-if="block.media && block.media.length > 0">
           <button class="trips-block-expand" @click="toggleExpand(idx)">
             {{ expanded[idx] ? $t('http.trips.collapse') : $t('http.trips.expand', { count: block.media.length }) }}
@@ -127,7 +134,8 @@ const TripsComponent = {
 
     buildBlocks(events) {
       const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
-      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES]);
+      const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost']);
+      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES, ...BEACON_TYPES]);
       const blocks = [];
       let current = null;
 
@@ -140,7 +148,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'trip') {
-            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], thermalLog: [] };
+            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [] };
             blocks.push(current);
           }
 
@@ -150,7 +158,7 @@ const TripsComponent = {
             current = null;
           }
           if (!current || current.kind !== 'parking') {
-            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], thermalLog: [] };
+            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], thermalLog: [], beaconLog: [] };
             blocks.push(current);
           }
 
@@ -188,6 +196,11 @@ const TripsComponent = {
         } else if (THERMAL_TYPES.has(event.type)) {
           if (current) {
             current.thermalLog.push({ type: event.type, date: event.date, data: event.data });
+          }
+
+        } else if (BEACON_TYPES.has(event.type)) {
+          if (current) {
+            current.beaconLog.push({ type: event.type, date: event.date });
           }
         }
       }

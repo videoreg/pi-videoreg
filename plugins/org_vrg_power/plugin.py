@@ -8,6 +8,7 @@ from plugins.org_vrg_power.ble_beacon import BleBeaconMonitor
 from plugins.org_vrg_power.power_controls import PowerControls
 from plugins.org_vrg_power.shutdown import ShutdownController, ShutdownLogic
 from sdk.helper import stream_subprocess
+from sdk.journal import JournalRecord
 from sdk.keep_alive import KeepAlive
 from sdk.power import ChargingStatus
 from sdk.power.pisugar import PiSugar
@@ -65,17 +66,31 @@ class PowerPlugin(Plugin):
     """Fold BLE beacon presence into the charging status.
 
     Power is present only if PiSugar reports charging AND (the beacon feature is
-    inactive OR the beacon is present). A vanished beacon therefore looks exactly like
-    a NOT_CHARGING reading and flows through the existing shutdown logic unchanged.
+    inactive OR the beacon has not been gone past its grace period). A beacon lost
+    for longer than the grace therefore looks exactly like a NOT_CHARGING reading and
+    flows through the existing shutdown logic unchanged. A brief drop-out is tolerated
+    (is_lost stays False until the grace elapses), so the device keeps running.
     """
     if (
       charging_status == ChargingStatus.CHARGING
       and self.ble_monitor
       and self.ble_monitor.is_active()
-      and not self.ble_monitor.is_present()
+      and self.ble_monitor.is_lost()
     ):
       return ChargingStatus.NOT_CHARGING
     return charging_status
+
+  async def on_beacon_presence_change(self, present: bool):
+    """React to a live beacon present<->absent transition: log and journal it.
+
+    This fires on the short presence window (~15s), independent of the longer grace
+    that governs shutdown, so the journal records the moment the signal actually
+    dropped or came back — useful on the Trips page.
+    """
+    self.logger.info(f"BLE beacon {'appeared' if present else 'disappeared'}")
+    if self.journal_client:
+      event_type = "beacon_found" if present else "beacon_lost"
+      await self.journal_client.write(JournalRecord(type=event_type, data=None))
 
   async def _apply_charging_protection(self):
     ps = self.runner.power_supply

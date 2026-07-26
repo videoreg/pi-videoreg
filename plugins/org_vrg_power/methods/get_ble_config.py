@@ -21,5 +21,6 @@ class MethodGetBleConfig(ApiMethod):
         "target": m.target() if m else None,
         "present": bool(m.is_present()) if active else None,
         "last_seen_seconds": m.last_seen_seconds() if active else None,
+        "grace_minutes": m.grace_minutes() if m else const.BLE_GRACE_MINUTES_DEFAULT,
       },
     }

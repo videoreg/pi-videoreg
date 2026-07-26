@@ -31,6 +31,8 @@ class BleBeaconMonitor:
     self._last_seen = 0.0
     self._seen: dict[str, dict] = {}  # mac -> {"name", "rssi", "last_seen"}
     self._lock = asyncio.Lock()
+    self._present = True  # last known presence state, for transition detection
+    self._presence_task: asyncio.Task | None = None
 
   # ---- config helpers ----
 
@@ -53,12 +55,35 @@ class BleBeaconMonitor:
     """Feature drives the shutdown decision only when supported, enabled and targeted."""
     return BLEAK_AVAILABLE and self._enabled() and bool(self.target_mac())
 
+  def grace_minutes(self) -> int:
+    raw = self._plugin.state.get(const.STATE_KEY_BLE_GRACE_MINUTES, const.BLE_GRACE_MINUTES_DEFAULT)
+    try:
+      value = int(raw)
+    except (TypeError, ValueError):
+      value = const.BLE_GRACE_MINUTES_DEFAULT
+    return max(const.BLE_GRACE_MINUTES_MIN, min(const.BLE_GRACE_MINUTES_MAX, value))
+
+  def _grace_seconds(self) -> float:
+    return self.grace_minutes() * 60
+
   # ---- presence ----
 
   def is_present(self) -> bool:
+    """Live presence over the short window — drives the UI indicator and journal."""
     if not self.target_mac():
       return True  # nothing to track — never force a shutdown
     return (time.time() - self._last_seen) <= const.BLE_PRESENCE_WINDOW
+
+  def is_lost(self) -> bool:
+    """True once the beacon has been absent long enough to count as a power cut.
+
+    The grace period must fully elapse since the beacon was last seen. Any sighting
+    updates last_seen and so resets the timer, letting a brief drop-out pass without
+    shutting the device down.
+    """
+    if not self.target_mac():
+      return False
+    return (time.time() - self._last_seen) > self._grace_seconds()
 
   def last_seen_seconds(self) -> int | None:
     if not self._last_seen:
@@ -90,10 +115,12 @@ class BleBeaconMonitor:
       # Seed last_seen so the beacon reads as present for the first presence window
       # (the boot grace) while the scanner is still discovering it.
       self._last_seen = time.time()
+      self._present = True
       try:
         self._scanner = BleakScanner(detection_callback=self._on_detection)
         await self._scanner.start()
         self._running = True
+        self._presence_task = asyncio.create_task(self._presence_loop())
         self._logger.info(f"BLE beacon monitor started; target={self.target_mac()}")
       except Exception as e:
         self._scanner = None
@@ -103,8 +130,12 @@ class BleBeaconMonitor:
   async def stop(self):
     async with self._lock:
       scanner = self._scanner
+      task = self._presence_task
       self._scanner = None
+      self._presence_task = None
       self._running = False
+      if task:
+        task.cancel()
       if not scanner:
         return
       try:
@@ -112,6 +143,27 @@ class BleBeaconMonitor:
         self._logger.info("BLE beacon monitor stopped")
       except Exception as e:
         self._logger.warning(f"error stopping BLE scanner: {e}")
+
+  async def _presence_loop(self):
+    """Watch for present<->absent transitions and report them (journal + log).
+
+    Absence is a timeout on last_seen, so it can only be noticed by polling. The loop
+    reports the live (short-window) presence; the longer grace period governs shutdown
+    separately via is_lost().
+    """
+    try:
+      while self._running:
+        await asyncio.sleep(const.BLE_PRESENCE_TICK)
+        present = self.is_present()
+        if present == self._present:
+          continue
+        self._present = present
+        try:
+          await self._plugin.on_beacon_presence_change(present)
+        except Exception as e:
+          self._logger.error(f"beacon presence change handler failed: {e}", exc_info=True)
+    except asyncio.CancelledError:
+      pass
 
   async def restart(self):
     """Re-apply config: stop, then start again if the feature is now active."""

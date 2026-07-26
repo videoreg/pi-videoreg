@@ -170,6 +170,30 @@ const PowerSettingsComponent = {
                 @update:modelValue="onBleToggle"
               ></toggle-switch>
             </div>
+
+            <div style="margin-top: var(--spacing-lg);">
+              <label style="display: block; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('power.power.ble_grace_label') }}
+              </label>
+              <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ $t('power.power.ble_grace_hint') }}
+              </p>
+              <div style="display: flex; align-items: center; gap: var(--spacing-sm); max-width: 320px;">
+                <input
+                  type="number"
+                  class="form-input"
+                  v-model.number="bleGraceMinutes"
+                  :min="1"
+                  :max="120"
+                  :disabled="bleGraceSaving"
+                  style="width: 100px;"
+                />
+                <span style="color: var(--color-text-secondary);">{{ $t('power.power.ble_grace_unit') }}</span>
+                <button class="btn btn-primary" @click="saveBleGrace" :disabled="bleGraceSaving">
+                  {{ bleGraceSaving ? $t('common.saving') : $t('common.save') }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Выбранный маяк -->
@@ -267,6 +291,8 @@ const PowerSettingsComponent = {
       bleScanned: false,
       bleBusy: false,
       bleError: '',
+      bleGraceMinutes: 10,
+      bleGraceSaving: false,
     };
   },
 
@@ -511,9 +537,40 @@ const PowerSettingsComponent = {
             target: result.target || null,
             present: !!result.present,
           };
+          if (result.grace_minutes != null) {
+            this.bleGraceMinutes = result.grace_minutes;
+          }
         }
       } catch (err) {
         // non-fatal: leave defaults (hide the tab body only on explicit unsupported)
+      }
+    },
+
+    async saveBleGrace() {
+      this.bleError = '';
+      const minutes = Math.round(Number(this.bleGraceMinutes));
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) {
+        this.bleError = this.$t('power.power.ble_grace_invalid');
+        return;
+      }
+      this.bleGraceSaving = true;
+      try {
+        const response = await fetch('/api/power/ble/grace', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ minutes })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          this.bleError = result.error || this.$t('power.power.error_save');
+          return;
+        }
+        this.bleGraceMinutes = result.grace_minutes;
+      } catch (err) {
+        this.bleError = this.$t('http.common.error_connection');
+      } finally {
+        this.bleGraceSaving = false;
       }
     },
 

@@ -14,6 +14,7 @@ from plugins.org_vrg_power.methods.get_ble_config import MethodGetBleConfig
 from plugins.org_vrg_power.methods.get_capabilities import MethodGetCapabilities
 from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
 from plugins.org_vrg_power.methods.set_ble_enabled import MethodSetBleEnabled
+from plugins.org_vrg_power.methods.set_ble_grace import MethodSetBleGrace
 from plugins.org_vrg_power.methods.set_ble_target import MethodSetBleTarget
 from plugins.org_vrg_power.methods.get_status import MethodGetStatus
 from plugins.org_vrg_power.methods.get_status_text import MethodGetStatusText
@@ -41,6 +42,7 @@ async def build_plugin(
   plugin.init_logger(args.log_level)
   plugin.init_socket(client_id=name, channels=[], socket_path=None)
   plugin.init_api_client()
+  plugin.init_journal_client()
 
   plugin.state.set_defaults(
     defaults={
@@ -48,6 +50,7 @@ async def build_plugin(
       const.STATE_KEY_CHARGING_PROTECTION: True,
       const.STATE_KEY_BLE_ENABLED: False,
       const.STATE_KEY_BLE_TARGET: None,
+      const.STATE_KEY_BLE_GRACE_MINUTES: const.BLE_GRACE_MINUTES_DEFAULT,
     }
   )
 
@@ -129,6 +132,7 @@ async def build_plugin(
       "get_ble_config": MethodGetBleConfig(plugin),
       "set_ble_enabled": MethodSetBleEnabled(plugin),
       "set_ble_target": MethodSetBleTarget(plugin),
+      "set_ble_grace": MethodSetBleGrace(plugin),
       "clear_ble_target": MethodClearBleTarget(plugin),
       "ble_scan": MethodBleScan(plugin),
     }

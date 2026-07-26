@@ -76,6 +76,8 @@ http.trips.kind_trip: "Trip"
 http.trips.kind_parking: "Parking"
 http.trips.kind_in_trip: "Currently driving"
 http.trips.kind_parked: "Currently parked"
+http.trips.beacon_found: "Beacon appeared"
+http.trips.beacon_lost: "Beacon lost"
 http.trips.error_load: "Load error"
 
 http.media_item.open_image: "Open image"

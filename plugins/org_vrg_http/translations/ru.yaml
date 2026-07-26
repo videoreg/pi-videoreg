@@ -76,6 +76,8 @@ http.trips.kind_trip: "Поездка"
 http.trips.kind_parking: "Парковка"
 http.trips.kind_in_trip: "Сейчас в пути"
 http.trips.kind_parked: "Сейчас на парковке"
+http.trips.beacon_found: "Маяк появился"
+http.trips.beacon_lost: "Маяк пропал"
 http.trips.error_load: "Ошибка загрузки"
 
 http.media_item.open_image: "Открыть изображение"

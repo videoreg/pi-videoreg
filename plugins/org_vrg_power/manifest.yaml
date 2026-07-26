@@ -67,6 +67,10 @@ http:
       method: post
       plugin: power.set_ble_target
 
+    - url: power/ble/grace
+      method: post
+      plugin: power.set_ble_grace
+
     - url: power/ble/clear
       method: post
       plugin: power.clear_ble_target

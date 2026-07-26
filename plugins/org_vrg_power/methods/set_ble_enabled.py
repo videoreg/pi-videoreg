@@ -20,8 +20,9 @@ class MethodSetBleEnabled(ApiMethod):
 
     m = self._plugin.ble_monitor
     if m:
-      # start() seeds last_seen=now, so the beacon reads present for one presence
-      # window while the scanner discovers it — no keep_alive needed at runtime.
+      # start() begins a fresh session: is_lost() applies only the short discovery
+      # window until the beacon is first heard, so enabling with the beacon in range
+      # settles to "present" within one window and never shuts down prematurely.
       if args and m.is_active():
         await m.start()
       else:

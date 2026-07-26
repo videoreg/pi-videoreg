@@ -17,10 +17,11 @@ class BleBeaconMonitor:
   """Tracks presence of a configured BLE beacon.
 
   A continuous scanner records the last time the target MAC was seen. The beacon is
-  considered "present" if seen within BLE_PRESENCE_WINDOW seconds. last_seen is seeded
-  at start() so the beacon reads as present during the boot grace window while the
-  scanner is still discovering it. The scanner also caches every discovered device so
-  the settings UI can offer a pick-list (name + MAC + RSSI).
+  considered "present" if seen within BLE_PRESENCE_WINDOW seconds. Until the target has
+  been heard even once in a session (_ever_seen), only the short discovery window
+  applies, so a boot/wake that finds no beacon shuts back down quickly; the longer
+  grace period only kicks in after a real sighting has been lost. The scanner also
+  caches every discovered device so the settings UI can offer a pick-list.
   """
 
   def __init__(self, plugin, logger: Logger):
@@ -29,9 +30,11 @@ class BleBeaconMonitor:
     self._scanner = None
     self._running = False
     self._last_seen = 0.0
+    self._ever_seen = False  # has the target been heard at all in this session?
+    self._boot_time = 0.0  # when the current scan session started
     self._seen: dict[str, dict] = {}  # mac -> {"name", "rssi", "last_seen"}
     self._lock = asyncio.Lock()
-    self._present = True  # last known presence state, for transition detection
+    self._present = False  # last known presence state, for transition detection
     self._presence_task: asyncio.Task | None = None
 
   # ---- config helpers ----
@@ -72,18 +75,25 @@ class BleBeaconMonitor:
     """Live presence over the short window — drives the UI indicator and journal."""
     if not self.target_mac():
       return True  # nothing to track — never force a shutdown
+    if not self._last_seen:
+      return False  # never heard yet in this session
     return (time.time() - self._last_seen) <= const.BLE_PRESENCE_WINDOW
 
   def is_lost(self) -> bool:
     """True once the beacon has been absent long enough to count as a power cut.
 
-    The grace period must fully elapse since the beacon was last seen. Any sighting
-    updates last_seen and so resets the timer, letting a brief drop-out pass without
-    shutting the device down.
+    Before the beacon has ever been heard in this session, only the short discovery
+    window applies: a boot/wake that finds no beacon is treated as lost quickly rather
+    than waiting out the full grace. After a real sighting, the configurable grace must
+    fully elapse since it was last seen — any sighting resets that timer, so a brief
+    drop-out during a trip passes without shutting the device down.
     """
     if not self.target_mac():
       return False
-    return (time.time() - self._last_seen) > self._grace_seconds()
+    now = time.time()
+    if not self._ever_seen:
+      return (now - self._boot_time) > const.BLE_PRESENCE_WINDOW
+    return (now - self._last_seen) > self._grace_seconds()
 
   def last_seen_seconds(self) -> int | None:
     if not self._last_seen:
@@ -102,6 +112,7 @@ class BleBeaconMonitor:
     self._seen[mac] = {"name": name, "rssi": rssi, "last_seen": now}
     if mac == self.target_mac():
       self._last_seen = now
+      self._ever_seen = True
 
   # ---- lifecycle ----
 
@@ -112,10 +123,12 @@ class BleBeaconMonitor:
     async with self._lock:
       if self._running:
         return
-      # Seed last_seen so the beacon reads as present for the first presence window
-      # (the boot grace) while the scanner is still discovering it.
-      self._last_seen = time.time()
-      self._present = True
+      # Fresh session: the beacon has not been heard yet, so presence starts False and
+      # is_lost() applies only the short discovery window until the first real sighting.
+      self._boot_time = time.time()
+      self._last_seen = 0.0
+      self._ever_seen = False
+      self._present = False
       try:
         self._scanner = BleakScanner(detection_callback=self._on_detection)
         await self._scanner.start()

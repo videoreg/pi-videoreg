@@ -8,10 +8,11 @@ SHUTDOWN_DELAY_SEC = 5
 
 # BLE beacon external-power detection.
 # A beacon is considered "present" if it was last seen within this many seconds.
-# The same window doubles as the boot grace: the monitor seeds last_seen at start,
-# so the beacon reads as present for the first BLE_PRESENCE_WINDOW seconds while the
-# scanner discovers it. This short window drives the live UI indicator and the
-# beacon_found / beacon_lost journal events.
+# This short window drives the live UI indicator and the beacon_found / beacon_lost
+# journal events. It also bounds boot discovery: until the beacon has been seen even
+# once in a session, it is treated as lost after this many seconds — so a wake that
+# finds no beacon shuts back down quickly instead of waiting out the full grace. The
+# beacon must therefore make itself heard within this window (a few BLE adverts).
 BLE_PRESENCE_WINDOW = 15
 
 # How often the monitor re-evaluates presence to detect present<->absent transitions

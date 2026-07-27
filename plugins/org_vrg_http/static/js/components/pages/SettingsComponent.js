@@ -28,6 +28,7 @@ const SettingsComponent = {
           @click="rebuildComponents"
         >{{ rebuilding ? $t('http.settings.rebuilding') : $t('http.settings.rebuild_components') }}</button>
         <span v-if="rebuildError" class="settings-rebuild-error">{{ rebuildError }}</span>
+        <span v-if="rebuildDone" class="settings-rebuild-done">{{ $t('http.settings.rebuild_done') }}</span>
       </div>
     </div>
   `,
@@ -35,16 +36,19 @@ const SettingsComponent = {
   data() {
     return {
       rebuilding: false,
-      rebuildError: null
+      rebuildError: null,
+      rebuildDone: false
     };
   },
 
   methods: {
-    // Rebuild static/js/bundle.js from plugin manifests, then reload so the
-    // freshly generated bundle is loaded by the browser.
+    // Rebuild the merged manifest and static/js/bundle.js from plugin manifests.
+    // No auto-reload: the browser caches bundle.js, so the user must reload with a
+    // cache reset (Ctrl+Shift+R) to actually pick up the fresh bundle.
     async rebuildComponents() {
       this.rebuilding = true;
       this.rebuildError = null;
+      this.rebuildDone = false;
       try {
         const response = await fetch('/api/http/bundle/rebuild', {
           method: 'POST',
@@ -53,12 +57,12 @@ const SettingsComponent = {
         const data = await response.json();
         if (!response.ok || data.status !== 'ok') {
           this.rebuildError = data.error || this.$t('http.settings.rebuild_error');
-          this.rebuilding = false;
           return;
         }
-        window.location.reload();
+        this.rebuildDone = true;
       } catch (err) {
         this.rebuildError = this.$t('http.common.error_connection');
+      } finally {
         this.rebuilding = false;
       }
     }

@@ -167,6 +167,34 @@ class Videoreg:
       self._merged_manifest = read_merged(self)
     return self._merged_manifest
 
+  def refresh_merged_manifest(self) -> dict:
+    """Rebuild the merged manifest from the on-disk per-plugin manifests and update
+    the process cache, preserving any runtime `enabled` overrides from the currently
+    loaded view. Returns the fresh dict.
+
+    Unlike `merged_manifest()` (read once per process), this re-globs
+    `plugins/*/manifest.yaml`, so manifest edits (menu / components / dashboard) can
+    be picked up without restarting the service. Note: aiohttp routes are frozen after
+    startup, so newly declared api routes still require a restart.
+    """
+    from sdk.merged_manifest import build_merged_dict
+
+    prev = self._merged_manifest or {}
+    enabled_by_id = {
+      p.get("id"): p.get("enabled")
+      for p in prev.get("plugins", [])
+      if isinstance(p, dict) and "enabled" in p
+    }
+
+    fresh = build_merged_dict(self)
+    for p in fresh.get("plugins", []):
+      pid = p.get("id")
+      if pid in enabled_by_id and enabled_by_id[pid] is not None:
+        p["enabled"] = enabled_by_id[pid]
+
+    self._merged_manifest = fresh
+    return fresh
+
   def app_path(self, internal_relative_path: str = None) -> Path:
     if not internal_relative_path:
       return self.home

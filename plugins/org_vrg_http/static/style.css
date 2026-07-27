@@ -734,6 +734,11 @@ select.form-input:disabled {
     color: var(--color-error);
 }
 
+.settings-rebuild-done {
+    font-size: 0.875rem;
+    color: var(--color-success);
+}
+
 /* === Login Page === */
 .login-container {
     display: flex;

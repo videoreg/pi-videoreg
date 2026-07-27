@@ -97,6 +97,7 @@ http.settings.users: "Users"
 http.settings.rebuild_components: "Rebuild Vue components"
 http.settings.rebuilding: "Rebuilding..."
 http.settings.rebuild_error: "Rebuild failed"
+http.settings.rebuild_done: "Done. Reload the page with a cache reset (Ctrl+Shift+R) to apply."
 
 http.home.title: "Home"
 http.home.loading: "Loading status..."

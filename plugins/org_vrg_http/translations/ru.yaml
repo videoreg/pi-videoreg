@@ -97,6 +97,7 @@ http.settings.users: "Пользователи"
 http.settings.rebuild_components: "Пересобрать Vue-компоненты"
 http.settings.rebuilding: "Пересборка..."
 http.settings.rebuild_error: "Ошибка пересборки"
+http.settings.rebuild_done: "Готово. Перезагрузите страницу со сбросом кеша (Ctrl+Shift+R), чтобы применить."
 
 http.home.title: "Главная"
 http.home.loading: "Загрузка статуса..."

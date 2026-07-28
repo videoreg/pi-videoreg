@@ -127,7 +127,10 @@ const TripsComponent = {
 
     buildBlocks(events) {
       const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
-      const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost']);
+      const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost', 'beacon_enabled', 'beacon_disabled']);
+      // Events that clear a "beacon absent" state: the beacon returned, or the
+      // feature was toggled (enabling/disabling stops it from gating trips).
+      const BEACON_CLEARS = new Set(['beacon_found', 'beacon_enabled', 'beacon_disabled']);
 
       // A trip is when the vehicle is running. With the BLE-beacon feature the
       // engine may keep external power flowing even while parked, so power alone
@@ -144,7 +147,7 @@ const TripsComponent = {
         if (events[i].type !== 'beacon_lost') continue;
         for (let j = i + 1; j < events.length; j++) {
           const e = events[j];
-          if (e.type === 'beacon_found') break; // recovered → transient
+          if (BEACON_CLEARS.has(e.type)) break; // recovered or feature toggled → transient
           if (e.type === 'shutdown' && e.data && e.data.reason === 'beacon_lost') {
             realLoss.add(i); // grace expired → the loss was real
             break;
@@ -175,7 +178,7 @@ const TripsComponent = {
         const e = events[i];
         if (e.type === 'charging_on') { charging = true; apply(e.date); }
         else if (e.type === 'charging_off') { charging = false; apply(e.date); }
-        else if (e.type === 'beacon_found') { beaconAbsent = false; apply(e.date); }
+        else if (BEACON_CLEARS.has(e.type)) { beaconAbsent = false; apply(e.date); }
         else if (e.type === 'beacon_lost' && realLoss.has(i)) { beaconAbsent = true; apply(e.date); }
       }
 
@@ -261,9 +264,13 @@ const TripsComponent = {
 
     eventLabel(entry) {
       if (entry.category === 'beacon') {
-        return entry.type === 'beacon_found'
-          ? this.$t('http.trips.beacon_found')
-          : this.$t('http.trips.beacon_lost');
+        const labels = {
+          beacon_found: this.$t('http.trips.beacon_found'),
+          beacon_lost: this.$t('http.trips.beacon_lost'),
+          beacon_enabled: this.$t('http.trips.beacon_enabled'),
+          beacon_disabled: this.$t('http.trips.beacon_disabled')
+        };
+        return labels[entry.type] || entry.type;
       }
       if (entry.category === 'shutdown') {
         const labels = {

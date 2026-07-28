@@ -24,10 +24,15 @@ class MethodSetBleTarget(ApiMethod):
       return {"status": "error", "error": "invalid_mac"}
 
     target = {"mac": mac.strip().upper(), "name": name if isinstance(name, str) else None}
-    self._plugin.state.save({const.STATE_KEY_BLE_TARGET: target})
-
     m = self._plugin.ble_monitor
+    was_active = bool(m and m.is_active())
+    self._plugin.state.save({const.STATE_KEY_BLE_TARGET: target})
+    now_active = bool(m and m.is_active())
+
     if m:
       await m.restart()
+
+    if now_active and not was_active:
+      await self._plugin.journal_beacon_active(True)
 
     return {"status": "ok", "data": {"target": target}}

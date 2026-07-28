@@ -52,6 +52,12 @@ class PowerPlugin(Plugin):
       # boot grace enforced through the is_ready_to_die engine (keep_alive reason).
       self.keep_alive.have_to_wait("ble_initial", const.BLE_PRESENCE_WINDOW)
       asyncio.create_task(self.ble_monitor.start())
+    elif self.ble_monitor and self.state.get(const.STATE_KEY_BLE_TARGET, None):
+      # Booted with a beacon configured but the feature inactive (disabled or
+      # unsupported). No beacon_found/lost events are emitted while inactive, so
+      # this marker is the only signal the Trips page has to end a beacon-absent
+      # parking once the feature was turned off.
+      await self.journal_beacon_active(False)
     asyncio.create_task(self._start_check_charging_loop())
 
   async def stop(self):
@@ -90,6 +96,17 @@ class PowerPlugin(Plugin):
     self.logger.info(f"BLE beacon {'appeared' if present else 'disappeared'}")
     if self.journal_client:
       event_type = "beacon_found" if present else "beacon_lost"
+      await self.journal_client.write(JournalRecord(type=event_type, data=None))
+
+  async def journal_beacon_active(self, active: bool):
+    """Journal a beacon-gating on/off transition (feature enabled/disabled).
+
+    The Trips page uses this to know when beacon presence governs trip/parking
+    detection: with the feature off, no beacon_found/lost events are emitted, so
+    this is the only marker that lets it end a beacon-absent parking.
+    """
+    if self.journal_client:
+      event_type = "beacon_enabled" if active else "beacon_disabled"
       await self.journal_client.write(JournalRecord(type=event_type, data=None))
 
   async def _apply_charging_protection(self):

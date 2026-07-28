@@ -16,16 +16,21 @@ class MethodSetBleEnabled(ApiMethod):
     if not isinstance(args, bool):
       return {"status": "error", "error": "Wrong argument: expected bool"}
 
-    self._plugin.state.save({const.STATE_KEY_BLE_ENABLED: args})
-
     m = self._plugin.ble_monitor
+    was_active = bool(m and m.is_active())
+    self._plugin.state.save({const.STATE_KEY_BLE_ENABLED: args})
+    now_active = bool(m and m.is_active())
+
     if m:
       # start() begins a fresh session: is_lost() applies only the short discovery
       # window until the beacon is first heard, so enabling with the beacon in range
       # settles to "present" within one window and never shuts down prematurely.
-      if args and m.is_active():
+      if now_active and not was_active:
         await m.start()
-      else:
+      elif was_active and not now_active:
         await m.stop()
+
+    if now_active != was_active:
+      await self._plugin.journal_beacon_active(now_active)
 
     return {"status": "ok", "data": {"enabled": args}}

@@ -56,8 +56,8 @@ const TripsComponent = {
               >{{ p }}</button>
             </div>
             <ul v-if="block.eventLog && block.eventLog.length > 0" class="trips-thermal-log">
-              <li v-for="(entry, eIdx) in block.eventLog" :key="eIdx">
-                <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span> {{ eventLabel(entry) }}
+              <li v-for="(entry, eIdx) in collapsedLog(block.eventLog)" :key="eIdx">
+                <span class="trips-thermal-log-time">{{ formatTime(entry.date) }}</span> {{ entry.label }}<span v-if="entry.count > 1" class="trips-thermal-log-count"> ×{{ entry.count }}</span>
               </li>
             </ul>
           </div>
@@ -128,95 +128,135 @@ const TripsComponent = {
     buildBlocks(events) {
       const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
       const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost']);
-      const relevantTypes = new Set(['charging_on', 'charging_off', 'stop', 'shutdown', 'jpeg', 'h264', 'track_created', ...THERMAL_TYPES, ...BEACON_TYPES]);
-      const blocks = [];
-      let current = null;
+
+      // A trip is when the vehicle is running. With the BLE-beacon feature the
+      // engine may keep external power flowing even while parked, so power alone
+      // no longer marks a trip. We segment on the same "effective" state the
+      // shutdown engine uses: power present AND the beacon is not confirmed
+      // absent. When the feature is off there are no beacon events, so this
+      // degrades to the classic power-only (charging_on/off) segmentation.
+
+      // --- Pass 1: classify each beacon_lost as transient or real. A loss is
+      // real only if a beacon_lost shutdown follows before the beacon returns;
+      // a flaky beacon that blinks and reappears must not split a trip. ---
+      const realLoss = new Set(); // event indices of confirmed (real) losses
+      for (let i = 0; i < events.length; i++) {
+        if (events[i].type !== 'beacon_lost') continue;
+        for (let j = i + 1; j < events.length; j++) {
+          const e = events[j];
+          if (e.type === 'beacon_found') break; // recovered → transient
+          if (e.type === 'shutdown' && e.data && e.data.reason === 'beacon_lost') {
+            realLoss.add(i); // grace expired → the loss was real
+            break;
+          }
+        }
+      }
+
+      // --- Pass 2: build ordered segments from the effective state. Only power
+      // and (real) beacon transitions move the boundary, so the grace-window
+      // recordings between a real loss and its shutdown land in the parking,
+      // and repeated RTC wake-ups during a parking (each emits charging_on) do
+      // not spawn new trips while the beacon stays absent. ---
+      const segments = []; // { kind: 'trip'|'parking', start, end }
+      let charging = null;      // null until the first power event is seen
+      let beaconAbsent = false; // true after a real loss, until the beacon returns
+      let cur = null;
+
+      const apply = (date) => {
+        if (charging === null) return; // effective state not yet known
+        const kind = (charging === true && !beaconAbsent) ? 'trip' : 'parking';
+        if (cur && cur.kind === kind) return;
+        if (cur) cur.end = date;
+        cur = { kind, start: date, end: null };
+        segments.push(cur);
+      };
+
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i];
+        if (e.type === 'charging_on') { charging = true; apply(e.date); }
+        else if (e.type === 'charging_off') { charging = false; apply(e.date); }
+        else if (e.type === 'beacon_found') { beaconAbsent = false; apply(e.date); }
+        else if (e.type === 'beacon_lost' && realLoss.has(i)) { beaconAbsent = true; apply(e.date); }
+      }
+
+      if (segments.length === 0) return [];
+
+      // --- Pass 3: bucket media / tracks / eventLog into the segment covering
+      // each event's timestamp. ---
+      const blocks = segments.map(s => ({
+        kind: s.kind, start: s.start, end: s.end, media: [], tracks: [], eventLog: []
+      }));
+      let segIdx = -1;
 
       for (const event of events) {
-        if (!relevantTypes.has(event.type)) continue;
+        // Advance to the segment whose [start, end) contains this event.
+        while (segIdx + 1 < segments.length && event.date >= segments[segIdx + 1].start) segIdx++;
+        if (segIdx < 0) continue; // event predates the first segment
+        const block = blocks[segIdx];
 
-        if (event.type === 'charging_on') {
-          if (current && current.kind === 'parking') {
-            current.end = event.date;
-            current = null;
-          }
-          if (!current || current.kind !== 'trip') {
-            current = { kind: 'trip', start: event.date, end: null, media: [], tracks: [], eventLog: [] };
-            blocks.push(current);
-          }
-
-        } else if (event.type === 'charging_off') {
-          if (current && current.kind === 'trip') {
-            current.end = event.date;
-            current = null;
-          }
-          if (!current || current.kind !== 'parking') {
-            current = { kind: 'parking', start: event.date, end: null, media: [], tracks: [], eventLog: [] };
-            blocks.push(current);
-          }
-
-        } else if (event.type === 'stop') {
-          if (current && current.kind === 'trip') {
-            current.end = event.date;
-            current = null;
-          }
-
-        } else if (event.type === 'jpeg' || event.type === 'h264') {
-          if (current && event.data && event.data.filename) {
+        if (event.type === 'jpeg' || event.type === 'h264') {
+          if (event.data && event.data.filename) {
             const mediaType = event.type === 'jpeg' ? 'photo' : 'video';
             const base = this.stripExt(event.data.filename);
-            const existing = current.media.find(m => this.stripExt(m.filename) === base);
+            const existing = block.media.find(m => this.stripExt(m.filename) === base);
             if (existing) {
               if (mediaType === 'video') {
-                // jpeg пришёл раньше h264 — сохраняем его как скриншот
+                // jpeg came before h264 — keep it as the screenshot
                 existing.screenshot = existing.filename;
                 existing.type = 'video';
                 existing.filename = event.data.filename;
               } else {
-                // jpeg пришёл после h264 — это скриншот к видео
+                // jpeg came after h264 — it is the video's screenshot
                 existing.screenshot = event.data.filename;
               }
             } else {
-              current.media.push({ type: mediaType, filename: event.data.filename, date: event.date });
+              block.media.push({ type: mediaType, filename: event.data.filename, date: event.date });
             }
           }
 
         } else if (event.type === 'track_created') {
-          if (current && event.data && event.data.filename) {
-            current.tracks.push(event.data.filename);
+          if (event.data && event.data.filename) {
+            block.tracks.push(event.data.filename);
           }
 
         } else if (THERMAL_TYPES.has(event.type)) {
-          if (current) {
-            current.eventLog.push({ category: 'thermal', type: event.type, date: event.date, data: event.data });
-          }
+          block.eventLog.push({ category: 'thermal', type: event.type, date: event.date, data: event.data });
 
         } else if (BEACON_TYPES.has(event.type)) {
-          if (current) {
-            current.eventLog.push({ category: 'beacon', type: event.type, date: event.date });
-          }
+          block.eventLog.push({ category: 'beacon', type: event.type, date: event.date });
 
         } else if (event.type === 'shutdown') {
-          if (current) {
-            current.eventLog.push({ category: 'shutdown', reason: event.data && event.data.reason, date: event.date });
-          }
+          block.eventLog.push({ category: 'shutdown', reason: event.data && event.data.reason, date: event.date });
         }
       }
 
       // Keep each block's event log in strict chronological order (single timeline).
       for (const b of blocks) b.eventLog.sort((a, c) => a.date.localeCompare(c.date));
 
-      // Handle unclosed block
-      if (current) {
-        if (current.kind === 'trip') {
-          current.kind = 'in_trip';
-        } else if (current.kind === 'parking') {
-          current.kind = 'parked';
-        }
-      }
+      // The last segment is still open — mark it as the ongoing trip/parking.
+      const last = blocks[blocks.length - 1];
+      if (last.kind === 'trip') last.kind = 'in_trip';
+      else if (last.kind === 'parking') last.kind = 'parked';
 
       for (const b of blocks) b.media.reverse();
       return blocks.reverse();
+    },
+
+    // Collapse consecutive identical entries (e.g. an RTC wake-up storm that
+    // shuts down on a lost beacon dozens of times) into one line with a count,
+    // keeping the timestamp of the first occurrence.
+    collapsedLog(eventLog) {
+      const out = [];
+      for (const entry of eventLog) {
+        const label = this.eventLabel(entry);
+        const prev = out[out.length - 1];
+        if (prev && prev.label === label) {
+          prev.count++;
+        } else {
+          out.push({ label, date: entry.date, count: 1 });
+        }
+      }
+      return out;
     },
 
     eventLabel(entry) {

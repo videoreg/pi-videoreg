@@ -1690,3 +1690,8 @@ select.form-input:disabled {
     color: var(--color-text-primary);
 }
 
+.trips-thermal-log-count {
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+

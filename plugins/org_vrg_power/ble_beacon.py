@@ -95,6 +95,20 @@ class BleBeaconMonitor:
       return (now - self._boot_time) > const.BLE_PRESENCE_WINDOW
     return (now - self._last_seen) > self._grace_seconds()
 
+  def is_recording_allowed(self) -> bool:
+    """Whether video recording should run while the beacon feature is active.
+
+    True only once the beacon has actually been heard this session and has not since
+    been lost past its grace. Before the first sighting (fresh boot / parking wake-up)
+    this stays False even though external power may be present, so a wake that never
+    finds the beacon records nothing — unlike is_lost(), which tolerates the short
+    discovery window. A brief mid-trip drop-out (within grace) keeps recording, since
+    is_lost() is still False.
+    """
+    if not self.target_mac():
+      return True  # nothing to track — never gate recording
+    return self._ever_seen and not self.is_lost()
+
   def last_seen_seconds(self) -> int | None:
     if not self._last_seen:
       return None

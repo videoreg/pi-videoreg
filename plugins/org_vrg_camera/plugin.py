@@ -113,6 +113,14 @@ class CameraPlugin(Plugin):
           await self.stop_video()
 
         charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
+        # On a parking wake-up external power is present but the in-car BLE beacon is
+        # absent. The power plugin will shut the device down shortly, but until then we
+        # must not treat that external power as a reason to record. Fold a CHARGING
+        # reading to NOT_CHARGING while the beacon is blocking, so the camera only takes
+        # the wakeup photo and never starts recording video. Fails safe to charging if
+        # power is unreachable, so normal trips are never affected.
+        if charging_status == ChargingStatus.CHARGING and await self._beacon_blocks_recording():
+          charging_status = ChargingStatus.NOT_CHARGING
         bat_level = await self.runner.power_supply.get_battery_percent()
         cpu_temp = get_cpu_temp()
 
@@ -196,6 +204,23 @@ class CameraPlugin(Plugin):
 
     except asyncio.CancelledError:
       await self._camera_controls.shutdown()
+
+  async def _beacon_blocks_recording(self) -> bool:
+    """Ask the power plugin (another service) whether the BLE beacon is currently
+    blocking video recording. On a parking wake-up external power is present but the
+    in-car beacon is absent, so the power plugin treats external power as absent and
+    shuts the device down; the camera must match that and not start recording. Fails
+    safe to False (record as usual) if power is unreachable, so a transient bus/api
+    error never breaks recording on a normal trip."""
+    try:
+      response = await self.api_client.exec("power.get_beacon_state", None)
+      if response.is_ok():
+        data = response.get_data() or {}
+        return bool(data.get("recording_blocked"))
+      self.logger.warning(f"power.get_beacon_state error: {response.get_error()}")
+    except Exception as e:
+      self.logger.debug(f"power.get_beacon_state unavailable: {type(e).__name__}: {e}")
+    return False
 
   def _build_video_params(self) -> VideoParams:
     user_width = self.state.get(const.KEY_VIDEO_WIDTH, const.DEFAULT_VIDEO_WIDTH)

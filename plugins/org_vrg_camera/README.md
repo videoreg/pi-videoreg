@@ -5,7 +5,7 @@
 - Continuous video recording in H.264 (2-minute segments) via `rpicam-vid`
 - Photo capture: raw photo (`rpicam-jpeg`) or screenshot from the RTSP stream
 - OSD overlay with metadata (time, GPS, temperature, battery) on top of the video
-- Automatic management: stops recording on overheating (>65°C) or when running on battery, starts when power is available and temperature is normal
+- Automatic management: stops recording on overheating (>65°C) or when running on battery, starts when power is available and temperature is normal. When the BLE parking beacon feature is active, external power counts as a reason to record only once the beacon is confirmed present — on a parking wake-up (power present, beacon absent) the camera takes a single wakeup photo and does not record, then the power plugin shuts the device down (via `power.get_beacon_state`)
 - File rotation: keeps at most 400 H.264 and 400 JPEG files, deletes the oldest
 - Live streaming to Mediamtx HLS
 

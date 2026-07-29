@@ -11,6 +11,7 @@ from plugins.org_vrg_power.commands.shutdown import CommandShutdown
 from plugins.org_vrg_power.ble_beacon import BleBeaconMonitor
 from plugins.org_vrg_power.methods.ble_scan import MethodBleScan
 from plugins.org_vrg_power.methods.clear_ble_target import MethodClearBleTarget
+from plugins.org_vrg_power.methods.get_beacon_state import MethodGetBeaconState
 from plugins.org_vrg_power.methods.get_ble_config import MethodGetBleConfig
 from plugins.org_vrg_power.methods.get_capabilities import MethodGetCapabilities
 from plugins.org_vrg_power.methods.get_charging_protection import MethodGetChargingProtection
@@ -132,6 +133,7 @@ async def build_plugin(
       "keep_alive": MethodKeepAlive(plugin),
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_ble_config": MethodGetBleConfig(plugin),
+      "get_beacon_state": MethodGetBeaconState(plugin),
       "set_ble_enabled": MethodSetBleEnabled(plugin),
       "set_ble_target": MethodSetBleTarget(plugin),
       "set_ble_grace": MethodSetBleGrace(plugin),

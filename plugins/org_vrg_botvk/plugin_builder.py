@@ -21,6 +21,7 @@ from plugins.org_vrg_botvk.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_botvk.plugin import BotvkPlugin
 from plugins.org_vrg_botvk.vk_api import VkApi
 from sdk.gateway import Gateway, GatewayCommandMethod
+from sdk.command_cancel import read_command_cancellations
 from sdk.gateway_menu import build_menu_gateway_commands, read_menu_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
@@ -160,7 +161,13 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   ]
 
   plugin.dispatcher = Dispatcher(
-    bot, vk_api, commands, callbacks, plugin.keep_alive, plugin.health
+    bot,
+    vk_api,
+    commands,
+    callbacks,
+    plugin.keep_alive,
+    plugin.health,
+    read_command_cancellations(merged_plugins),
   )
   plugin.vk_api = vk_api
   plugin.bot = bot

@@ -22,6 +22,7 @@ from plugins.org_vrg_bot.methods.set_settings import MethodSetSettings
 from plugins.org_vrg_bot.plugin import BotPlugin
 from plugins.org_vrg_bot.telegram_api import TelegramApi
 from sdk.gateway import Gateway, GatewayCommandMethod
+from sdk.command_cancel import read_command_cancellations
 from sdk.gateway_menu import build_menu_gateway_commands, read_menu_commands
 from sdk.service import ConnectionListenerFactory, ServiceRunner
 from sdk.user_manager import UserManager
@@ -158,7 +159,13 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   ]
 
   plugin.dispatcher = Dispatcher(
-    bot, tg_api, commands, callbacks, plugin.keep_alive, plugin.health
+    bot,
+    tg_api,
+    commands,
+    callbacks,
+    plugin.keep_alive,
+    plugin.health,
+    read_command_cancellations(merged_plugins),
   )
   plugin.tg_api = tg_api
   plugin.bot = bot

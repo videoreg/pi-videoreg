@@ -8,6 +8,7 @@ import plugins.org_vrg_camera.osd as osd
 from plugins.org_vrg_modem.modem import Modem
 from plugins.org_vrg_modem.sms_manager import SmsManager
 from plugins.org_vrg_modem.tracker import GpsTracker
+from sdk.command_cancel import apply_command_cancellations
 from sdk.journal import JournalRecord
 from sdk.media_manager import MediaFileType
 from sdk.power import ChargingStatus
@@ -39,11 +40,13 @@ class ModemPlugin(Plugin):
   _start_check_sms_time = -1.0
   _received_sms = False
   _command_plugin_map: dict[str, str]
+  _command_cancel_map: dict[str, set[str]]
   _allowed_phones: list[str]
 
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
     self._command_plugin_map = {}
+    self._command_cancel_map = {}
     self._allowed_phones = []
 
   async def start(self):
@@ -61,6 +64,9 @@ class ModemPlugin(Plugin):
 
   def init_command_plugin_map(self, command_plugin_map: dict[str, str]):
     self._command_plugin_map = command_plugin_map
+
+  def init_command_cancel_map(self, command_cancel_map: dict[str, set[str]]):
+    self._command_cancel_map = command_cancel_map
 
   def init_allowed_phones(self, phones: list[str]):
     self._allowed_phones = phones
@@ -321,6 +327,12 @@ class ModemPlugin(Plugin):
             )
             if not bot_response.is_ok():
               self.logger.warning(f"bot.send_text error: {bot_response.get_error()}")
+
+        # Drop a /shutdown that a /no cancels within this same batch (e.g. both queued
+        # while the device was offline and read together on reconnect).
+        commands_to_exec = apply_command_cancellations(
+          commands_to_exec, self._command_cancel_map, lambda command: command[1]
+        )
 
         for sms_number, command_name, command_args in commands_to_exec:
           asyncio.create_task(self._handle_command(sms_number, command_name, command_args))

@@ -734,6 +734,11 @@ select.form-input:disabled {
     color: var(--color-error);
 }
 
+.settings-rebuild-done {
+    font-size: 0.875rem;
+    color: var(--color-success);
+}
+
 /* === Login Page === */
 .login-container {
     display: flex;
@@ -1683,5 +1688,10 @@ select.form-input:disabled {
 
 .trips-thermal-log-time {
     color: var(--color-text-primary);
+}
+
+.trips-thermal-log-count {
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
 }
 

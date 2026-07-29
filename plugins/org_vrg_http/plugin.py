@@ -200,13 +200,23 @@ class HttpPlugin(Plugin):
         self.logger.info(f"Registered {method.upper()} {path} -> {api_method}")
 
   async def _handle_bundle_rebuild(self, request: web.Request):
-    plugins_dir = self.runner.videoreg.app_path("plugins")
-    out_path = self.runner.videoreg.app_path(
-      "plugins/org_vrg_http/static/js/bundle.js"
-    )
-    merged_plugins = self.runner.videoreg.merged_manifest()["plugins"]
+    videoreg = self.runner.videoreg
+
+    # Rebuild the merged manifest from the on-disk manifests first, so both the
+    # component bundle and the page bootstrap (menu / components / dashboard) reflect
+    # current manifest.yaml without a service restart. Newly declared api routes still
+    # need a restart (aiohttp freezes the router after startup).
+    merged_plugins = videoreg.refresh_merged_manifest()["plugins"]
+    self._http_manifests = read_plugin_http_configs(merged_plugins)
+    request.app["http_manifests"] = self._http_manifests
+
+    plugins_dir = videoreg.app_path("plugins")
+    out_path = videoreg.app_path("plugins/org_vrg_http/static/js/bundle.js")
     count = build_bundle(plugins_dir, out_path, merged_plugins)
-    return web.json_response({"status": "ok", "components": count})
+
+    return web.json_response(
+      {"status": "ok", "components": count, "plugins": len(self._http_manifests)}
+    )
 
   async def _get_local_ips(self) -> list[str]:
     ips = list(const.CERT_SAN_STATIC_IPS)

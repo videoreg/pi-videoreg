@@ -33,5 +33,8 @@ http:
       method: get
       plugin: botvk.get_status
 
+bot:
+  status_method: botvk.get_status_text # VK bot health line in the /status summary
+
 power:
   ask_before_shutdown: true # power calls botvk.is_ready_to_die before shutting down

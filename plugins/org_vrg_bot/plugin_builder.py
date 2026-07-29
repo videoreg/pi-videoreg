@@ -10,6 +10,7 @@ from plugins.org_vrg_bot.dispatcher import Dispatcher
 from plugins.org_vrg_bot.main import Bot, BotChat, BotCommand, Context
 from plugins.org_vrg_bot.methods.get_settings import MethodGetSettings
 from plugins.org_vrg_bot.methods.get_status import MethodGetStatus
+from plugins.org_vrg_bot.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_bot.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_bot.methods.send_document import MethodSendDocument
 from plugins.org_vrg_bot.methods.send_image import MethodSendImage
@@ -110,6 +111,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_settings": MethodGetSettings(plugin),
       "get_status": MethodGetStatus(plugin),
+      "get_status_text": MethodGetStatusText(plugin),
       "set_settings": MethodSetSettings(plugin, tg_api),
     }
   )

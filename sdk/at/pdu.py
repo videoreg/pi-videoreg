@@ -13,6 +13,7 @@ Pure functions, no I/O. Decodes incoming SMS-DELIVER PDUs (as returned by
 - UDH (User Data Header) for concatenated / multipart messages.
 """
 
+import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -332,30 +333,95 @@ def _decode_user_data(ud: bytes, udl: int, encoding: str, udhi: bool) -> str:
 
 # --- PDU encode (SMS-SUBMIT) ----------------------------------------------
 
+# Single-segment user-data capacity: 160 septets (7-bit) or 140 octets (UCS2).
+# A 6-octet concatenation UDH steals room, leaving 153 septets / 134 octets per
+# part (67 UCS2 code units).
+_GSM7_SINGLE = 160
+_GSM7_CONCAT = 153
+_UCS2_SINGLE_OCTETS = 140
+_UCS2_CONCAT_OCTETS = 134
 
-def encode_submit_pdu(number: str, text: str) -> tuple[int, str]:
-  """Encode an SMS-SUBMIT PDU for AT+CMGS.
+# Concatenation UDH (TS 23.040 §9.2.3.24.1), 8-bit reference variant:
+# UDHL=05, IEI=00, IEDL=03, then (ref, total, seq). 6 octets including UDHL.
+_CONCAT_UDH_OCTETS = 6
+# For a 6-octet UDH, one fill bit realigns the 7-bit stream to a septet boundary,
+# so the header occupies (48 + 1) / 7 = 7 septets of the udl budget.
+_CONCAT_UDH_FILL_BITS = 1
+_CONCAT_UDH_SEPTETS = 7
 
-  Picks GSM 7-bit when the text fits the default alphabet, otherwise UCS2.
-  Returns ``(tpdu_len, pdu_hex)`` where ``tpdu_len`` is the AT+CMGS length
-  argument (octet count of everything after the SMSC field).
+
+def _concat_udh(ref: int, total: int, seq: int) -> bytes:
+  return bytes([0x05, 0x00, 0x03, ref & 0xFF, total & 0xFF, seq & 0xFF])
+
+
+def _pack_7bit_after_udh(septets: list[int], fill_bits: int) -> bytes:
+  """Pack septets LSB-first, offset by ``fill_bits`` leading zero bits.
+
+  The fill bits realign the user data to a septet boundary after a whole-octet
+  UDH (mirrors ``unpack_7bit``'s ``skip_bits`` on decode).
   """
+  out = bytearray()
+  bitbuf = 0
+  bitcount = fill_bits
+  for s in septets:
+    bitbuf |= (s & 0x7F) << bitcount
+    bitcount += 7
+    while bitcount >= 8:
+      out.append(bitbuf & 0xFF)
+      bitbuf >>= 8
+      bitcount -= 8
+  if bitcount:
+    out.append(bitbuf & 0xFF)
+  return bytes(out)
+
+
+def _split_septets(septets: list[int], size: int) -> list[list[int]]:
+  """Chunk septets into ``size``-septet parts without splitting an ESC pair."""
+  chunks: list[list[int]] = []
+  i = 0
+  n = len(septets)
+  while i < n:
+    end = min(i + size, n)
+    if end < n and septets[end - 1] == ESC:
+      end -= 1  # keep the ESC + extension-char pair in the same part
+    chunks.append(septets[i:end])
+    i = end
+  return chunks
+
+
+def _split_ucs2(text: str, max_octets: int) -> list[str]:
+  """Chunk text so each part's UTF-16BE encoding fits ``max_octets``.
+
+  Splits on character boundaries, so a non-BMP surrogate pair is never broken.
+  """
+  chunks: list[str] = []
+  cur: list[str] = []
+  cur_octets = 0
+  for ch in text:
+    ch_octets = len(ch.encode("utf-16-be"))
+    if cur and cur_octets + ch_octets > max_octets:
+      chunks.append("".join(cur))
+      cur = []
+      cur_octets = 0
+    cur.append(ch)
+    cur_octets += ch_octets
+  if cur:
+    chunks.append("".join(cur))
+  return chunks
+
+
+def _build_submit_pdu(number: str, dcs: int, udl: int, ud: bytes, udhi: bool) -> tuple[int, str]:
+  """Assemble one SMS-SUBMIT PDU. ``udhi`` sets TP-UDHI when ``ud`` carries a UDH."""
   intl = number.startswith("+")
   digits = number.lstrip("+")
   addr_type = 0x91 if intl else 0x81
 
-  septets = text_to_septets(text)
-  if septets is not None:
-    dcs = 0x00
-    udl = len(septets)
-    ud = pack_7bit(septets)
-  else:
-    dcs = 0x08
-    ud = text.encode("utf-16-be")
-    udl = len(ud)
+  first = 0x01  # SMS-SUBMIT, no validity period
+  if udhi:
+    first |= 0x40  # TP-UDHI: user data starts with a header
 
   tpdu = bytearray()
-  tpdu.append(0x01)  # SMS-SUBMIT, no validity period
+  tpdu.append(first)
   tpdu.append(0x00)  # TP-MR
   tpdu.append(len(digits))  # address length in semi-octets
   tpdu.append(addr_type)
@@ -367,3 +433,49 @@ def encode_submit_pdu(number: str, text: str) -> tuple[int, str]:
 
   pdu = bytes([0x00]) + bytes(tpdu)  # 0x00 = use modem's default SMSC
   return len(tpdu), pdu.hex().upper()
+
+
+def encode_submit_pdus(number: str, text: str) -> list[tuple[int, str]]:
+  """Encode ``text`` into one or more SMS-SUBMIT PDUs for AT+CMGS.
+
+  Picks GSM 7-bit when the text fits the default alphabet, otherwise UCS2. Text
+  longer than a single segment is split into concatenated parts (8-bit reference
+  UDH), so the caller sends each returned PDU with its own AT+CMGS and the
+  receiving handset reassembles them. Returns a list of ``(tpdu_len, pdu_hex)``
+  where ``tpdu_len`` is the AT+CMGS length argument (octets after the SMSC field).
+  """
+  septets = text_to_septets(text)
+  if septets is not None:
+    if len(septets) <= _GSM7_SINGLE:
+      return [_build_submit_pdu(number, 0x00, len(septets), pack_7bit(septets), False)]
+    chunks = _split_septets(septets, _GSM7_CONCAT)
+    ref = random.randint(0, 0xFF)
+    total = len(chunks)
+    pdus = []
+    for seq, chunk in enumerate(chunks, start=1):
+      ud = _concat_udh(ref, total, seq) + _pack_7bit_after_udh(chunk, _CONCAT_UDH_FILL_BITS)
+      udl = _CONCAT_UDH_SEPTETS + len(chunk)
+      pdus.append(_build_submit_pdu(number, 0x00, udl, ud, True))
+    return pdus
+
+  data = text.encode("utf-16-be")
+  if len(data) <= _UCS2_SINGLE_OCTETS:
+    return [_build_submit_pdu(number, 0x08, len(data), data, False)]
+  chunks = _split_ucs2(text, _UCS2_CONCAT_OCTETS)
+  ref = random.randint(0, 0xFF)
+  total = len(chunks)
+  pdus = []
+  for seq, chunk in enumerate(chunks, start=1):
+    body = chunk.encode("utf-16-be")
+    ud = _concat_udh(ref, total, seq) + body
+    pdus.append(_build_submit_pdu(number, 0x08, _CONCAT_UDH_OCTETS + len(body), ud, True))
+  return pdus
+
+
+def encode_submit_pdu(number: str, text: str) -> tuple[int, str]:
+  """Encode a single-segment SMS-SUBMIT PDU (back-compat wrapper).
+
+  Prefer ``encode_submit_pdus``, which segments long text. This returns only the
+  first part and is kept for callers that never exceed one segment.
+  """
+  return encode_submit_pdus(number, text)[0]

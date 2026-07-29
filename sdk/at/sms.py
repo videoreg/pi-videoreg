@@ -7,7 +7,7 @@ are the building blocks a future SmsManager backend (and the vrg-at CLI) use.
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sdk.at.pdu import DecodedSms, decode_deliver_pdu, encode_submit_pdu
+from sdk.at.pdu import DecodedSms, decode_deliver_pdu, encode_submit_pdus
 from sdk.at.transport import AtResponse, AtTransport
 
 
@@ -108,8 +108,18 @@ async def delete(transport: AtTransport, index: int) -> AtResponse:
 
 
 async def send(transport: AtTransport, number: str, text: str) -> tuple[str, AtResponse]:
-  """Encode ``text`` to a SUBMIT PDU and send it. Returns ``(pdu_hex, response)``."""
+  """Encode ``text`` and send it, segmenting into concatenated parts when needed.
+
+  Returns ``(pdu_hex, response)`` of the last part sent; if any part fails to
+  send (non-ok response) its response is returned immediately without sending
+  the rest.
+  """
   await set_pdu_mode(transport)
-  tpdu_len, pdu_hex = encode_submit_pdu(number, text)
-  resp = await transport.send_pdu(f"AT+CMGS={tpdu_len}", pdu_hex)
+  pdus = encode_submit_pdus(number, text)
+  pdu_hex = ""
+  resp: AtResponse | None = None
+  for tpdu_len, pdu_hex in pdus:
+    resp = await transport.send_pdu(f"AT+CMGS={tpdu_len}", pdu_hex)
+    if not resp.ok:
+      break
   return pdu_hex, resp

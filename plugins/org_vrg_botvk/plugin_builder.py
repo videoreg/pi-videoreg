@@ -11,6 +11,7 @@ from plugins.org_vrg_botvk.main import Bot, BotChat, Context, MenuButton
 from plugins.org_vrg_botvk.methods.edit_message import MethodEditMessage
 from plugins.org_vrg_botvk.methods.get_settings import MethodGetSettings
 from plugins.org_vrg_botvk.methods.get_status import MethodGetStatus
+from plugins.org_vrg_botvk.methods.get_status_text import MethodGetStatusText
 from plugins.org_vrg_botvk.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_botvk.methods.send_document import MethodSendDocument
 from plugins.org_vrg_botvk.methods.send_image import MethodSendImage
@@ -111,6 +112,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "is_ready_to_die": MethodIsReadyToDie(plugin),
       "get_settings": MethodGetSettings(plugin),
       "get_status": MethodGetStatus(plugin),
+      "get_status_text": MethodGetStatusText(plugin),
       "set_settings": MethodSetSettings(plugin),
     }
   )

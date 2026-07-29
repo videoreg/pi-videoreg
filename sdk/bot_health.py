@@ -40,3 +40,20 @@ class BotHealth:
     if not self.polling or self.last_ok_at is None:
       return False
     return (time.time() - self.last_ok_at) < self.STALE_SEC
+
+
+def format_health_text(title: str, configured: bool, health: BotHealth) -> str:
+  """Short human-readable bot health line for the `/status` summary.
+
+  `title` names the bot (e.g. "Telegram", "VK"); `configured` is whether its
+  credentials are set. Shared by the Telegram and VK gateways, which expose the
+  same `BotHealth` state.
+  """
+  if not configured:
+    return f"{title}: not configured"
+  if health.is_healthy():
+    return f"{title}: online"
+  text = f"{title}: offline"
+  if health.last_error:
+    text += f" ({health.last_error})"
+  return text

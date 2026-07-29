@@ -19,6 +19,7 @@ from plugins.org_vrg_modem.methods.set_apn import MethodSetApn
 from plugins.org_vrg_modem.plugin import ModemPlugin
 from sdk.command_reader import read_plugin_commands
 from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
+from sdk.gateway_menu import CommandStatus, read_status_methods
 from sdk.service import ServiceRunner
 from sdk.user_manager import UserManager
 
@@ -57,6 +58,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   gateways = Gateway.parse_gateways(
     runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
+  merged_plugins = runner.videoreg.merged_manifest()["plugins"]
   commands: dict[str, GatewayCommand] = {
     "gps": CommandGpsCommands(plugin),
     "list_tracks": CommandListTracks(plugin),
@@ -64,6 +66,10 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     "sms": CommandSmsCommands(plugin),
     "list_sms": CommandListSms(plugin),
     "get_sms": CommandGetSms(plugin),
+    # Built-in `/status` menu command, handled by this gateway itself (same pattern as the
+    # bot gateways). `/more` is intentionally omitted — it relies on inline keyboards SMS
+    # cannot render.
+    "status": CommandStatus(plugin.api_client, read_status_methods(merged_plugins)),
   }
 
   plugin.init_api_servier(
@@ -84,10 +90,14 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   # Commands are declared in each plugin's manifest.yaml (folded into the merged manifest).
   command_plugin_map: dict[str, str] = {}
-  for cmd in read_plugin_commands(runner.videoreg.merged_manifest()["plugins"]):
+  for cmd in read_plugin_commands(merged_plugins):
     cmd_name = cmd.get("name")
     if cmd_name:
       command_plugin_map[cmd_name] = cmd.get("plugin")
+
+  # The built-in `/status` menu command isn't in any plugin manifest; route it to this
+  # gateway's own `<name>.command`, which holds the `status` handler above.
+  command_plugin_map["status"] = name
 
   plugin.init_command_plugin_map(command_plugin_map)
 

@@ -17,6 +17,7 @@ from plugins.org_vrg_modem.methods.is_ready_to_die import MethodIsReadyToDie
 from plugins.org_vrg_modem.methods.send_text import MethodSendText
 from plugins.org_vrg_modem.methods.set_apn import MethodSetApn
 from plugins.org_vrg_modem.plugin import ModemPlugin
+from sdk.command_cancel import read_command_cancellations
 from sdk.command_reader import read_plugin_commands
 from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.gateway_menu import CommandStatus, read_status_methods
@@ -100,6 +101,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   command_plugin_map["status"] = name
 
   plugin.init_command_plugin_map(command_plugin_map)
+  plugin.init_command_cancel_map(read_command_cancellations(merged_plugins))
 
   users_file_path = runner.videoreg.private_path("data/users.json")
   user_manager = UserManager(users_file_path)

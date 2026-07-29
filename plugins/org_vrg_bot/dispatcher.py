@@ -5,6 +5,7 @@ from plugins.org_vrg_bot.backoff import Backoff
 from plugins.org_vrg_bot.keep_alive import KeepAlive
 from plugins.org_vrg_bot.main import Bot, BotChat, BotHealth, Callback, Command
 from plugins.org_vrg_bot.telegram_api import TelegramApi
+from sdk.command_cancel import apply_command_cancellations
 
 
 class Dispatcher:
@@ -15,6 +16,7 @@ class Dispatcher:
   _stop_event: asyncio.Event
   _keep_alive: KeepAlive
   _health: BotHealth
+  _cancel_map: dict[str, set[str]]
 
   def __init__(
     self,
@@ -24,6 +26,7 @@ class Dispatcher:
     callbacks: list[Callback],
     keep_alive: KeepAlive,
     health: BotHealth,
+    cancel_map: dict[str, set[str]] = None,
   ):
     super().__init__()
     self._bot = bot
@@ -32,6 +35,7 @@ class Dispatcher:
     self._callbacks = callbacks
     self._keep_alive = keep_alive
     self._health = health
+    self._cancel_map = cancel_map or {}
     self._stop_event = asyncio.Event()
     self._stop_event.set()  # initially not polling
     self._apitask = None
@@ -169,6 +173,12 @@ class Dispatcher:
         )
 
       backoff.consider_user_interaction(has_user_interaction)
+
+      # Drop a /shutdown that a /no cancels within this same batch (e.g. both queued while
+      # the device was offline and delivered together on reconnect).
+      commands_to_exec = apply_command_cancellations(
+        commands_to_exec, self._cancel_map, lambda command: command[1]
+      )
 
       for chat, command_name, command_args in commands_to_exec:
         asyncio.create_task(self._handle_command(chat, command_name, command_args))

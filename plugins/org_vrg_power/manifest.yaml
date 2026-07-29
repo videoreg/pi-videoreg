@@ -92,6 +92,13 @@ commands:
     hidden: true # reachable from the /power menu
   - name: shutdown
     title: Shutdown
+  - name: "no" # quoted: bare `no` is YAML boolean false
+    title: Cancel scheduled shutdown
+    hidden: true # corrective command sent manually; not shown in the menu
+    # Cancels a same-batch /shutdown: when a shutdown queued while offline and a later
+    # /no arrive together on reconnect, the /shutdown is dropped (see sdk/command_cancel.py).
+    cancels:
+      - shutdown
 
 bot:
   status_method: power.get_status_text

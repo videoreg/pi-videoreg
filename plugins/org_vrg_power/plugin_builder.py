@@ -4,6 +4,7 @@ import plugins.org_vrg_power.const as const
 from plugins.org_vrg_power.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_power.commands.get_wakeup_commands import CommandGetWakeupCommands
 from plugins.org_vrg_power.commands.keep_alive import CommandKeepAlive
+from plugins.org_vrg_power.commands.no import CommandNo
 from plugins.org_vrg_power.commands.reboot import CommandReboot
 from plugins.org_vrg_power.commands.set_wakeup import CommandSetWakeup
 from plugins.org_vrg_power.commands.shutdown import CommandShutdown
@@ -110,6 +111,7 @@ async def build_plugin(
     ),
     "reboot": CommandReboot(plugin),
     "keep": CommandKeepAlive(plugin),
+    "no": CommandNo(plugin),
   }
 
   plugin.init_api_servier(

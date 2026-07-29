@@ -77,14 +77,32 @@ class PowerPlugin(Plugin):
     flows through the existing shutdown logic unchanged. A brief drop-out is tolerated
     (is_lost stays False until the grace elapses), so the device keeps running.
     """
-    if (
-      charging_status == ChargingStatus.CHARGING
-      and self.ble_monitor
-      and self.ble_monitor.is_active()
-      and self.ble_monitor.is_lost()
-    ):
+    if charging_status == ChargingStatus.CHARGING and self.beacon_blocks_power():
       return ChargingStatus.NOT_CHARGING
     return charging_status
+
+  def beacon_blocks_power(self) -> bool:
+    """True when the beacon feature is active and the beacon has been lost past its
+    grace — the condition under which external power is treated as absent for the
+    shutdown decision (see effective_charging_status)."""
+    return bool(
+      self.ble_monitor and self.ble_monitor.is_active() and self.ble_monitor.is_lost()
+    )
+
+  def beacon_blocks_recording(self) -> bool:
+    """True when the beacon feature is active but the beacon has not been confirmed
+    present this session (or was lost past grace), so video recording must not run.
+
+    Stricter than beacon_blocks_power(): it also covers the boot/parking discovery
+    window before the first sighting. That window is exactly when the camera would
+    otherwise see external power and start recording on a parking wake-up while the
+    power plugin is still waiting to confirm the beacon before shutting down. Consumed
+    by the camera (a different service) via the power.get_beacon_state api-method."""
+    return bool(
+      self.ble_monitor
+      and self.ble_monitor.is_active()
+      and not self.ble_monitor.is_recording_allowed()
+    )
 
   async def on_beacon_presence_change(self, present: bool):
     """React to a live beacon present<->absent transition: log and journal it.

@@ -222,6 +222,14 @@ const TripsComponent = {
       const blocks = segments.map(s => ({
         kind: s.kind, start: s.start, end: s.end, media: [], tracks: [], eventLog: []
       }));
+      // Tracks that stayed empty (no GPS fix at all) are deleted on close and journaled
+      // as track_removed. Collect them up front — the removal may land in a different
+      // segment than the creation — so no block offers a download for a missing file.
+      const removedTracks = new Set(
+        events
+          .filter(e => e.type === 'track_removed' && e.data && e.data.filename)
+          .map(e => e.data.filename)
+      );
       let segIdx = -1;
 
       for (const event of events) {
@@ -251,7 +259,7 @@ const TripsComponent = {
           }
 
         } else if (event.type === 'track_created') {
-          if (event.data && event.data.filename) {
+          if (event.data && event.data.filename && !removedTracks.has(event.data.filename)) {
             block.tracks.push(event.data.filename);
           }
 

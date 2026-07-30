@@ -100,27 +100,44 @@ class ModemPlugin(Plugin):
     return self._modem_info
 
   async def stop(self):
+    # Close the track before super().stop() unregisters the socket connection: dropping
+    # an empty track journals a track_removed record, which travels over the bus.
+    await self._close_gps_tracker()
     await super().stop()
-    if self._gps_tracker:
-      track_file_name = os.path.basename(self._gps_tracker._file_path)
-      kept = self._gps_tracker.close()
-      self._gps_tracker = None
-      if not kept:
-        self.runner.media_manager.remove_file(MediaFileType.GPS, track_file_name)
 
     # self._revert_annotation()
+
+  async def _close_gps_tracker(self):
+    """Close the active track and, if it stayed empty, forget it everywhere.
+
+    A session that never gets a GPS fix (a parking wake-up, a cold start under cover)
+    produces a point-less .gpx, which GpsTracker.close() deletes. `track_created` was
+    already journaled when the tracker started, so a matching `track_removed` is what
+    tells the Trips page to stop offering the file for download.
+    """
+    if not self._gps_tracker:
+      return
+
+    track_file_name = os.path.basename(self._gps_tracker._file_path)
+    kept = self._gps_tracker.close()
+    self._gps_tracker = None
+
+    if kept:
+      return
+
+    self.logger.info(f"gps track {track_file_name} has no points: dropped")
+    self.runner.media_manager.remove_file(MediaFileType.GPS, track_file_name)
+    if self.journal_client:
+      await self.journal_client.write(
+        JournalRecord(type="track_removed", data={"filename": track_file_name})
+      )
 
   async def _start_lifecycle_loop(self):
     while self.runner.is_running():
       charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
 
       if charging_status == ChargingStatus.NOT_CHARGING:
-        if self._gps_tracker:
-          track_file_name = os.path.basename(self._gps_tracker._file_path)
-          kept = self._gps_tracker.close()
-          self._gps_tracker = None
-          if not kept:
-            self.runner.media_manager.remove_file(MediaFileType.GPS, track_file_name)
+        await self._close_gps_tracker()
       else:
         if not self.modem.is_enabled():
           is_enabled = await self.modem.enable()

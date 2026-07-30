@@ -16,6 +16,12 @@ GPS and LBS location are polled over AT (`AT+CGPS*` / `AT+CGNSS*` /
 Tracks are written as GPX files to `~/.videoreg/gps/` (or `path.gps` from the
 manifest). Implementation: `prod/modem.py` (interface in `modem.py`).
 
+A track is opened while external power is present and closed when it goes away or
+the service stops (`_close_gps_tracker`). A track that never received a single
+point — a wake-up with no GPS fix — is deleted on close and reported to the
+journal as `track_removed`, which cancels the `track_created` written when it was
+opened, so the Trips page stops listing it.
+
 ## SMS
 
 Incoming SMS are read in PDU mode (`AT+CMGL`), multipart messages are merged,

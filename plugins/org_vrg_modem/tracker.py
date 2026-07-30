@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from math import atan2, cos, radians, sin, sqrt
@@ -104,9 +105,17 @@ class GpsTracker:
     if self._last_trackpoint:
       self._write_trackpoint()
 
-    # if not self._has_points:
-    #   os.remove(self._file_path)
-    #   return False
+    # A track that never received a single point is just a header and a footer — a
+    # wake-up with no GPS fix at all. Drop the file instead of keeping an empty .gpx.
+    if not self._has_points:
+      try:
+        os.remove(self._file_path)
+      except FileNotFoundError:
+        pass  # already gone (e.g. media cleanup) — still not kept
+      except OSError:
+        return True  # could not delete — the file is still there
+      return False
+
     return True
 
 

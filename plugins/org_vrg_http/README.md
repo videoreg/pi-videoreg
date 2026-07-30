@@ -67,10 +67,13 @@ The `http:` block keys:
    definition time);
 2. every plugin's manifest `components`, in plugin order.
 
-It is **generated, git-ignored, and root-owned at runtime**. Built on demand:
-served on a cold start when the file is missing (`static_handlers`), or rebuilt
-explicitly via `POST /api/http/bundle/rebuild` (also the *Rebuild Vue components*
-button on the settings page). The build trigger never runs on plugin start.
+It is **generated, git-ignored, and root-owned at runtime**. Rebuilt on every
+plugin start, so a deploy that changes a component never keeps serving the
+previously generated bundle (the `?v=<git hash>` cache-buster invalidates the
+browser copy, but the file on disk would stay stale). Also built on demand: on a
+cold start when the file is missing (`static_handlers`), or explicitly via
+`POST /api/http/bundle/rebuild` (the *Rebuild Vue components* button on the
+settings page), which additionally re-reads the plugin manifests.
 
 `bundle.js` and `vue.global.js` are served with on-the-fly gzip compression.
 

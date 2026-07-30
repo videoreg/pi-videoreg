@@ -155,6 +155,36 @@ const TripsComponent = {
         }
       }
 
+      // --- Pass 1b: mark sessions that were beacon-absent from the very start. A
+      // beacon that is already gone when the scanner starts produces no beacon_lost
+      // event at all — the presence loop only reports present<->absent transitions and
+      // a session begins as "absent" — so a parking wake-up leaves nothing behind but
+      // charging_on (external power is still there) and a beacon-lost shutdown. A
+      // session (delimited by core's `start` events) that ends in a beacon-lost
+      // shutdown without ever seeing the beacon therefore *was* a parking wake-up, and
+      // saying so explicitly is what keeps an RTC wake-up storm from looking like a
+      // trip once the beacon_lost that opened the parking scrolls out of the journal
+      // window (the page only loads the last two days). ---
+      const absentSessionStart = new Set(); // event index that opens such a session
+      let sessionStart = 0;      // index of the current session's `start` event
+      let sawBeacon = false;     // beacon confirmed present during this session
+      let endedBeaconLost = false;
+      for (let i = 0; i <= events.length; i++) {
+        const isBoundary = i === events.length || events[i].type === 'start';
+        if (isBoundary) {
+          if (endedBeaconLost && !sawBeacon) absentSessionStart.add(sessionStart);
+          sessionStart = i;
+          sawBeacon = false;
+          endedBeaconLost = false;
+          continue;
+        }
+        const e = events[i];
+        if (BEACON_CLEARS.has(e.type)) sawBeacon = true;
+        else if (e.type === 'shutdown') {
+          endedBeaconLost = !!(e.data && e.data.reason === 'beacon_lost');
+        }
+      }
+
       // --- Pass 2: build ordered segments from the effective state. Only power
       // and (real) beacon transitions move the boundary, so the grace-window
       // recordings between a real loss and its shutdown land in the parking,
@@ -176,6 +206,9 @@ const TripsComponent = {
 
       for (let i = 0; i < events.length; i++) {
         const e = events[i];
+        // A beacon-absent session (pass 1b) marks the beacon gone before its own
+        // charging_on is seen, so the wake-up never opens a trip.
+        if (absentSessionStart.has(i)) { beaconAbsent = true; apply(e.date); }
         if (e.type === 'charging_on') { charging = true; apply(e.date); }
         else if (e.type === 'charging_off') { charging = false; apply(e.date); }
         else if (BEACON_CLEARS.has(e.type)) { beaconAbsent = false; apply(e.date); }

@@ -54,10 +54,26 @@ class HttpPlugin(Plugin):
       f"Loaded http manifests from {len(self._http_manifests)} plugin(s)"
     )
 
+    plugins_dir = self.runner.videoreg.app_path("plugins")
+
+    # bundle.js is a build artifact of the plugin component sources, so regenerate it
+    # on every start: otherwise a deploy that changes a component keeps serving the
+    # previously generated bundle (static_version busts the browser cache, but the
+    # file on disk stays stale) until someone calls /api/http/bundle/rebuild by hand.
+    try:
+      count = build_bundle(
+        plugins_dir,
+        self.runner.videoreg.app_path("plugins/org_vrg_http/static/js/bundle.js"),
+        self.runner.videoreg.merged_manifest()["plugins"],
+      )
+      self.logger.info(f"Rebuilt bundle.js from {count} component file(s)")
+    except Exception as e:
+      # Never block the server on a bundling failure — the previous bundle still works.
+      self.logger.error(f"Failed to rebuild bundle.js: {e}", exc_info=True)
+
     # The http service only runs the http plugin, so i18n has loaded only its own
     # translations. Load every plugin's translations so moved tokens (e.g. bot.*)
     # are served by /api/i18n.
-    plugins_dir = self.runner.videoreg.app_path("plugins")
     for plugin_dir in sorted(plugins_dir.glob("*/")):
       self.runner.i18n.load_plugin(plugin_dir)
 

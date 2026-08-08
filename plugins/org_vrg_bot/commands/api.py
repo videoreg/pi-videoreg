@@ -73,7 +73,7 @@ class CommandApi(Command):
       await self._tg_api.send_message(chat.chat_id, f"API error: {e}")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("command api cancelled")
+      self._plugin.logger.debug("command api cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"command start exception {type(e).__name__}: {e}")

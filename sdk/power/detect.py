@@ -32,7 +32,7 @@ async def detect_power_supply(videoreg: Videoreg, logger: Logger) -> PowerSupply
       from sdk.power.pisugar import PiSugar
       logger.info("power_supply: pisugar detected")
       return PiSugar(videoreg, logger)
-    logger.info(f"power_supply: generic (i2c addresses found: {[hex(a) for a in sorted(addresses)]})")
+    logger.debug(f"power_supply: generic (i2c addresses found: {[hex(a) for a in sorted(addresses)]})")
   except Exception as e:
     logger.warning(f"power_supply: detection failed ({e}), falling back to generic")
   return GenericPowerSupply()

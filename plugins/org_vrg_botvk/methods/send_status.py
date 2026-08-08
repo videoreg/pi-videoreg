@@ -41,7 +41,7 @@ class MethodSendStatus(ApiMethod):
     try:
       await self._vk_api.set_activity(chat_id, activity)
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send status cancelled")
+      self._plugin.logger.debug("send status cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send status exception {type(e).__name__}: {e}")

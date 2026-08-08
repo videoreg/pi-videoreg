@@ -196,7 +196,7 @@ class ModemPlugin(Plugin):
       if response.is_ok():
         data = response.get_data() or {}
         return bool(data.get("recording_blocked"))
-      self.logger.warning(f"power.get_beacon_state error: {response.get_error()}")
+      self.logger.debug(f"power.get_beacon_state error: {response.get_error()}")
     except Exception as e:
       self.logger.debug(f"power.get_beacon_state unavailable: {type(e).__name__}: {e}")
     return False
@@ -223,7 +223,7 @@ class ModemPlugin(Plugin):
         gps_enabled = await self.modem.enable_gps()
 
         if not gps_enabled:
-          self.logger.warning("gps monitor: gps not enabled")
+          self.logger.debug("gps monitor: gps not enabled")
           await asyncio.sleep(6)
           continue
 

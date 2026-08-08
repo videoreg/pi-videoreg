@@ -61,7 +61,7 @@ class MethodSendVideo(ApiMethod):
             await self._tg_api.send_message(chat_id, f"Error while uploading {file_path}")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send video cancelled")
+      self._plugin.logger.debug("send video cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send video exception {type(e).__name__}: {e}")

@@ -49,7 +49,7 @@ class MethodEditMessage(ApiMethod):
         await self._tg_api.edit_message_text(chat_id, message_id, text, reply_markup=reply_markup)
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("edit message cancelled")
+      self._plugin.logger.debug("edit message cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"edit message exception {type(e).__name__}: {e}")

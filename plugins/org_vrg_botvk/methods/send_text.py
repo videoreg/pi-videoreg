@@ -45,7 +45,7 @@ class MethodSendText(ApiMethod):
         await self._vk_api.send_message(chat_id, text, keyboard=vk_keyboard)
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send message cancelled")
+      self._plugin.logger.debug("send message cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send message exception {type(e).__name__}: {e}")

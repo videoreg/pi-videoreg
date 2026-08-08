@@ -36,7 +36,7 @@ class CommandEditCallback(Callback):
       response: ApiResponse = await self._api_client.exec(f"{plugin_name}.command", args=api_args)
 
     except asyncio.CancelledError:
-      bot.context.logger.warning("Callback cancelled")
+      bot.context.logger.debug("Callback cancelled")
 
     except Exception as e:
       bot.context.logger.error(f"Callback exception {type(e).__name__}: {e}")

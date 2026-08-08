@@ -230,7 +230,7 @@ class ServiceRunner:
       id = plugin_manifest.get("id")
       module = f"plugins.{id}.plugin_builder"
 
-      self.logger.info(f"load module id {id}")
+      self.logger.debug(f"load module id {id}")
 
       plugin_module = importlib.import_module(module)
 

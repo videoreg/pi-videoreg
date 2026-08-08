@@ -47,7 +47,7 @@ class FolderWatcher(ABC):
     inotify = inotify_simple.INotify()
     try:
       inotify.add_watch(str(self._watch_dir), inotify_simple.flags.CREATE)
-      self._logger.info(f"{self.__class__.__name__}: watching {self._watch_dir}")
+      self._logger.debug(f"{self.__class__.__name__}: watching {self._watch_dir}")
 
       loop = asyncio.get_event_loop()
       while not self._stop_event.is_set():

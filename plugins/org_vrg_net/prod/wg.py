@@ -23,7 +23,7 @@ class WireguardMonitorImpl(WireguardMonitor):
     # Updated at runtime from the plugin state (KEY_WG_SKIP_ON_WIFI).
     self.skip_on_wifi = True
 
-    self._logger.info("NetworkMonitor initialized")
+    self._logger.debug("NetworkMonitor initialized")
 
   def get_active_connections(self):
     """Gets the list of active connections"""
@@ -380,7 +380,7 @@ class WireguardMonitorImpl(WireguardMonitor):
     if self._stop_event and not self._stop_event.is_set():
       return
 
-    self._logger.info("Starting monitor loop...")
+    self._logger.debug("Starting monitor loop...")
     self._stop_event = asyncio.Event()
 
     while not self._stop_event.is_set():
@@ -391,7 +391,7 @@ class WireguardMonitorImpl(WireguardMonitor):
       finally:
         await asyncio.sleep(self._config.check_interval)
 
-    self._logger.info("Monitor loop stopped...")
+    self._logger.debug("Monitor loop stopped...")
 
   def stop_monitor_loop(self):
     if self._stop_event:

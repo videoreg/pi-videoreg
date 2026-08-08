@@ -101,7 +101,7 @@ class Dispatcher:
 
               text = message.get("text", "")
 
-              self._bot.context.logger.info(f"receive message text: {text}")
+              self._bot.context.logger.debug(f"receive message text: {text}")
 
               if text.startswith("/") and len(text) > 1:
                 inputs = text.split(" ", 1)
@@ -130,7 +130,7 @@ class Dispatcher:
               data = callback_query.get("data", "")
               message_id = callback_query.get("message", {}).get("message_id")
 
-              self._bot.context.logger.info(f"receive callback_query data: {data}")
+              self._bot.context.logger.debug(f"receive callback_query data: {data}")
 
               callbacks_to_exec.append((chat, data, message_id))
 
@@ -144,14 +144,14 @@ class Dispatcher:
       #   continue
 
       except TimeoutError:
-        self._bot.context.http_logger.warning("getUpdates: timeout")
+        self._bot.context.http_logger.debug("getUpdates: timeout")
         self._health.mark_error("timeout")
         backoff.consider_timeout()
         await self._delay(backoff)
         continue
 
       except asyncio.CancelledError:
-        self._bot.context.http_logger.info("getUpdates: cancelled, stopping pooling")
+        self._bot.context.http_logger.debug("getUpdates: cancelled, stopping pooling")
         break
 
       except Exception as e:
@@ -189,7 +189,7 @@ class Dispatcher:
       await self._delay(backoff)
 
     self._health.mark_polling(False)
-    self._bot.context.logger.warning("stop pooling")
+    self._bot.context.logger.info("stop pooling")
 
   async def _handle_command(self, chat: BotChat, name: str, args: str):
     for command in self._commands:

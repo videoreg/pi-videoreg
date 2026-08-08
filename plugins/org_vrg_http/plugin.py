@@ -43,7 +43,7 @@ class HttpPlugin(Plugin):
     self._jwt_handler = JwtHandler(jwt_secret_path)
     self._user_manager = UserManager(users_file_path)
 
-    self.logger.info("Authorization components initialized")
+    self.logger.debug("Authorization components initialized")
 
     # Read every enabled plugin's `http` manifest block once and keep it in
     # memory. Plugins disabled in the merged manifest contribute no menu / api.
@@ -192,6 +192,8 @@ class HttpPlugin(Plugin):
     }
 
     existing = {(r.method, r.resource.canonical) for r in app.router.routes()}
+    registered_count = 0
+    skipped_count = 0
 
     for config in self._http_manifests:
       for entry in config["http"].get("api") or []:
@@ -208,12 +210,19 @@ class HttpPlugin(Plugin):
         path = f"/api/{url}"
         key = (method.upper(), path)
         if key in existing:
-          self.logger.info(f"Skipping {method.upper()} {path} (already registered)")
+          skipped_count += 1
+          self.logger.debug(f"Skipping {method.upper()} {path} (already registered)")
           continue
 
         register(path, make_api_handler(api_method, timeout))
         existing.add(key)
-        self.logger.info(f"Registered {method.upper()} {path} -> {api_method}")
+        registered_count += 1
+        self.logger.debug(f"Registered {method.upper()} {path} -> {api_method}")
+
+    self.logger.info(
+      f"Registered {registered_count} manifest api route(s), "
+      f"skipped {skipped_count} already registered"
+    )
 
   async def _handle_bundle_rebuild(self, request: web.Request):
     videoreg = self.runner.videoreg

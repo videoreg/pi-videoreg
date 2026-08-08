@@ -58,7 +58,7 @@ class MethodSendImage(ApiMethod):
             await self._tg_api.send_message(chat_id, "Error while sending photo")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send photo cancelled")
+      self._plugin.logger.debug("send photo cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send photo exception {type(e).__name__}: {e}")

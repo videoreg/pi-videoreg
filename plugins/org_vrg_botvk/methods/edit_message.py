@@ -50,7 +50,7 @@ class MethodEditMessage(ApiMethod):
         await self._vk_api.edit_message(chat_id, message_id, text, keyboard=vk_keyboard)
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("edit message cancelled")
+      self._plugin.logger.debug("edit message cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"edit message exception {type(e).__name__}: {e}")

@@ -37,7 +37,7 @@ class MethodSendImage(ApiMethod):
       self._plugin.logger.error(f"send_image: file does not exist for botvk: {file_path_str}")
       return {"status": "error", "error": f"File does not exists {file_path_str}"}
 
-    self._plugin.logger.info(f"send_image: sending {file_path_str} to {chat_id}")
+    self._plugin.logger.debug(f"send_image: sending {file_path_str} to {chat_id}")
     asyncio.create_task(self._do_send_photo(chat_id, file_path, fallback_message))
 
     return {"status": "ok"}
@@ -49,7 +49,7 @@ class MethodSendImage(ApiMethod):
       ):
         await self._vk_api.set_activity(chat_id, "typing")
         attachment = await self._vk_api.upload_photo(chat_id, str(photo_path))
-        self._plugin.logger.info(f"photo upload attachment={attachment}")
+        self._plugin.logger.debug(f"photo upload attachment={attachment}")
         result = None
         if attachment:
           result = await self._vk_api.send_message(chat_id, "", attachment=attachment)
@@ -68,7 +68,7 @@ class MethodSendImage(ApiMethod):
             await self._vk_api.send_message(chat_id, "Error while sending photo")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send photo cancelled")
+      self._plugin.logger.debug("send photo cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send photo exception {type(e).__name__}: {e}")

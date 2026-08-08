@@ -60,7 +60,7 @@ class MethodSendDocument(ApiMethod):
             await self._tg_api.send_message(chat_id, f"Error while uploading {file_path}")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send document cancelled")
+      self._plugin.logger.debug("send document cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send document exception {type(e).__name__}: {e}")

@@ -6,6 +6,7 @@ from plugins.org_vrg_modem.sms_manager import SmsManager
 from sdk.at import info as at_info
 from sdk.at import sms as at_sms
 from sdk.at.transport import AtTransport
+from sdk.log import ConditionLog
 
 
 class SmsManagerImpl(SmsManager):
@@ -20,13 +21,17 @@ class SmsManagerImpl(SmsManager):
 
   def __init__(self, logger: Logger, transport: AtTransport):
     self.logger = logger
+    # Both operations below are polled in a loop, so an absent or wedged modem
+    # would repeat the same warning every few seconds — log the condition once.
+    self._condition = ConditionLog(logger)
     self._transport = transport
 
   async def read_and_delete_sms(self) -> list[SMS]:
     try:
       messages = await at_sms.list_messages(self._transport)
+      self._condition.resolve("sms_read", "sms readable again")
     except Exception as e:
-      self.logger.warning(f"sms read error: {e}")
+      self._condition.warning("sms_read", f"sms read error: {e}")
       return []
 
     result: list[SMS] = []
@@ -61,7 +66,9 @@ class SmsManagerImpl(SmsManager):
 
   async def get_modem_info(self) -> dict:
     try:
-      return await at_info.get_modem_info(self._transport)
+      info = await at_info.get_modem_info(self._transport)
+      self._condition.resolve("modem_info", "modem info readable again")
+      return info
     except Exception as e:
-      self.logger.warning(f"modem info error: {e}")
+      self._condition.warning("modem_info", f"modem info error: {e}")
       return {"connected": False}

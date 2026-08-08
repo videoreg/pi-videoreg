@@ -47,7 +47,7 @@ class MethodSendText(ApiMethod):
         await self._tg_api.send_message(chat_id, text, reply_markup=reply_markup)
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("send message cancelled")
+      self._plugin.logger.debug("send message cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"send message exception {type(e).__name__}: {e}")

@@ -39,7 +39,7 @@ class CommandEditCallback(Callback):
       await self._tg_api.send_message("Error!")
 
     except asyncio.CancelledError:
-      bot.context.logger.warning("Callback cancelled")
+      bot.context.logger.debug("Callback cancelled")
 
     except Exception as e:
       bot.context.logger.error(f"Callback exception {type(e).__name__}: {e}")

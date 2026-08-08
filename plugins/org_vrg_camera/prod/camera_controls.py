@@ -216,9 +216,9 @@ class CameraControlsImpl(CameraControls):
         cmd.append("--vflip")
       photo_coroutine = stream_subprocess(
         cmd=cmd,
-        start_cb=lambda pid, cmd: self._logger.info(f"CMD (pid={pid}): {cmd}"),
-        stdout_cb=lambda pid, s: self._logger.info(f"STDOUT (pid={pid}): {s}"),
-        stderr_cb=lambda pid, s: self._logger.info(f"STDERR (pid={pid}): {s}"),
+        start_cb=lambda pid, cmd: self._logger.debug(f"CMD (pid={pid}): {cmd}"),
+        stdout_cb=lambda pid, s: self._logger.debug(f"STDOUT (pid={pid}): {s}"),
+        stderr_cb=lambda pid, s: self._logger.debug(f"STDERR (pid={pid}): {s}"),
       )
 
       await asyncio.wait_for(photo_coroutine, timeout=60 if is_night else 10)
@@ -273,9 +273,9 @@ class CameraControlsImpl(CameraControls):
 
     video_coroutine = stream_subprocess(
       cmd=cmd,
-      start_cb=lambda pid, cmd: self._logger.info(f"CMD (pid={pid}): {cmd}"),
-      stdout_cb=lambda pid, s: self._logger.info(f"STDOUT (pid={pid}): {s}"),
-      stderr_cb=lambda pid, s: self._logger.info(f"STDERR (pid={pid}): {s}"),
+      start_cb=lambda pid, cmd: self._logger.debug(f"CMD (pid={pid}): {cmd}"),
+      stdout_cb=lambda pid, s: self._logger.debug(f"STDOUT (pid={pid}): {s}"),
+      stderr_cb=lambda pid, s: self._logger.debug(f"STDERR (pid={pid}): {s}"),
     )
 
     await asyncio.wait_for(video_coroutine, timeout=(params.duration + 20))

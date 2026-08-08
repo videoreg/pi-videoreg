@@ -84,7 +84,7 @@ class VkApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   async def _upload_file(self, upload_url: str, field: str, file_path, filename: str) -> dict:
@@ -103,7 +103,7 @@ class VkApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info("upload: request cancelled")
+      self._bot.context.http_logger.debug("upload: request cancelled")
       raise
 
   # --- long poll ---------------------------------------------------------
@@ -132,7 +132,7 @@ class VkApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info("a_check: request cancelled")
+      self._bot.context.http_logger.debug("a_check: request cancelled")
       raise
 
   # --- sending -----------------------------------------------------------

@@ -74,7 +74,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -101,7 +101,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -128,7 +128,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -152,7 +152,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -180,7 +180,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -204,7 +204,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -225,7 +225,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -246,7 +246,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   @track_task
@@ -276,7 +276,7 @@ class TelegramApi:
       return response_json
 
     except asyncio.CancelledError:
-      self._bot.context.http_logger.info(f"{method}: request cancelled")
+      self._bot.context.http_logger.debug(f"{method}: request cancelled")
       raise
 
   def _log_request(self, method: str, data: dict):

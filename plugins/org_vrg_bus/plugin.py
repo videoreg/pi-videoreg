@@ -86,7 +86,7 @@ class BusPlugin(Plugin):
     self._server = None
 
   async def _handle_client(self, reader: StreamReader, writer: StreamWriter):
-    self.logger.info("client connected")
+    self.logger.debug("client connected")
 
     client = Client(writer)
     self._clients.append(client)
@@ -137,7 +137,7 @@ class BusPlugin(Plugin):
         # Auto-subscribe to own service channel so responses can be routed back
         client.channels = [client.id]
 
-        self.logger.info(f"client {client.id} init")
+        self.logger.debug(f"client {client.id} init")
 
         await self._deliver_waiting(client, client.channels)
 
@@ -155,7 +155,7 @@ class BusPlugin(Plugin):
         new_channels = [ch for ch in channels if ch not in client.channels]
         client.channels.extend(new_channels)
 
-        self.logger.info(f"client {client.id} subscribed: {new_channels}, total={client.channels}")
+        self.logger.debug(f"client {client.id} subscribed: {new_channels}, total={client.channels}")
 
         await self._deliver_waiting(client, new_channels)
 
@@ -171,7 +171,7 @@ class BusPlugin(Plugin):
           return
 
         client.channels = [ch for ch in client.channels if ch not in channels]
-        self.logger.info(
+        self.logger.debug(
           f"client {client.id} unsubscribed: {channels}, remaining={client.channels}"
         )
 

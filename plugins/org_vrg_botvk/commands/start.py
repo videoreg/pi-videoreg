@@ -26,7 +26,7 @@ class CommandStart(Command):
       await self._vk_api.send_message(chat.chat_id, "Welcome to videoreg!", keyboard=keyboard)
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("command start cancelled")
+      self._plugin.logger.debug("command start cancelled")
 
     except Exception as e:
       self._plugin.logger.error(f"command start exception {type(e).__name__}: {e}")

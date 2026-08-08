@@ -72,7 +72,7 @@ class CommandApi(Command):
       await self._vk_api.send_message(chat.chat_id, f"API {method_name} timeout")
 
     except asyncio.CancelledError:
-      self._plugin.logger.warning("command api cancelled")
+      self._plugin.logger.debug("command api cancelled")
 
     except Exception as e:
       await self._vk_api.send_message(chat.chat_id, f"API error: {e}")

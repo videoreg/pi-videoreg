@@ -10,6 +10,7 @@ from plugins.org_vrg_modem.sms_manager import SmsManager
 from plugins.org_vrg_modem.tracker import GpsTracker
 from sdk.command_cancel import apply_command_cancellations
 from sdk.journal import JournalRecord
+from sdk.log import ConditionLog
 from sdk.media_manager import MediaFileType
 from sdk.power import ChargingStatus
 from sdk.service import Plugin
@@ -48,9 +49,11 @@ class ModemPlugin(Plugin):
     self._command_plugin_map = {}
     self._command_cancel_map = {}
     self._allowed_phones = []
+    self._condition = None  # ConditionLog, created once the logger exists
 
   async def start(self):
     await super().start()
+    self._condition = ConditionLog(self.logger)
     self._sweep_empty_gps_tracks()
     asyncio.create_task(self._start_lifecycle_loop())
     asyncio.create_task(self._check_files_loop())
@@ -196,7 +199,7 @@ class ModemPlugin(Plugin):
       if response.is_ok():
         data = response.get_data() or {}
         return bool(data.get("recording_blocked"))
-      self.logger.warning(f"power.get_beacon_state error: {response.get_error()}")
+      self.logger.debug(f"power.get_beacon_state error: {response.get_error()}")
     except Exception as e:
       self.logger.debug(f"power.get_beacon_state unavailable: {type(e).__name__}: {e}")
     return False
@@ -223,12 +226,13 @@ class ModemPlugin(Plugin):
         gps_enabled = await self.modem.enable_gps()
 
         if not gps_enabled:
-          self.logger.warning("gps monitor: gps not enabled")
+          self._condition.warning("gps_enable", "gps monitor: gps not enabled")
           await asyncio.sleep(6)
           continue
 
         await self.modem.enable_lbs()
 
+        self._condition.resolve("gps_enable")
         self.logger.info("gps monitor enabled")
 
       # track gps
@@ -326,7 +330,7 @@ class ModemPlugin(Plugin):
       try:
         self._modem_info = await self.sms_manager.get_modem_info()
       except Exception as e:
-        self.logger.warning(f"modem info poll error: {e}")
+        self._condition.warning("modem_info_poll", f"modem info poll error: {e}")
       await asyncio.sleep(MODEM_INFO_POLL_INTERVAL)
 
   async def _check_files_loop(self):

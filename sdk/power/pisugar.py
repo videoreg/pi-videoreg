@@ -78,7 +78,7 @@ class PiSugar(PowerSupply):
       await asyncio.sleep(1)
       second_check = await self.get_charging_status()
       if second_check != ChargingStatus.NOT_CHARGING:
-        self._logger.warning("pisugar: charging status lies")
+        self._logger.debug("pisugar: charging status lies")
       charging_status = second_check
 
     return charging_status

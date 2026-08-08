@@ -40,7 +40,7 @@ class CommandCommon(Command):
       )
 
     except asyncio.CancelledError:
-      bot.context.logger.warning("Common command cancelled")
+      bot.context.logger.debug("Common command cancelled")
 
     except Exception as e:
       bot.context.logger.error(f"Common command error: {e}")

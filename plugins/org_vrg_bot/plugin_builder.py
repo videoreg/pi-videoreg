@@ -79,11 +79,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   )
   plugin.init_api_client()
 
-  http_log_file_path = runner.videoreg.private_path("log/bot_http.log")
-  http_rotating_file_handler = log.create_rotating_file_handler(http_log_file_path, tag="bot_http:")
-  http_logger = log.create_logger(
-    "http_logger", args.http_log_level, http_rotating_file_handler, tag="bot_http:"
-  )
+  http_logger = log.create_logger("http_logger", args.http_log_level, tag="bot_http:")
 
   context = Context(state=plugin.state, logger=plugin.logger, http_logger=http_logger)
 

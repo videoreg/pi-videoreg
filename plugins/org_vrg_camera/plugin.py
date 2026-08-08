@@ -217,7 +217,7 @@ class CameraPlugin(Plugin):
       if response.is_ok():
         data = response.get_data() or {}
         return bool(data.get("recording_blocked"))
-      self.logger.warning(f"power.get_beacon_state error: {response.get_error()}")
+      self.logger.debug(f"power.get_beacon_state error: {response.get_error()}")
     except Exception as e:
       self.logger.debug(f"power.get_beacon_state unavailable: {type(e).__name__}: {e}")
     return False
@@ -374,7 +374,7 @@ class CameraPlugin(Plugin):
     if self.is_dev:
       latest = self._latest_jpeg_path()
       if latest:
-        self.logger.info(f"dev mode: returning latest jpeg {latest}")
+        self.logger.debug(f"dev mode: returning latest jpeg {latest}")
         return latest
       self.logger.warning("dev mode: no jpeg files found in jpeg folder")
 

@@ -1,6 +1,5 @@
 import logging
 import sys
-from logging.handlers import RotatingFileHandler
 
 LOG_FORMAT_PREFIX = "%(asctime)s %(levelname)s:"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -13,17 +12,8 @@ def _get_numeric_log_level(log_level):
   return numeric_log_level
 
 
-def create_rotating_file_handler(log_file, tag="") -> RotatingFileHandler:
-  rotating_file_handler = RotatingFileHandler(
-    log_file, mode="a+", maxBytes=5 * 1024 * 1024, backupCount=1, encoding=None, delay=0
-  )
-  rotating_file_handler.setFormatter(
-    logging.Formatter(f"{LOG_FORMAT_PREFIX}{tag} %(message)s", DATE_FORMAT)
-  )
-  return rotating_file_handler
-
-
-def create_logger(name, log_level, rotating_file_handler: RotatingFileHandler, tag=""):
+def create_logger(name, log_level, tag=""):
+  """Creates a stdout logger; systemd collects the output into the journal."""
   numeric_log_level = _get_numeric_log_level(log_level)
 
   logger = logging.getLogger(name)
@@ -35,6 +25,5 @@ def create_logger(name, log_level, rotating_file_handler: RotatingFileHandler, t
   )
 
   logger.addHandler(stream_handler)
-  logger.addHandler(rotating_file_handler)
 
   return logger

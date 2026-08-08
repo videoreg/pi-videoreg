@@ -38,8 +38,7 @@ Multiple plugins may run within a single systemd service.
 .videoreg/    — Configuration and data (created after installation)
   config.json — main project config
   log/        - logs
-    services/ - per-service logs
-    plugins/  — per-plugin logs
+    services/ - logs of the bash scripts in task/service/
   data/       - data
     plugins/  — internal plugin data
 docs/         - documentation
@@ -57,6 +56,15 @@ tools/        — tooling
 ```
 
 Media (video, photos, GPS tracks) is stored in `/mnt/data/videoreg`.
+
+### Logging
+
+Services and plugins log to stdout only (`sdk/log.py`); systemd collects the output into the
+journal. Plugin lines are tagged with the plugin short name (`... INFO:power: message`), so a
+single service journal holds the logs of all its plugins. Read them with
+`journalctl -u vrg-core` or `vrg-log <plugin|service> [LINES] [-f]`, which resolves a plugin
+name to its service and filters by the tag. The business event journal (`sdk/journal.py`) is a
+separate thing and still writes files.
 
 ### Default plugins and method-to-plugin assignment rules
 

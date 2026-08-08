@@ -1,5 +1,6 @@
 #!/bin/bash
-# Tails the log file for a given plugin. Usage: vrg-log PLUGIN_NAME [LINES]
+# Shows the journalctl log of a videoreg service, optionally filtered by plugin.
+# Usage: vrg-log NAME [LINES] [-f]
 
 set -e  # Stop execution on error
 
@@ -27,16 +28,21 @@ print_error() {
 }
 
 show_usage() {
-    echo "Usage: vrg-log PLUGIN_NAME [LINES]"
+    echo "Usage: vrg-log NAME [LINES] [-f]"
     echo ""
     echo "Parameters:"
-    echo "  PLUGIN_NAME  Plugin name (required)"
-    echo "  LINES        Number of lines to show (optional, default: 300)"
+    echo "  NAME   Plugin name (power), plugin id (org_vrg_power)"
+    echo "         or service name (vrg-core) — required"
+    echo "  LINES  Number of lines to show (optional, default: 300)"
+    echo "  -f     Follow the log (optional)"
+    echo ""
+    echo "A plugin name shows its own service journal filtered by the plugin tag;"
+    echo "a service name shows the whole service journal."
     echo ""
     echo "Examples:"
-    echo "  vrg-log service_power"
-    echo "  vrg-log service_power 500"
-    echo "  vrg-log service_bot 1000"
+    echo "  vrg-log power"
+    echo "  vrg-log power 500"
+    echo "  vrg-log vrg-core 1000 -f"
 }
 
 check_project_home() {
@@ -58,27 +64,109 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 
 if [[ -z "$1" ]]; then
-    print_error "PLUGIN_NAME is required"
+    print_error "NAME is required"
     echo ""
     show_usage
     exit 1
 fi
 
-PLUGIN_NAME="$1"
-LINES="${2:-300}"
+NAME="$1"
+shift
+
+LINES=300
+FOLLOW=""
+
+for arg in "$@"; do
+    case "$arg" in
+        -f|--follow) FOLLOW="-f" ;;
+        ''|*[!0-9]*)
+            print_error "Unknown argument: $arg"
+            echo ""
+            show_usage
+            exit 1
+            ;;
+        *) LINES="$arg" ;;
+    esac
+done
 
 check_project_home
 
-LOGS_DIR="$VIDEOREG_PROJECT_HOME/.videoreg/log/plugins"
-LOG_FILE="$LOGS_DIR/org_vrg_${PLUGIN_NAME}.log"
-
-if [[ ! -f "$LOG_FILE" ]]; then
-    print_error "Log file not found: $LOG_FILE"
-    exit 1
+PYTHON="$VIDEOREG_PROJECT_HOME/.venv/bin/python3"
+if [[ ! -x "$PYTHON" ]]; then
+    PYTHON="python3"
 fi
 
-print_info "Log file: $LOG_FILE"
+# Resolve NAME into a systemd service and (for a plugin) its log tag.
+RESOLVED=$("$PYTHON" - "$VIDEOREG_PROJECT_HOME" "$NAME" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+
+from sdk.videoreg import load_manifest  # noqa: E402
+
+project_home, name = Path(sys.argv[1]), sys.argv[2]
+manifest = load_manifest(project_home)
+
+services = {s["name"]: s.get("plugins") or [] for s in manifest.services}
+plugins = {p["id"]: p.get("name", p["id"]) for p in manifest.plugins}
+
+# Plugin id or plugin short name — checked first, so `core` means the plugin
+# and `vrg-core` means the whole service
+plugin_id = None
+if name in plugins:
+    plugin_id = name
+else:
+    for pid, pname in plugins.items():
+        if pname == name:
+            plugin_id = pid
+            break
+
+if plugin_id:
+    for service_name, service_plugins in services.items():
+        if plugin_id in service_plugins:
+            print(f"{service_name}\t{plugins[plugin_id]}")
+            sys.exit(0)
+    print(f"plugin {plugin_id} is not attached to any service", file=sys.stderr)
+    sys.exit(1)
+
+# Service name, with or without the vrg- prefix
+for candidate in (name, f"vrg-{name}"):
+    if candidate in services:
+        print(f"{candidate}\t")
+        sys.exit(0)
+
+print(f"unknown plugin or service: {name}", file=sys.stderr)
+sys.exit(1)
+PY
+) || {
+    print_error "Failed to resolve '$NAME'"
+    exit 1
+}
+
+SERVICE="${RESOLVED%%$'\t'*}"
+PLUGIN_TAG="${RESOLVED#*$'\t'}"
+
+if [[ -n "$PLUGIN_TAG" ]]; then
+    print_info "Service: $SERVICE (plugin: $PLUGIN_TAG)"
+else
+    print_info "Service: $SERVICE"
+fi
 print_info "Lines: $LINES"
 echo ""
 
-tail -n "$LINES" "$LOG_FILE"
+if [[ -z "$PLUGIN_TAG" ]]; then
+    journalctl -u "$SERVICE.service" -n "$LINES" --no-pager $FOLLOW
+    exit 0
+fi
+
+# Plugin lines are tagged with the plugin short name by sdk/log.py.
+# Scan a wider window so the filtered output still yields up to LINES rows.
+if [[ -n "$FOLLOW" ]]; then
+    journalctl -u "$SERVICE.service" -n "$LINES" --no-pager -f \
+        | grep -F --line-buffered ":$PLUGIN_TAG: "
+else
+    journalctl -u "$SERVICE.service" -n $((LINES * 20)) --no-pager \
+        | grep -F ":$PLUGIN_TAG: " \
+        | tail -n "$LINES"
+fi

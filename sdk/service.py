@@ -4,7 +4,6 @@ import pathlib
 import signal
 from argparse import ArgumentParser
 from asyncio import AbstractEventLoop
-from logging.handlers import RotatingFileHandler
 from threading import Event
 
 import sdk.log as log
@@ -52,7 +51,6 @@ class Plugin:
   api_client: ApiClient = None
   journal_client: JournalClient = None
   _stop_event: Event
-  _rotating_log_file_handler: RotatingFileHandler
   _socket_client_id: str = None  # plugin's own channel name (for unregister)
 
   def __init__(self, id: str, name: str, runner: "ServiceRunner"):
@@ -73,22 +71,13 @@ class Plugin:
     if self.logger:
       self.logger.info("stop plugin")
 
-    if self._rotating_log_file_handler:
-      self._rotating_log_file_handler.flush()
-
     if self._connection and self._socket_client_id:
       self._connection.unregister(self._socket_client_id)
 
   def init_logger(self, log_level: str):
-    log_file = self.runner.videoreg.private_path(f"log/plugins/{self.id}.log")
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    self._rotating_log_file_handler = log.create_rotating_file_handler(
-      log_file, tag=f"{self.name}:"
-    )
     self.logger = log.create_logger(
       name=f"logger_plugin_{self.name}",
       log_level=log_level,
-      rotating_file_handler=self._rotating_log_file_handler,
       tag=f"{self.name}:",
     )
     self.logger.info("=== NEW SESSION STARTED ===")
@@ -167,14 +156,7 @@ class ServiceRunner:
     self.stop_event.set()
 
   def init_logger(self, log_level: str, systemd_service_name: str):
-    log_file = self.videoreg.private_path(f"log/services/{systemd_service_name}.log")
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    rotating_file_handler = log.create_rotating_file_handler(
-      log_file, tag=f"{systemd_service_name}:"
-    )
-    self.logger = log.create_logger(
-      "logger_service", log_level, rotating_file_handler, tag=f"{systemd_service_name}:"
-    )
+    self.logger = log.create_logger("logger_service", log_level, tag=f"{systemd_service_name}:")
 
   def _signal_stop(self, sig: signal.Signals):
     self.logger.warning(f"signal {sig}")

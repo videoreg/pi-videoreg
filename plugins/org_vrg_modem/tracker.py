@@ -31,6 +31,15 @@ class GpsTracker:
     self._file_path = file_path
     self._min_distance = min_distance
 
+  @property
+  def has_points(self) -> bool:
+    """True once at least one trackpoint has been written to the file."""
+    return self._has_points
+
+  @property
+  def file_path(self) -> str:
+    return self._file_path
+
   def start(self):
     if self._started:
       raise Exception("Tracker is already started")

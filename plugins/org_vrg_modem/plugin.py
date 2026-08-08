@@ -51,6 +51,7 @@ class ModemPlugin(Plugin):
 
   async def start(self):
     await super().start()
+    self._sweep_empty_gps_tracks()
     asyncio.create_task(self._start_lifecycle_loop())
     asyncio.create_task(self._check_files_loop())
     asyncio.create_task(self._start_check_sms_loop())
@@ -100,44 +101,70 @@ class ModemPlugin(Plugin):
     return self._modem_info
 
   async def stop(self):
-    # Close the track before super().stop() unregisters the socket connection: dropping
-    # an empty track journals a track_removed record, which travels over the bus.
-    await self._close_gps_tracker()
+    self._close_gps_tracker()
     await super().stop()
 
     # self._revert_annotation()
 
-  async def _close_gps_tracker(self):
-    """Close the active track and, if it stayed empty, forget it everywhere.
+  def _close_gps_tracker(self):
+    """Close the active track, dropping the file if no point ever made it in.
 
-    A session that never gets a GPS fix (a parking wake-up, a cold start under cover)
-    produces a point-less .gpx, which GpsTracker.close() deletes. `track_created` was
-    already journaled when the tracker started, so a matching `track_removed` is what
-    tells the Trips page to stop offering the file for download.
+    Nothing is journaled here: a track is only announced once it holds a point (see
+    _register_gps_track), so an empty one has never been advertised. That matters
+    because stop() runs while the service is going down — the bus and the journal
+    server live in vrg-core, which systemd may have stopped already, so a record
+    written at this point is likely to be lost.
     """
     if not self._gps_tracker:
       return
 
-    track_file_name = os.path.basename(self._gps_tracker._file_path)
+    track_file_name = os.path.basename(self._gps_tracker.file_path)
     kept = self._gps_tracker.close()
     self._gps_tracker = None
 
-    if kept:
-      return
+    if not kept:
+      self.logger.info(f"gps track {track_file_name} has no points: dropped")
+      self.runner.media_manager.remove_file(MediaFileType.GPS, track_file_name)
 
-    self.logger.info(f"gps track {track_file_name} has no points: dropped")
-    self.runner.media_manager.remove_file(MediaFileType.GPS, track_file_name)
+  async def _register_gps_track(self, track_file_name: str):
+    """Announce a track once it actually holds a point.
+
+    Announcing at creation would advertise files that are about to be discarded: a
+    parking wake-up opens a track, never gets a fix and deletes it seconds later, yet
+    the Trips page would still show a download button for it (the device wakes up every
+    few minutes, so a single parking collected over a hundred of them).
+    """
+    self.runner.media_manager.append_file(MediaFileType.GPS, track_file_name)
     if self.journal_client:
       await self.journal_client.write(
-        JournalRecord(type="track_removed", data={"filename": track_file_name})
+        JournalRecord(type="track_created", data={"filename": track_file_name})
       )
+
+  def _sweep_empty_gps_tracks(self):
+    """Delete point-less tracks left behind by a session that died without stopping.
+
+    A power cut can kill the service before stop() runs, leaving the .gpx of a fix-less
+    wake-up on disk forever. Such a file was never announced, so removing it at start
+    (when no tracker is open yet) is invisible to everything else.
+    """
+    try:
+      for track_file in self.runner.videoreg.gps_path().glob("*.gpx"):
+        try:
+          if "<trkpt" in track_file.read_text(encoding="utf-8", errors="replace"):
+            continue
+          track_file.unlink()
+          self.logger.info(f"gps track {track_file.name} left empty by a previous session: dropped")
+        except OSError as e:
+          self.logger.warning(f"could not sweep gps track {track_file.name}: {e}")
+    except Exception as e:
+      self.logger.error(f"gps track sweep failed: {e}", exc_info=True)
 
   async def _start_lifecycle_loop(self):
     while self.runner.is_running():
       charging_status = await self.runner.power_supply.get_charging_status_slow_but_safe()
 
       if charging_status == ChargingStatus.NOT_CHARGING:
-        await self._close_gps_tracker()
+        self._close_gps_tracker()
       else:
         if not self.modem.is_enabled():
           is_enabled = await self.modem.enable()
@@ -149,18 +176,30 @@ class ModemPlugin(Plugin):
           asyncio.create_task(self._start_gps_monitor())
           self._gps_monitor_started = True
 
-        if not self._gps_tracker:
+        # External power is present on a parking wake-up too, so the beacon decides
+        # whether this is a trip — same gate the camera applies before recording.
+        if not self._gps_tracker and not await self._beacon_blocks_recording():
           track_file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.gpx")
           self._gps_tracker = GpsTracker(str(self.runner.videoreg.gps_path(track_file_name)))
           self._gps_tracker.start()
-          self.runner.media_manager.append_file(MediaFileType.GPS, track_file_name)
-          asyncio.create_task(
-            self.journal_client.write(
-              JournalRecord(type="track_created", data={"filename": track_file_name})
-            )
-          )
 
       await asyncio.sleep(5)
+
+  async def _beacon_blocks_recording(self) -> bool:
+    """Ask the power plugin (another service) whether the BLE beacon currently blocks
+    recording. On a parking wake-up external power is present but the in-car beacon is
+    absent, so the power plugin treats power as absent and shuts the device down —
+    tracking that minute produces nothing but a fix-less .gpx. Fails safe to False
+    (track as usual) so a transient bus/api error never costs a real trip its track."""
+    try:
+      response = await self.api_client.exec("power.get_beacon_state", None)
+      if response.is_ok():
+        data = response.get_data() or {}
+        return bool(data.get("recording_blocked"))
+      self.logger.warning(f"power.get_beacon_state error: {response.get_error()}")
+    except Exception as e:
+      self.logger.debug(f"power.get_beacon_state unavailable: {type(e).__name__}: {e}")
+    return False
 
   async def _start_gps_monitor(self):
     self.logger.info("will start gps monitor")
@@ -215,11 +254,15 @@ class ModemPlugin(Plugin):
           and self._gps_location["longitude"] != "--"
           and self._gps_tracker
         ):
-          self._gps_tracker.track(
+          tracker = self._gps_tracker
+          was_empty = not tracker.has_points
+          tracker.track(
             float(self._gps_location["latitude"]),
             float(self._gps_location["longitude"]),
             self._gps_location.get("speed"),
           )
+          if was_empty and tracker.has_points:
+            await self._register_gps_track(os.path.basename(tracker.file_path))
 
         await self._update_osd()
 

@@ -82,14 +82,26 @@ const TripsComponent = {
       this.error = '';
       this.loading = true;
       try {
-        const response = await fetch('/api/core/journal', { credentials: 'same-origin' });
+        // The journal remembers every track ever announced, but the GPS folder is the
+        // truth about what can still be downloaded — old tracks are rotated away by the
+        // media cleanup, and fix-less ones are deleted outright. Fetch both.
+        const [response, tracksResponse] = await Promise.all([
+          fetch('/api/core/journal', { credentials: 'same-origin' }),
+          fetch('/api/gps/tracks', { credentials: 'same-origin' }).catch(() => null)
+        ]);
         const data = await response.json();
         if (!response.ok) {
           this.error = data.error || this.$t('http.trips.error_load');
           return;
         }
+        // null means the list is unavailable — then show every track rather than none.
+        let existingTracks = null;
+        if (tracksResponse && tracksResponse.ok) {
+          const tracksData = await tracksResponse.json();
+          existingTracks = new Set((tracksData.tracks || []).map(t => this.stripExt(t.filename)));
+        }
         const events = this.parseLines(data.lines || []);
-        this.blocks = this.buildBlocks(events);
+        this.blocks = this.buildBlocks(events, existingTracks);
         this.expanded = {};
         this.mediaPages = {};
       } catch (err) {
@@ -125,7 +137,7 @@ const TripsComponent = {
       return events;
     },
 
-    buildBlocks(events) {
+    buildBlocks(events, existingTracks = null) {
       const THERMAL_TYPES = new Set(['thermal_throttle_on', 'thermal_throttle_off', 'thermal_overheated']);
       const BEACON_TYPES = new Set(['beacon_found', 'beacon_lost', 'beacon_enabled', 'beacon_disabled']);
       // Events that clear a "beacon absent" state: the beacon returned, or the
@@ -155,6 +167,36 @@ const TripsComponent = {
         }
       }
 
+      // --- Pass 1b: mark sessions that were beacon-absent from the very start. A
+      // beacon that is already gone when the scanner starts produces no beacon_lost
+      // event at all — the presence loop only reports present<->absent transitions and
+      // a session begins as "absent" — so a parking wake-up leaves nothing behind but
+      // charging_on (external power is still there) and a beacon-lost shutdown. A
+      // session (delimited by core's `start` events) that ends in a beacon-lost
+      // shutdown without ever seeing the beacon therefore *was* a parking wake-up, and
+      // saying so explicitly is what keeps an RTC wake-up storm from looking like a
+      // trip once the beacon_lost that opened the parking scrolls out of the journal
+      // window (the page only loads the last two days). ---
+      const absentSessionStart = new Set(); // event index that opens such a session
+      let sessionStart = 0;      // index of the current session's `start` event
+      let sawBeacon = false;     // beacon confirmed present during this session
+      let endedBeaconLost = false;
+      for (let i = 0; i <= events.length; i++) {
+        const isBoundary = i === events.length || events[i].type === 'start';
+        if (isBoundary) {
+          if (endedBeaconLost && !sawBeacon) absentSessionStart.add(sessionStart);
+          sessionStart = i;
+          sawBeacon = false;
+          endedBeaconLost = false;
+          continue;
+        }
+        const e = events[i];
+        if (BEACON_CLEARS.has(e.type)) sawBeacon = true;
+        else if (e.type === 'shutdown') {
+          endedBeaconLost = !!(e.data && e.data.reason === 'beacon_lost');
+        }
+      }
+
       // --- Pass 2: build ordered segments from the effective state. Only power
       // and (real) beacon transitions move the boundary, so the grace-window
       // recordings between a real loss and its shutdown land in the parking,
@@ -176,6 +218,9 @@ const TripsComponent = {
 
       for (let i = 0; i < events.length; i++) {
         const e = events[i];
+        // A beacon-absent session (pass 1b) marks the beacon gone before its own
+        // charging_on is seen, so the wake-up never opens a trip.
+        if (absentSessionStart.has(i)) { beaconAbsent = true; apply(e.date); }
         if (e.type === 'charging_on') { charging = true; apply(e.date); }
         else if (e.type === 'charging_off') { charging = false; apply(e.date); }
         else if (BEACON_CLEARS.has(e.type)) { beaconAbsent = false; apply(e.date); }
@@ -218,8 +263,9 @@ const TripsComponent = {
           }
 
         } else if (event.type === 'track_created') {
-          if (event.data && event.data.filename) {
-            block.tracks.push(event.data.filename);
+          const trackFile = event.data && event.data.filename;
+          if (trackFile && (!existingTracks || existingTracks.has(this.stripExt(trackFile)))) {
+            block.tracks.push(trackFile);
           }
 
         } else if (THERMAL_TYPES.has(event.type)) {

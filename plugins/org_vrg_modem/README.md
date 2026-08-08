@@ -16,6 +16,19 @@ GPS and LBS location are polled over AT (`AT+CGPS*` / `AT+CGNSS*` /
 Tracks are written as GPX files to `~/.videoreg/gps/` (or `path.gps` from the
 manifest). Implementation: `prod/modem.py` (interface in `modem.py`).
 
+A track is opened while external power is present *and* the BLE beacon is not
+blocking recording (`power.get_beacon_state`) — external power alone is also
+present on a parking wake-up, which would otherwise open a new track every few
+minutes all night. It is closed when power goes away or the service stops
+(`_close_gps_tracker`), and deleted if it never received a single point.
+
+`track_created` is journaled on the **first point**, not when the file is opened,
+so a track that gets discarded is never advertised to the Trips page. A removal
+cannot be journaled instead: `stop()` runs while the service is going down and
+the journal server lives in vrg-core, which systemd may have stopped already.
+Tracks left empty by a session that died without stopping are swept on the next
+start (`_sweep_empty_gps_tracks`).
+
 ## SMS
 
 Incoming SMS are read in PDU mode (`AT+CMGL`), multipart messages are merged,

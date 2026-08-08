@@ -7,6 +7,7 @@ from sdk.at import gps as at_gps
 from sdk.at import lbs as at_lbs
 from sdk.at.modem_info import ModemFamily, identify
 from sdk.at.transport import AtTransport
+from sdk.log import ConditionLog
 
 
 class ModemImpl(Modem):
@@ -24,6 +25,9 @@ class ModemImpl(Modem):
 
   def __init__(self, logger: Logger, transport: AtTransport):
     self._logger = logger
+    # Every AT operation is retried by a polling loop, so a modem that is absent
+    # (no /dev/ttyUSB*) or wedged would repeat the same warning every few seconds.
+    self._condition = ConditionLog(logger)
     self._transport = transport
     self._enabled = False
     self._family = ModemFamily.UNKNOWN
@@ -69,16 +73,19 @@ class ModemImpl(Modem):
   async def enable(self) -> bool:
     try:
       if not await self._ping():
-        self._logger.warning(f"modem not responding to AT on {self._transport.device}")
+        self._condition.warning(
+          "enable", f"modem not responding to AT on {self._transport.device}"
+        )
         self._enabled = False
         return False
       family, model = await identify(self._transport)  # cached on the transport
       self._family = family
       self._model = model or self._transport.device
       self._enabled = True
+      self._condition.resolve("enable", f"modem responded on {self._transport.device}")
       return True
     except Exception as e:
-      self._logger.warning(f"modem enable error: {e}")
+      self._condition.warning("enable", f"modem enable error: {e}")
       self._enabled = False
       return False
 
@@ -97,17 +104,22 @@ class ModemImpl(Modem):
 
       state = await self._transport.send(query, timeout=3.0)
       if state.ok and state.lines and self._state_is_on(state.lines[0]):
+        self._condition.resolve("enable_gps")
         return True
 
       resp = await self._transport.send(power_on, timeout=5.0)
       if resp.ok:
+        self._condition.resolve("enable_gps")
         return True
 
       # Some firmwares reply ERROR when GPS is already powered — re-check state.
       state = await self._transport.send(query, timeout=3.0)
-      return state.ok and bool(state.lines) and self._state_is_on(state.lines[0])
+      is_on = state.ok and bool(state.lines) and self._state_is_on(state.lines[0])
+      if is_on:
+        self._condition.resolve("enable_gps")
+      return is_on
     except Exception as e:
-      self._logger.warning(f"enable gps error: {e}")
+      self._condition.warning("enable_gps", f"enable gps error: {e}")
       return False
 
   async def disable_gps(self) -> bool:
@@ -116,9 +128,11 @@ class ModemImpl(Modem):
     try:
       _, power_off, _, _, _ = self._gps_commands()
       resp = await self._transport.send(power_off, timeout=5.0)
+      if resp.ok:
+        self._condition.resolve("disable_gps")
       return resp.ok
     except Exception as e:
-      self._logger.warning(f"disable gps error: {e}")
+      self._condition.warning("disable_gps", f"disable gps error: {e}")
       return False
 
   async def get_location_gps(self) -> dict | None:
@@ -127,12 +141,13 @@ class ModemImpl(Modem):
     try:
       _, _, _, info, prefix = self._gps_commands()
       resp = await self._transport.send(info, timeout=3.0)
+      self._condition.resolve("gps_location", "gps location readable again")
       line = resp.line_after(prefix)
       if not line:
         return None
       return at_gps.parse_gps_line(line)  # decimal degrees, speed km/h, or None
     except Exception as e:
-      self._logger.warning(f"get gps location error: {e}")
+      self._condition.warning("gps_location", f"get gps location error: {e}")
       return None
 
   async def enable_lbs(self) -> bool:
@@ -144,6 +159,7 @@ class ModemImpl(Modem):
       return None
     try:
       _, parsed = await at_lbs.get_lbs(self._transport, cid=1, timeout=15.0)
+      self._condition.resolve("lbs_location")
       if parsed and "latitude" in parsed:
         return {
           "latitude": parsed["latitude"],
@@ -152,7 +168,7 @@ class ModemImpl(Modem):
         }
       return None
     except Exception as e:
-      self._logger.warning(f"get lbs location error: {e}")
+      self._condition.warning("lbs_location", f"get lbs location error: {e}")
       return None
 
   # --- APN ----------------------------------------------------------------
@@ -163,7 +179,7 @@ class ModemImpl(Modem):
     try:
       return await at_apn.get_apn(self._transport)
     except Exception as e:
-      self._logger.warning(f"get apn error: {e}")
+      self._condition.warning("get_apn", f"get apn error: {e}")
       return None
 
   async def set_apn(self, apn: str) -> bool:
@@ -172,5 +188,5 @@ class ModemImpl(Modem):
     try:
       return await at_apn.set_apn(self._transport, apn)
     except Exception as e:
-      self._logger.warning(f"set apn error: {e}")
+      self._condition.warning("set_apn", f"set apn error: {e}")
       return False

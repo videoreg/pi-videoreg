@@ -17,13 +17,14 @@
 #   /run/vrg/pisugar-poweroff     handoff from vrg-poweroff.sh (this boot's decision)
 #   /run/vrg/pisugar-power-byte   byte published at boot, used if the first is absent
 #
-# The single exception is one control read of REG_POWER. External power can
+# The single exception is a few control reads of REG_POWER. External power can
 # appear during the shutdown — stopping the services can take tens of seconds —
-# and this is the last moment at which that can still change the outcome. It is
-# retried, and when it fails we fall back to the charging status measured
-# earlier rather than assuming there is no power: an empty i2cget result is 0 in
-# bash arithmetic, and treating that as "not charging" is exactly the silent
-# misread this script used to make.
+# and this is the last moment at which that can still change the outcome. Those
+# reads can only report power that the earlier decision did not know about, never
+# retract power it did see; the reasoning is at the sampling loop below. When
+# they fail we keep the charging status measured earlier rather than assuming
+# there is no power: an empty i2cget result is 0 in bash arithmetic, and treating
+# that as "not charging" is exactly the silent misread this script used to make.
 #
 # The script is deliberately self-contained: the project directory may already be
 # unmounted here, so nothing outside /run and the i2c-tools binaries is touched.
@@ -127,11 +128,45 @@ if [ -z "$POWER_BYTE" ] && [ -f "$POWER_BYTE_FILE" ]; then
 fi
 
 # The last chance to notice that external power came back during the shutdown.
-CURRENT_POWER_REG=$(read_register $REG_POWER)
-if [ $? -eq 0 ]; then
-    CHARGING=$(( (CURRENT_POWER_REG >> BIT_NUM_CHARGIN_STATUS) & 1 ))
-    POWER_BYTE=$(printf "0x%02x" $(( CURRENT_POWER_REG & ~(1 << BIT_NUM_POWER_CUT) )))
-fi
+#
+# Sampled more than once, and the samples may only add power, never take it
+# away. Two reasons for that asymmetry:
+#
+#   charging_status is not a stable bit. It reports "current is flowing into the
+#   battery", not "a charger is attached", so it drops on its own whenever the
+#   charger idles — a full battery does that continuously. A glitchy bus adds the
+#   other half: i2cget has no way to detect a corrupted answer, so a single
+#   flipped bit is indistinguishable from a real change.
+#
+#   Withdrawing a decision is worse than making the wrong one. vrg-poweroff.sh
+#   deliberately leaves the cut unarmed when it decides to reboot; if a single
+#   sample here overrules that, we fall through to the fallback and arm a cut
+#   that will not fire, because the external power the earlier read saw is in
+#   fact still there. Linux halts anyway, the rails stay live, nothing ever
+#   power-cycles the board — and an RTC alarm cannot start a machine that was
+#   never switched off. That state is only recoverable by hand.
+#
+# Reading power that is not there costs one wasted boot: the machine comes up,
+# sees the power loss and shuts down again, this time with everything armed.
+CHARGING_SAMPLE_COUNT=3
+CHARGING_SAMPLE_DELAY=0.2
+
+sample=0
+while [ "$sample" -lt "$CHARGING_SAMPLE_COUNT" ]; do
+    CURRENT_POWER_REG=$(read_register $REG_POWER) || CURRENT_POWER_REG=""
+
+    if [ -n "$CURRENT_POWER_REG" ]; then
+        POWER_BYTE=$(printf "0x%02x" $(( CURRENT_POWER_REG & ~(1 << BIT_NUM_POWER_CUT) )))
+
+        if [ $(( (CURRENT_POWER_REG >> BIT_NUM_CHARGIN_STATUS) & 1 )) -eq 1 ]; then
+            CHARGING=1
+            break
+        fi
+    fi
+
+    sample=$((sample + 1))
+    sleep "$CHARGING_SAMPLE_DELAY"
+done
 
 # On external power with a pending wakeup alarm, stay online: reboot instead of
 # cutting power. Safe here because the filesystems are already unmounted.

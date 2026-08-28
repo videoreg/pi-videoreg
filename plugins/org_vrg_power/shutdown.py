@@ -6,6 +6,14 @@ from sdk.power import ChargingStatus, PowerSupply
 from sdk.power.pisugar import PiSugar
 from sdk.videoreg import Videoreg
 
+# Below this battery level the device sleeps without a wakeup alarm. Every alarm
+# wake costs a full boot for a few dozen seconds of work, so cycling on a nearly
+# empty battery burns the remainder within hours and leaves nothing to start with.
+# On 2026-08-04 a test device ran 124 two-minute cycles from 100% down to 12% and
+# then stayed dark for 48 hours, until external power was plugged in. What charge
+# is left is better spent waiting for that power: wake_on_power_restore stays on.
+LOW_BATTERY_ALARM_THRESHOLD_PERCENT = 15
+
 
 class ShutdownConfig:
   reason: str = None
@@ -125,6 +133,10 @@ class ShutdownController:
     else:  # disabled/on-power-restore
       shutdown_config.wakeup_alarm_enabled = False
 
+    if shutdown_config.wakeup_alarm_enabled and await self._is_battery_too_low_for_alarm():
+      shutdown_config.wakeup_alarm_enabled = False
+      shutdown_config.wakeup_alarm_time = None
+
     if not shutdown_config.verify():
       self._logger.debug("shutdown_config not verified")
       return None
@@ -136,6 +148,27 @@ class ShutdownController:
     await self._log_shutdown(shutdown_config)
 
     return shutdown_config
+
+  async def _is_battery_too_low_for_alarm(self) -> bool:
+    battery_percent = await self._power_supply.get_battery_percent()
+    if battery_percent is None:
+      return False  # cannot tell, so keep the configured behaviour
+
+    if battery_percent >= LOW_BATTERY_ALARM_THRESHOLD_PERCENT:
+      return False
+
+    # External power keeps refilling the battery, and with power present the alarm
+    # is the only thing that can bring the device back (wake-on-power-restore needs
+    # a 0->1 transition that will not happen). This is the BLE-beacon shutdown, so
+    # the level must not disarm the alarm there.
+    if await self._power_supply.get_charging_status() == ChargingStatus.CHARGING:
+      return False
+
+    self._logger.warning(
+      f"battery {battery_percent}% is below {LOW_BATTERY_ALARM_THRESHOLD_PERCENT}%: "
+      "sleeping without a wakeup alarm, waiting for external power instead"
+    )
+    return True
 
   async def _apply_shutdown_config(self, shutdown_config: ShutdownConfig) -> bool:
     if not isinstance(self._power_supply, PiSugar):

@@ -1,33 +1,21 @@
 #!/bin/bash
 #
-# Last-resort PiSugar power cut, run by systemd at the very end of shutdown with
-# the mode as its first argument ("poweroff", "reboot", "halt", "kexec").
+# Last-resort PiSugar power cut. systemd runs it at the very end of shutdown, as
+# /lib/systemd/system-shutdown/shutdown-pisugar.sh (placed there by
+# tools/bin/vrg-install), with the mode as $1: poweroff, reboot, halt or kexec.
 #
-# During installation (tools/bin/vrg-install) this script is placed at:
-#   /lib/systemd/system-shutdown/shutdown-pisugar.sh
-# That location is the standard directory systemd scans for shutdown executables.
-#
-# By this point every process has been killed, the rootfs is read-only and
-# journald is gone, so nothing here can be logged and every failure is invisible.
-# Therefore this script decides nothing and computes nothing. All of that happens
-# earlier, in task/service/vrg-poweroff.sh, which normally has already armed the
-# cut; what is left here is a fallback for when it did not run.
-#
-# Everything needed comes from tmpfs, written while the system was healthy:
+# By this point every process is killed, the rootfs is read-only and journald is
+# gone: nothing can be logged and every failure is invisible. So the script
+# decides nothing. task/service/vrg-poweroff.sh has normally armed the cut
+# already and handed its decision over through tmpfs:
 #   /run/vrg/pisugar-poweroff     handoff from vrg-poweroff.sh (this boot's decision)
 #   /run/vrg/pisugar-power-byte   byte published at boot, used if the first is absent
+# What is left here is the fallback for when vrg-poweroff.sh did not run, plus a
+# few control reads of REG_POWER — see the sampling loop below.
 #
-# The single exception is one control read of REG_POWER. External power can
-# appear during the shutdown — stopping the services can take tens of seconds —
-# and this is the last moment at which that can still change the outcome. It is
-# retried, and when it fails we fall back to the charging status measured
-# earlier rather than assuming there is no power: an empty i2cget result is 0 in
-# bash arithmetic, and treating that as "not charging" is exactly the silent
-# misread this script used to make.
-#
-# The script is deliberately self-contained: the project directory may already be
-# unmounted here, so nothing outside /run and the i2c-tools binaries is touched.
-# The helpers below therefore duplicate their counterparts in task/pisugar.sh.
+# Self-contained by design: the project directory may already be unmounted, so
+# nothing outside /run and i2c-tools is touched and the helpers below duplicate
+# their counterparts in task/pisugar.sh.
 
 set -u
 
@@ -37,8 +25,8 @@ case "${1-}" in
         ;;
 esac
 
-I2C_BUS=1 # I2C Bus number (usually 1 on Raspberry Pi)
-I2C_ADDR=0x57 # PiSugar I2C Device Address (0x57 often used for PiSugar 3-series write protect)
+I2C_BUS=1 # usually 1 on Raspberry Pi
+I2C_ADDR=0x57 # PiSugar 3-series
 
 REG_WRITE_PROTECT=0x0b
 REG_SHUTDOWN_DELAY=0x09
@@ -56,7 +44,9 @@ STATE_FILE="/run/vrg/pisugar-poweroff"
 POWER_BYTE_FILE="/run/vrg/pisugar-power-byte"
 
 # Read a register, retrying transient bus errors. Prints decimal, non-zero exit
-# when the register could not be read at all — never an empty "value".
+# when the register could not be read at all — never an empty "value": empty is 0
+# in bash arithmetic, and a silent "not charging" is exactly the misread that
+# this script used to make.
 read_register() {
     local reg="$1"
     local attempt=0
@@ -126,22 +116,52 @@ if [ -z "$POWER_BYTE" ] && [ -f "$POWER_BYTE_FILE" ]; then
     POWER_BYTE=$(cat "$POWER_BYTE_FILE" 2>/dev/null)
 fi
 
-# The last chance to notice that external power came back during the shutdown.
-CURRENT_POWER_REG=$(read_register $REG_POWER)
-if [ $? -eq 0 ]; then
-    CHARGING=$(( (CURRENT_POWER_REG >> BIT_NUM_CHARGIN_STATUS) & 1 ))
-    POWER_BYTE=$(printf "0x%02x" $(( CURRENT_POWER_REG & ~(1 << BIT_NUM_POWER_CUT) )))
-fi
+# The last chance to notice external power that appeared during the shutdown —
+# stopping the services can take tens of seconds.
+#
+# Sampled more than once, and the samples may only add power, never take it away:
+#
+#   charging_status means "current is flowing into the battery", not "a charger
+#   is attached", so it drops on its own whenever the charger idles — a full
+#   battery does that continuously — and a corrupted i2cget answer is
+#   indistinguishable from a real change.
+#
+#   Withdrawing a decision is worse than making the wrong one. vrg-poweroff.sh
+#   deliberately leaves the cut unarmed when it decides to reboot; if one sample
+#   overrules that, we arm a cut that will not fire, because the power really is
+#   still there. Linux halts, the rails stay live, nothing power-cycles the board
+#   and the RTC alarm has nothing to start. Recoverable only by hand.
+#
+# Seeing power that is not there costs one wasted boot: the machine comes up,
+# notices the power loss and shuts down again, this time with everything armed.
+CHARGING_SAMPLE_COUNT=3
+CHARGING_SAMPLE_DELAY=0.2
+
+sample=0
+while [ "$sample" -lt "$CHARGING_SAMPLE_COUNT" ]; do
+    CURRENT_POWER_REG=$(read_register $REG_POWER) || CURRENT_POWER_REG=""
+
+    if [ -n "$CURRENT_POWER_REG" ]; then
+        POWER_BYTE=$(printf "0x%02x" $(( CURRENT_POWER_REG & ~(1 << BIT_NUM_POWER_CUT) )))
+
+        if [ $(( (CURRENT_POWER_REG >> BIT_NUM_CHARGIN_STATUS) & 1 )) -eq 1 ]; then
+            CHARGING=1
+            break
+        fi
+    fi
+
+    sample=$((sample + 1))
+    sleep "$CHARGING_SAMPLE_DELAY"
+done
 
 # On external power with a pending wakeup alarm, stay online: reboot instead of
 # cutting power. Safe here because the filesystems are already unmounted.
-# Exception: a BLE-beacon-forced shutdown (force_powercut=yes, set by
-# vrg-poweroff.sh) must actually power off and wait for the RTC alarm — the
-# beacon is gone though external power stayed — so we let the armed cut proceed.
+# Exception: a BLE-beacon-forced shutdown (force_powercut=yes) must power off and
+# wait for the RTC alarm, so its armed cut proceeds.
 if [ "$FORCE_POWERCUT" != "yes" ] && [ "$CHARGING" == "1" ] && [ "$ALARM_IN_FUTURE" == "1" ]; then
     if [ "$ARMED" == "yes" ] && [ -n "$POWER_BYTE" ]; then
-        # vrg-poweroff.sh armed the cut before the power appeared — undo it, or
-        # the PiSugar will pull power in the middle of the reboot.
+        # Armed before the power appeared — undo it, or the PiSugar will pull
+        # power in the middle of the reboot.
         write_register $REG_POWER $(( POWER_BYTE | (1 << BIT_NUM_POWER_CUT) ))
     fi
 
@@ -153,13 +173,10 @@ if [ "$ARMED" == "yes" ]; then
 fi
 
 if [ -z "$POWER_BYTE" ]; then
-    # Nothing was published and the bus is unreadable: there is no value we could
-    # write without inventing one, and inventing one is what used to clear the
-    # charging and wakeup bits. Leave the register alone.
+    # Nothing published and the bus is unreadable. Inventing a value is what
+    # used to clear the charging and wakeup bits — leave the register alone.
     exit 0
 fi
 
 write_register $REG_SHUTDOWN_DELAY $DELAY_SECONDS
 write_register $REG_POWER "$POWER_BYTE"
-
-# bye bye

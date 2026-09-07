@@ -3,6 +3,22 @@
 Notable changes per released version. Versions before 0.1.2 are not documented here —
 see the git history for them.
 
+## 0.1.3 — 2026-08-28
+
+### Power and shutdown
+
+- The wake-up alarm is disarmed below 15% battery, leaving only wake-on-power-restore.
+  Every alarm wake costs a full boot for a few dozen seconds of work, so at `wakeup=2m`
+  on battery the device cycles about twenty times an hour and flattens itself in roughly
+  seven hours. The threshold is skipped while external power is present, where the alarm
+  is the only way back.
+- The shutdown hook can no longer withdraw a reboot decision. It used to re-read the
+  PiSugar power register once and act on that single sample; a disagreeing sample made it
+  arm a power cut that could not fire, so Linux halted with the rails still live and
+  nothing power-cycled the board. Charging status is now sampled three times and the
+  samples may only add power, never retract it.
+- An unreadable I2C answer is no longer treated as a zero byte.
+
 ## 0.1.2 — 2026-08-09
 
 ### BLE beacon

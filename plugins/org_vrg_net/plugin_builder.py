@@ -1,4 +1,5 @@
 from argparse import Namespace
+from pathlib import Path
 
 import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.commands.get_commands import CommandGetCommands
@@ -24,6 +25,7 @@ from plugins.org_vrg_net.methods.wg_show import MethodWgShow
 from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
 from plugins.org_vrg_net.plugin import NetPlugin
 from plugins.org_vrg_net.wg import Config
+from plugins.org_vrg_net.wifi_file import WifiFileProvisioner
 from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
@@ -75,6 +77,11 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   )
   # Shared by the set_wifi_mode api-method and the wifi_* bot commands.
   method_set_wifi_mode = MethodSetWifiMode(net_controls, plugin.state)
+  plugin.init_wifi_file_provisioner(
+    WifiFileProvisioner(
+      plugin.logger, net_controls, method_set_wifi_mode, Path(const.WIFI_FILE_PATH)
+    )
+  )
 
   commands: dict[str, GatewayCommand] = {
     "net": CommandGetCommands(plugin),

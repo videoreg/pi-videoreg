@@ -11,3 +11,7 @@ KEY_WG_SKIP_ON_WIFI = "wg_skip_on_wifi"
 KEY_WIFI_BLOCKED = "wifi_blocked"
 KEY_WIFI_AUTO = "wifi_auto"
 KEY_LAST_NET_SERVICES_START = "last_net_services_start"
+
+# Optional WiFi settings file in the root of the SD card data partition, applied once
+# on start and then deleted (see wifi_file.py).
+WIFI_FILE_PATH = "/mnt/data/wifi.txt"

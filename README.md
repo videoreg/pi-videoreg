@@ -57,6 +57,27 @@ Web UI login credentials: username `admin`, password `videoreg`.
 >[!WARNING]
 >Change the user password and WiFi password immediately!
 
+### WiFi Settings via SD Card
+
+If you entered wrong WiFi settings in the Web UI (for example, a wrong password in WiFi Client mode) and lost access to the device, you can set them again with a file on the SD card:
+
+1. Insert the SD card into a computer and open the third partition (the data partition, mounted on the device at `/mnt/data`; it is FAT32, so it is readable on any OS).
+2. Create a `wifi.txt` file in the root of the partition with three lines:
+   - mode: `ap` (the device creates its own access point) or `client` (the device connects to an existing network);
+   - network name (SSID);
+   - password (8 to 63 characters).
+3. Insert the card back into the device and power it on.
+
+Example:
+
+```
+client
+My Home WiFi
+mypassword
+```
+
+The settings are applied on system start, after which the file is deleted so the password does not stay on the card. If the file is invalid (unknown mode, empty network name, password too short), it is left in place and the settings are not applied; the reason is written to the `net` plugin log (`vrg-log net`).
+
 ### Date and Time
 
 On first boot, set the timezone in the Web UI (`Settings → Date & Time`).

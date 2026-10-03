@@ -3,6 +3,7 @@ import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.net_controls import NetControls
 from plugins.org_vrg_net.net_services import NetServicesManager
 from plugins.org_vrg_net.wg import WireguardMonitor
+from plugins.org_vrg_net.wifi_file import WifiFileProvisioner
 from sdk.service import Plugin
 
 
@@ -14,6 +15,7 @@ class NetPlugin(Plugin):
   _net_services_was_started_once = False
   net_services: NetServicesManager
   net_controls: NetControls
+  wifi_file_provisioner: WifiFileProvisioner = None
 
   def __init__(self, id, name, videoreg):
     super().__init__(id, name, videoreg)
@@ -28,6 +30,10 @@ class NetPlugin(Plugin):
     else:
       self.logger.debug("unblock wifi")
       await self.net_controls.set_wifi_blocked(blocked=False)
+
+    # Settings from wifi.txt on the SD card override whatever was configured before.
+    if self.wifi_file_provisioner:
+      await self.wifi_file_provisioner.apply_if_exists()
 
     # asyncio.create_task(self._start_lifecycle_loop())
 
@@ -47,6 +53,9 @@ class NetPlugin(Plugin):
 
   def init_net_controls(self, net_controls: NetControls):
     self.net_controls = net_controls
+
+  def init_wifi_file_provisioner(self, wifi_file_provisioner: WifiFileProvisioner):
+    self.wifi_file_provisioner = wifi_file_provisioner
 
   def init_wg_monitor(self, wg_monitor: WireguardMonitor):
     self.wg_monitor = wg_monitor

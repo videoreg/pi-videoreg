@@ -18,6 +18,27 @@ class NetControlsImpl(NetControls):
     self._videoreg = videoreg
     pass
 
+  async def is_network_manager_running(self):
+    """Check whether the NetworkManager daemon is up and answering nmcli"""
+    try:
+      process = await asyncio.create_subprocess_exec(
+        "nmcli",
+        "-t",
+        "-f",
+        "RUNNING",
+        "general",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+      )
+
+      stdout, stderr = await process.communicate()
+
+      return process.returncode == 0 and stdout.decode("utf-8").strip() == "running"
+
+    except Exception as e:
+      self._logger.error(f"Error checking NetworkManager status: {e}")
+      return False
+
   async def get_wifi_radio_status(self):
     """Check WiFi radio status via nmcli"""
     try:

@@ -2,6 +2,9 @@
 
 
 class NetControls:
+  async def is_network_manager_running(self) -> bool:
+    raise NotImplementedError()
+
   async def get_wifi_radio_status(self) -> bool:
     raise NotImplementedError()
 

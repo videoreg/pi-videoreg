@@ -8,11 +8,12 @@ Web UI: drop `wifi.txt` into the root of the third SD card partition (mounted at
   2. network name (SSID)
   3. password
 
-The settings are applied once on plugin start and the file is deleted afterwards, so
-the password does not stay on the card. An invalid file is left in place (and the
-reason is logged) so the user can fix it.
+The settings are applied once on plugin start and the file is deleted as soon as they
+are stored in NetworkManager, so the password does not stay on the card. An invalid file
+is left in place (and the reason is logged) so the user can fix it.
 """
 
+import asyncio
 import os
 import re
 from logging import Logger
@@ -27,6 +28,10 @@ CONNECTION_NAMES = {
   "ap": const.NM_CONNECTION_AP,
   "client": const.NM_CONNECTION_WIFI,
 }
+
+# vrg-core starts in parallel with NetworkManager, so on boot nmcli may not answer yet.
+NM_WAIT_TIMEOUT = 120
+NM_WAIT_INTERVAL = 2
 
 
 class WifiFileError(Exception):
@@ -97,6 +102,12 @@ class WifiFileProvisioner:
       self._logger.error(f"invalid {self._path}, settings not applied: {e}")
       return False
 
+    if not await self._wait_for_network_manager():
+      self._logger.error(
+        f"NetworkManager is not running after {NM_WAIT_TIMEOUT}s, {self._path} not applied"
+      )
+      return False
+
     connection = CONNECTION_NAMES[settings.mode]
 
     try:
@@ -109,6 +120,14 @@ class WifiFileProvisioner:
     except Exception as e:
       self._logger.error(f"failed to update {connection} from {self._path}: {e}")
       return False
+
+    # The settings are stored in the NetworkManager profile now. Delete the file before
+    # activating the connection: activation may take long or fail (e.g. the network is out
+    # of range), and that must not leave the file to be re-applied on every start.
+    try:
+      os.remove(self._path)
+    except OSError as e:
+      self._logger.error(f"failed to delete {self._path}: {e}")
 
     # The connection may already be active with the old settings, and bringing up an
     # active connection is a no-op, so take it down first to make the new ones apply.
@@ -123,9 +142,15 @@ class WifiFileProvisioner:
       f'WiFi settings applied from {self._path}: mode={settings.mode}, ssid="{settings.ssid}"'
     )
 
-    try:
-      os.remove(self._path)
-    except OSError as e:
-      self._logger.error(f"failed to delete {self._path}: {e}")
+    return True
+
+  async def _wait_for_network_manager(self) -> bool:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + NM_WAIT_TIMEOUT
+
+    while not await self._net_controls.is_network_manager_running():
+      if loop.time() >= deadline:
+        return False
+      await asyncio.sleep(NM_WAIT_INTERVAL)
 
     return True

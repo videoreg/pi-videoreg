@@ -69,7 +69,7 @@ class Egress:
         self._logger.warning(f"egress: net.wg_egress failed: {response.get_error()}")
     except Exception as e:
       # net is unavailable: use the default interface rather than block the plugin
-      self._logger.warning(f"egress: net.wg_egress failed: {e}")
+      self._logger.warning(f"egress: net.wg_egress failed: {e!r}")
 
     if address != self._address:
       route = f"WireGuard ({address})" if address else "default interface"

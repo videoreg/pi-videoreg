@@ -198,6 +198,10 @@ class Dispatcher:
         await command.invoke(self._bot, chat, args)
         return
 
+    # Reply instead of staying silent, so a command missing from the manifest is visible.
+    self._bot.context.logger.warning(f"unknown command: {name}")
+    await self._tg_api.send_message(chat.chat_id, f"Unknown command: /{name}")
+
   async def _handle_callback(self, chat: BotChat, data: str, message_id: int = None):
     for callback_handler in self._callbacks:
       if data.startswith(callback_handler.prefix):

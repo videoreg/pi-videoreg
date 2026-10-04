@@ -7,6 +7,7 @@ from asyncio import AbstractEventLoop
 from threading import Event
 
 import sdk.log as log
+from sdk.egress import Egress
 from sdk.i18n import I18n
 from sdk.journal import JournalClient
 from sdk.media_manager import MediaManager
@@ -50,6 +51,7 @@ class Plugin:
   _api_server: ApiServer = None
   api_client: ApiClient = None
   journal_client: JournalClient = None
+  egress: Egress = None
   _stop_event: Event
   _socket_client_id: str = None  # plugin's own channel name (for unregister)
 
@@ -115,6 +117,12 @@ class Plugin:
   def init_api_client(self) -> ApiClient:
     self.api_client = create_api_client(self._requests_controller, self.logger)
     return self.api_client
+
+  def init_egress(self) -> Egress:
+    """Outbound routing (WireGuard / default interface), see sdk/egress.py.
+    Needs init_api_client()."""
+    self.egress = Egress(self.id, self.api_client, self.logger)
+    return self.egress
 
   def init_journal_client(self) -> JournalClient:
     self.journal_client = JournalClient(self.id, self._easy_connection)

@@ -3,7 +3,7 @@
 Manifest data is split across the repo — one central `videoreg.manifest.yaml`
 (services / plugins / gateways / locale / paths) plus a per-plugin
 `plugins/<id>/manifest.yaml` carrying that plugin's `http` / `commands` / `bot` /
-`power` sections. Rather than have every consumer independently glob
+`power` / `net` sections. Rather than have every consumer independently glob
 `plugins/*/manifest.yaml` and re-parse the central file, `org_vrg_core` builds a
 single merged document under `.videoreg/` at startup and all other consumers read
 from it.
@@ -15,7 +15,7 @@ per-plugin sections into its entry in the `plugins` list (matched by `id`):
       "path": {...}, "services": [...], "gateways": [...], "locale": "en",
       "plugins": [
         {"id": "org_vrg_power", "name": "power", "enabled": true,
-         "http": {...}, "commands": [...], "bot": {...}, "power": {...}},
+         "http": {...}, "commands": [...], "bot": {...}, "power": {...}, "net": {...}},
         ...
       ]
     }
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
   from sdk.videoreg import Videoreg
 
 # Per-plugin manifest sections folded into each plugin's merged entry.
-SECTION_KEYS = ("http", "commands", "bot", "power")
+SECTION_KEYS = ("http", "commands", "bot", "power", "net")
 
 
 def _merged_filename(env: str) -> str:
@@ -66,7 +66,7 @@ def build_merged_dict(videoreg: "Videoreg") -> dict:
   """Build the merged manifest dict from the central + per-plugin manifests.
 
   Starts from `videoreg.manifest` (already `extends`-resolved by `load_manifest`),
-  then folds each `plugins/<id>/manifest.yaml`'s `http/commands/bot/power` sections
+  then folds each `plugins/<id>/manifest.yaml`'s `http/commands/bot/power/net` sections
   into the matching plugin entry (id == plugin directory name). Plugins listed on
   disk but absent from the central `plugins` list are ignored.
   """

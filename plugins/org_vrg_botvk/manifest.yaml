@@ -38,3 +38,8 @@ bot:
 
 power:
   ask_before_shutdown: true # power calls botvk.is_ready_to_die before shutting down
+
+# Talks to the internet through sdk/egress.py: listed in WireGuard settings -> Routing
+net:
+  egress:
+    title: $botvk.vk.menu

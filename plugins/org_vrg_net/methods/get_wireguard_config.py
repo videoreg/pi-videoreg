@@ -1,13 +1,17 @@
 import os
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.plugin import NetPlugin
+from plugins.org_vrg_net.wg_config import empty_settings, parse_config
 from sdk.socket.api import ApiMethod
-
-WG_CONFIG_PATH = "/etc/wireguard/wg0.conf"
 
 
 class MethodGetWireguardConfig(ApiMethod):
-  """Reads the WireGuard config file contents (moved from the http handler)."""
+  """Returns the WireGuard form settings parsed from the config file.
+
+  The private key is never sent to the client: the response carries `has_private_key` and
+  the derived `public_key` instead (the one to register on the VPN server).
+  """
 
   _plugin: NetPlugin
 
@@ -17,18 +21,40 @@ class MethodGetWireguardConfig(ApiMethod):
 
   async def exec(self, args):
     try:
-      if not os.path.exists(WG_CONFIG_PATH):
-        self._plugin.logger.warning(f"WireGuard config file not found: {WG_CONFIG_PATH}")
-        return {"status": "ok", "data": {"content": "", "exists": False}}
+      if not os.path.exists(const.WG_CONFIG_PATH):
+        settings = empty_settings()
+        settings.pop("private_key")
+        return {
+          "status": "ok",
+          "data": {
+            "exists": False,
+            "settings": settings,
+            "has_private_key": False,
+            "public_key": None,
+          },
+        }
 
-      with open(WG_CONFIG_PATH, encoding="utf-8") as f:
-        content = f.read()
+      with open(const.WG_CONFIG_PATH, encoding="utf-8") as f:
+        settings, _ = parse_config(f.read())
 
-      return {"status": "ok", "data": {"content": content, "exists": True}}
+      private_key = settings.pop("private_key")
+      public_key = None
+      if private_key:
+        public_key = await self._plugin.wg_monitor.get_public_key(private_key)
+
+      return {
+        "status": "ok",
+        "data": {
+          "exists": True,
+          "settings": settings,
+          "has_private_key": bool(private_key),
+          "public_key": public_key,
+        },
+      }
 
     except PermissionError:
-      self._plugin.logger.error(f"Permission denied reading {WG_CONFIG_PATH}")
+      self._plugin.logger.error(f"Permission denied reading {const.WG_CONFIG_PATH}")
       return {"status": "error", "error": "Permission denied"}
     except Exception as e:
-      self._plugin.logger.error(f"Error reading WireGuard config: {e}")
+      self._plugin.logger.error(f"Error reading WireGuard config: {e}", exc_info=True)
       return {"status": "error", "error": str(e)}

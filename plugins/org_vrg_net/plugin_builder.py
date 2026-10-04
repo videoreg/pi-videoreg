@@ -14,12 +14,16 @@ from plugins.org_vrg_net.methods.get_connections import MethodGetConnections
 from plugins.org_vrg_net.methods.get_modem_dashboard import MethodGetModemDashboard
 from plugins.org_vrg_net.methods.get_modem_info import MethodGetModemInfo
 from plugins.org_vrg_net.methods.get_wireguard_config import MethodGetWireguardConfig
+from plugins.org_vrg_net.methods.get_wireguard_routing import MethodGetWireguardRouting
 from plugins.org_vrg_net.methods.get_wireguard_settings import MethodGetWireguardSettings
+from plugins.org_vrg_net.methods.import_wireguard_config import MethodImportWireguardConfig
 from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
 from plugins.org_vrg_net.methods.set_wifi_mode import MethodSetWifiMode
+from plugins.org_vrg_net.methods.set_wireguard_routing import MethodSetWireguardRouting
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
+from plugins.org_vrg_net.methods.wg_egress import MethodWgEgress
 from plugins.org_vrg_net.methods.wg_set_state import MethodWgSetState
 from plugins.org_vrg_net.methods.wg_show import MethodWgShow
 from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
@@ -38,11 +42,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   plugin.init_logger(args.log_level)
   plugin.init_socket(client_id=name, channels=[], socket_path=None)
 
+  wg_routes_script = str(runner.videoreg.app_path("task/net/wg-routes.sh"))
   wg_monitor_config = Config(
     connection_name_wifi=const.NM_CONNECTION_WIFI,
     connection_name_modem=const.NM_CONNECTION_MODEM,
     wg_interface="wg0",
-    wg_config_path="/etc/wireguard/wg0.conf",
+    wg_config_path=const.WG_CONFIG_PATH,
     check_interval=10,
   )
 
@@ -112,8 +117,12 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "wg_skip_on_wifi": MethodWgSkipOnWifi(plugin),
       "wg_settings": MethodGetWireguardSettings(plugin),
       "wg_show": MethodWgShow(plugin),
+      "wg_routing": MethodGetWireguardRouting(plugin),
+      "wg_set_routing": MethodSetWireguardRouting(plugin),
+      "wg_egress": MethodWgEgress(plugin),
       "get_wireguard_config": MethodGetWireguardConfig(plugin),
-      "save_wireguard_config": MethodSaveWireguardConfig(plugin),
+      "save_wireguard_config": MethodSaveWireguardConfig(plugin, wg_routes_script),
+      "import_wireguard_config": MethodImportWireguardConfig(plugin),
       "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),

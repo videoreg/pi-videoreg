@@ -25,6 +25,15 @@ class WireguardMonitorImpl:
   async def get_wg_info(self) -> dict:
     return {}
 
+  async def get_routing_info(self, cached: bool = False) -> dict:
+    return {"address": None, "rule": False, "default_route": False}
+
+  async def restart_wireguard(self):
+    pass
+
+  async def get_public_key(self, private_key: str) -> str | None:
+    return None
+
   async def notify_wg_enabled(self):
     pass
 

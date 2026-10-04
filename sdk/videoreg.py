@@ -177,20 +177,9 @@ class Videoreg:
     be picked up without restarting the service. Note: aiohttp routes are frozen after
     startup, so newly declared api routes still require a restart.
     """
-    from sdk.merged_manifest import build_merged_dict
+    from sdk.merged_manifest import build_merged_dict, carry_enabled_overrides
 
-    prev = self._merged_manifest or {}
-    enabled_by_id = {
-      p.get("id"): p.get("enabled")
-      for p in prev.get("plugins", [])
-      if isinstance(p, dict) and "enabled" in p
-    }
-
-    fresh = build_merged_dict(self)
-    for p in fresh.get("plugins", []):
-      pid = p.get("id")
-      if pid in enabled_by_id and enabled_by_id[pid] is not None:
-        p["enabled"] = enabled_by_id[pid]
+    fresh = carry_enabled_overrides(self._merged_manifest, build_merged_dict(self))
 
     self._merged_manifest = fresh
     return fresh

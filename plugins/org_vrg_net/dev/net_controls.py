@@ -2,6 +2,9 @@ from plugins.org_vrg_net.net_controls import NetControls
 
 
 class NetControlsImpl(NetControls):
+  async def is_network_manager_running(self) -> bool:
+    return True
+
   async def get_wifi_radio_status(self) -> bool:
     return True
 

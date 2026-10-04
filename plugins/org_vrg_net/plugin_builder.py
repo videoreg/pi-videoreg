@@ -1,10 +1,11 @@
 from argparse import Namespace
+from pathlib import Path
 
 import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.commands.get_commands import CommandGetCommands
 from plugins.org_vrg_net.commands.get_connection import CommandGetConnection
 from plugins.org_vrg_net.commands.get_connections import CommandGetConnections
-from plugins.org_vrg_net.commands.set_wifi_blocked import CommandSetWifiBlocked
+from plugins.org_vrg_net.commands.set_wifi_mode import CommandSetWifiMode
 from plugins.org_vrg_net.commands.wg_set_state import CommandWgSetState
 from plugins.org_vrg_net.methods.connection_update import MethodConnectionUpdate
 from plugins.org_vrg_net.methods.generate_wireguard_key import MethodGenerateWireguardKey
@@ -24,6 +25,7 @@ from plugins.org_vrg_net.methods.wg_show import MethodWgShow
 from plugins.org_vrg_net.methods.wg_skip_on_wifi import MethodWgSkipOnWifi
 from plugins.org_vrg_net.plugin import NetPlugin
 from plugins.org_vrg_net.wg import Config
+from plugins.org_vrg_net.wifi_file import WifiFileProvisioner
 from sdk.gateway import Gateway, GatewayCommand, GatewayCommandMethod
 from sdk.service import ServiceRunner
 
@@ -73,12 +75,21 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   gateways = Gateway.parse_gateways(
     runner.videoreg.manifest.gateways, plugin.logger, plugin.api_client
   )
+  # Shared by the set_wifi_mode api-method and the wifi_* bot commands.
+  method_set_wifi_mode = MethodSetWifiMode(net_controls, plugin.state)
+  plugin.init_wifi_file_provisioner(
+    WifiFileProvisioner(
+      plugin.logger, net_controls, method_set_wifi_mode, Path(const.WIFI_FILE_PATH)
+    )
+  )
+
   commands: dict[str, GatewayCommand] = {
     "net": CommandGetCommands(plugin),
     "connections": CommandGetConnections(plugin, net_controls),
     "connection": CommandGetConnection(plugin, net_controls),
-    "wifi_block": CommandSetWifiBlocked(net_controls, plugin.state, blocked=True),
-    "wifi_unblock": CommandSetWifiBlocked(net_controls, plugin.state, blocked=False),
+    "wifi_client": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "client"),
+    "wifi_ap": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "ap"),
+    "wifi_off": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "off"),
     "wg_on": CommandWgSetState(plugin, enable=True),
     "wg_off": CommandWgSetState(plugin, enable=False),
   }
@@ -95,7 +106,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "connection_update": MethodConnectionUpdate(plugin.logger, net_controls),
       "connection_up": MethodSetConnectionEnabled(net_controls, enabled=True),
       "connection_down": MethodSetConnectionEnabled(net_controls, enabled=False),
-      "set_wifi_mode": MethodSetWifiMode(net_controls, plugin.state),
+      "set_wifi_mode": method_set_wifi_mode,
       "wg_auto": MethodWgAuto(plugin),
       "wg_set_state": MethodWgSetState(plugin),
       "wg_skip_on_wifi": MethodWgSkipOnWifi(plugin),

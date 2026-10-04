@@ -8,6 +8,11 @@ net.signal: "Сигнал"
 net.ip_address: "IP-адрес"
 net.connection: "Соединение"
 
+# Bot command confirmations, sent before the switch
+net.wifi_mode.will_switch_client: "Переключаю WiFi в режим клиента"
+net.wifi_mode.will_switch_ap: "Переключаю WiFi в режим точки доступа"
+net.wifi_mode.will_switch_off: "Выключаю WiFi"
+
 # Web UI tokens (migrated from org_vrg_http)
 net.wifi.title: "WiFi"
 net.wifi.tab_general: "Общие"

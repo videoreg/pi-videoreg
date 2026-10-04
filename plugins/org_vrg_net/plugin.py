@@ -3,6 +3,7 @@ import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.net_controls import NetControls
 from plugins.org_vrg_net.net_services import NetServicesManager
 from plugins.org_vrg_net.wg import WireguardMonitor
+from plugins.org_vrg_net.wifi_file import WifiFileProvisioner
 from sdk.service import Plugin
 
 
@@ -14,6 +15,8 @@ class NetPlugin(Plugin):
   _net_services_was_started_once = False
   net_services: NetServicesManager
   net_controls: NetControls
+  wifi_file_provisioner: WifiFileProvisioner = None
+  _wifi_file_task: asyncio.Task = None
 
   def __init__(self, id, name, videoreg):
     super().__init__(id, name, videoreg)
@@ -28,6 +31,12 @@ class NetPlugin(Plugin):
     else:
       self.logger.debug("unblock wifi")
       await self.net_controls.set_wifi_blocked(blocked=False)
+
+    # Settings from wifi.txt on the SD card override whatever was configured before.
+    # Run in background: it waits for NetworkManager and for the connection to come up,
+    # which must not delay the service readiness (READY=1 is sent after all plugins start).
+    if self.wifi_file_provisioner:
+      self._wifi_file_task = asyncio.create_task(self._apply_wifi_file())
 
     # asyncio.create_task(self._start_lifecycle_loop())
 
@@ -47,6 +56,15 @@ class NetPlugin(Plugin):
 
   def init_net_controls(self, net_controls: NetControls):
     self.net_controls = net_controls
+
+  async def _apply_wifi_file(self):
+    try:
+      await self.wifi_file_provisioner.apply_if_exists()
+    except Exception as e:
+      self.logger.error(f"failed to apply WiFi settings file: {e}", exc_info=True)
+
+  def init_wifi_file_provisioner(self, wifi_file_provisioner: WifiFileProvisioner):
+    self.wifi_file_provisioner = wifi_file_provisioner
 
   def init_wg_monitor(self, wg_monitor: WireguardMonitor):
     self.wg_monitor = wg_monitor

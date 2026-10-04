@@ -37,9 +37,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
   id = plugin_manifest.get("id")
   name = plugin_manifest.get("name")
 
-  # Generate the merged manifest (central + per-plugin sections) under `.videoreg/`
-  # if it does not exist yet. core is built before every other plugin/service that
-  # reads it (see sdk/merged_manifest.py), so the file is ready by the time they run.
+  # Rebuild the merged manifest (central + per-plugin sections) under `.videoreg/`,
+  # keeping runtime `enabled` overrides. core is built before every other plugin/service
+  # that reads it (see sdk/merged_manifest.py), so the file is fresh by the time they run.
   ensure_merged_manifest(runner.videoreg)
 
   plugin = CorePlugin(id, name, runner)

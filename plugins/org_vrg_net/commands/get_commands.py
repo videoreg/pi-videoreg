@@ -31,10 +31,9 @@ https://{ip.get_current_ip()}:8443
       text=bot_message,
       keyboard=[
         [{"text": "Get connections", "callback_data": "command__net__connections"}],
-        [
-          {"text": "WiFi: unblock", "callback_data": "command__net__wifi_unblock"},
-          {"text": "WiFi: block", "callback_data": "command__net__wifi_block"},
-        ],
+        [{"text": "WiFi: client", "callback_data": "command__net__wifi_client"}],
+        [{"text": "WiFi: AP", "callback_data": "command__net__wifi_ap"}],
+        [{"text": "WiFi: off", "callback_data": "command__net__wifi_off"}],
         [
           {"text": "WG: on", "callback_data": "command__net__wg_on"},
           {"text": "WG: off", "callback_data": "command__net__wg_off"},

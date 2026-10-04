@@ -20,11 +20,10 @@ per-plugin sections into its entry in the `plugins` list (matched by `id`):
       ]
     }
 
-The file is created once when missing (see `ensure_merged_manifest`) and then
-edited in place — the runtime `enabled` toggle writes here, never to the repo, so
-`videoreg.manifest.yaml` stays pristine. It is *not* regenerated on every boot; to
-adopt repo manifest changes after an update, delete the file and let core recreate
-it (a rebuild resets `enabled` to repo defaults).
+The file is rebuilt by core on every start (see `ensure_merged_manifest`), so repo
+manifest changes brought by an update (e.g. new commands) are picked up after a restart.
+The runtime `enabled` toggle writes here, never to the repo, so `videoreg.manifest.yaml`
+stays pristine; the rebuild carries those `enabled` overrides over from the old file.
 
 Written as JSON (a generated artifact under the already-gitignored `.videoreg/`)
 and atomically (temp sibling + `os.replace`) so cross-process readers never observe
@@ -105,6 +104,26 @@ def build_merged_dict(videoreg: "Videoreg") -> dict:
   }
 
 
+def carry_enabled_overrides(prev: dict, fresh: dict) -> dict:
+  """Copy the runtime `enabled` flags from a previous merged view into a fresh one.
+
+  Plugins absent from `prev` (or without an `enabled` value there) keep the fresh
+  value. Mutates and returns `fresh`.
+  """
+  enabled_by_id = {
+    p.get("id"): p.get("enabled")
+    for p in (prev or {}).get("plugins", [])
+    if isinstance(p, dict) and p.get("enabled") is not None
+  }
+
+  for p in fresh.get("plugins", []):
+    pid = p.get("id")
+    if pid in enabled_by_id:
+      p["enabled"] = enabled_by_id[pid]
+
+  return fresh
+
+
 def write_merged(videoreg: "Videoreg", data: dict) -> Path:
   """Atomically write the merged manifest to `.videoreg/manifest.merged[.<env>].json`."""
   path = _merged_path(videoreg)
@@ -117,16 +136,25 @@ def write_merged(videoreg: "Videoreg", data: dict) -> Path:
 
 
 def ensure_merged_manifest(videoreg: "Videoreg") -> Path:
-  """Create the merged manifest if it does not exist yet; return its path.
+  """(Re)build the merged manifest from the repo manifests; return its path.
 
-  Create-if-missing: an existing file is left untouched (it may carry `enabled`
-  overrides). Called once from `org_vrg_core`'s build phase so the file is present
-  before any other plugin/service reads it.
+  An existing file is rebuilt rather than kept as is: otherwise manifest changes from
+  an update (new commands, menu entries, ...) would never reach the gateways. Its
+  `enabled` overrides are carried over. Called once from `org_vrg_core`'s build phase
+  so the file is up to date before any other plugin/service reads it.
   """
   path = _merged_path(videoreg)
-  if path.exists():
-    return path
-  return write_merged(videoreg, build_merged_dict(videoreg))
+
+  prev = {}
+  try:
+    with open(path, encoding="utf-8") as f:
+      data = json.load(f)
+    if isinstance(data, dict):
+      prev = data
+  except Exception:
+    pass
+
+  return write_merged(videoreg, carry_enabled_overrides(prev, build_merged_dict(videoreg)))
 
 
 def read_merged(videoreg: "Videoreg") -> dict:

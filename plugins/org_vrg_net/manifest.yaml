@@ -119,11 +119,14 @@ commands:
   - name: net
     title: Network commands
     hidden: true # reachable from the /more menu
-  - name: wifi_block
-    title: Disable WiFi module
+  - name: wifi_client
+    title: WiFi mode Client
     hidden: true
-  - name: wifi_unblock
-    title: Enable WiFi module
+  - name: wifi_ap
+    title: WiFi mode Access Point
+    hidden: true
+  - name: wifi_off
+    title: Turn WiFi off
     hidden: true
   - name: wg_on
     title: Enable WireGuard

@@ -209,7 +209,9 @@ class NetControlsImpl(NetControls):
       self._logger.error(f"Failed to set {property_name} for {connection_name}: {error_msg}")
       raise Exception(f"Failed to set {property_name}: {error_msg}")
 
-    self._logger.info(f"Set {property_name}={value} for {connection_name}")
+    # Never write secrets (e.g. 802-11-wireless-security.psk) to the journal.
+    logged_value = "***" if property_name.endswith(".psk") else value
+    self._logger.info(f"Set {property_name}={logged_value} for {connection_name}")
 
   def get_nm_connections(self):
     """Get a list of all NetworkManager connections with IP addresses"""

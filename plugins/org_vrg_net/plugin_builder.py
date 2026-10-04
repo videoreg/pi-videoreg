@@ -87,9 +87,9 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     "net": CommandGetCommands(plugin),
     "connections": CommandGetConnections(plugin, net_controls),
     "connection": CommandGetConnection(plugin, net_controls),
-    "wifi_client": CommandSetWifiMode(method_set_wifi_mode, "client"),
-    "wifi_ap": CommandSetWifiMode(method_set_wifi_mode, "ap"),
-    "wifi_off": CommandSetWifiMode(method_set_wifi_mode, "off"),
+    "wifi_client": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "client"),
+    "wifi_ap": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "ap"),
+    "wifi_off": CommandSetWifiMode(method_set_wifi_mode, runner.i18n, "off"),
     "wg_on": CommandWgSetState(plugin, enable=True),
     "wg_off": CommandWgSetState(plugin, enable=False),
   }

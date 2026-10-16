@@ -37,6 +37,11 @@ BIT_NUM_CHARGIN_STATUS=7
 
 DELAY_SECONDS=10
 
+# How long past the PiSugar countdown we keep waiting for the cut before
+# concluding it is not going to happen. The countdown has 1s resolution.
+CUT_DEADLINE_MARGIN_SECONDS=3
+CUT_POLL_DELAY=0.2
+
 I2C_RETRY_COUNT=5
 I2C_RETRY_DELAY=0.05
 
@@ -98,6 +103,8 @@ CHARGING=0
 ALARM_IN_FUTURE=0
 ARMED="no"
 FORCE_POWERCUT="no"
+ARMED_DELAY=""
+ARMED_TS=""
 
 if [ -f "$STATE_FILE" ]; then
     while IFS='=' read -r key value; do
@@ -108,9 +115,17 @@ if [ -f "$STATE_FILE" ]; then
             alarm_in_future) ALARM_IN_FUTURE="$value" ;;
             armed) ARMED="$value" ;;
             force_powercut) FORCE_POWERCUT="$value" ;;
+            delay) ARMED_DELAY="$value" ;;
+            ts) ARMED_TS="$value" ;;
         esac
     done < "$STATE_FILE"
 fi
+
+# Whether external power was seen when the poweroff was decided. Captured before
+# the samples below can add to it: a cut armed while on battery is expected to
+# take the power away, a cut armed on external power (a manual poweroff, a
+# BLE-beacon shutdown) may legitimately end in a halt.
+ON_POWER_AT_DECISION="$CHARGING"
 
 if [ -z "$POWER_BYTE" ] && [ -f "$POWER_BYTE_FILE" ]; then
     POWER_BYTE=$(cat "$POWER_BYTE_FILE" 2>/dev/null)
@@ -168,7 +183,63 @@ if [ "$FORCE_POWERCUT" != "yes" ] && [ "$CHARGING" == "1" ] && [ "$ALARM_IN_FUTU
     exec reboot -f
 fi
 
+# Stay up until the armed cut takes the power away, instead of returning and
+# letting Linux halt with the cut still pending.
+#
+# External power that appears in the last seconds before the cut — after every
+# sample above — is the one case nothing else covers: the PiSugar does not leave
+# the board in a state the power-restore wake or the RTC alarm can start, and
+# the device stays dark until someone power-cycles it (2026-10-04, 10-12, 10-14
+# and 10-16 on a test device with power scheduled at 07:00/13:00/19:00, every
+# time with the cut falling 1-4s after the power came back).
+#
+# So, while waiting:
+#   charging shows up    -> the power is back, cancel the cut and reboot
+#   past the deadline    -> we are still running, so the cut did not happen;
+#                           cancel it and reboot rather than halt for good
+# A reboot here is safe: the filesystems are already unmounted. A cut that does
+# fire simply ends this loop.
+#
+# Only for a cut decided on battery. One decided on external power (a manual
+# poweroff, a BLE-beacon shutdown) keeps ending in a halt when the cut does not
+# fire, as before — rebooting there would undo the poweroff that was asked for.
+cancel_cut_and_reboot() {
+    if [ -n "$POWER_BYTE" ]; then
+        write_register $REG_POWER $(( POWER_BYTE | (1 << BIT_NUM_POWER_CUT) ))
+    fi
+
+    exec reboot -f
+}
+
+wait_for_cut() {
+    local deadline="$1"
+    local reg
+
+    if [ "$ON_POWER_AT_DECISION" == "1" ] || [ "$FORCE_POWERCUT" == "yes" ]; then
+        exit 0
+    fi
+
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        reg=$(read_register $REG_POWER) || reg=""
+
+        if [ -n "$reg" ] && [ $(( (reg >> BIT_NUM_CHARGIN_STATUS) & 1 )) -eq 1 ]; then
+            POWER_BYTE=$(printf "0x%02x" $(( reg & ~(1 << BIT_NUM_POWER_CUT) )))
+            cancel_cut_and_reboot
+        fi
+
+        sleep "$CUT_POLL_DELAY"
+    done
+
+    cancel_cut_and_reboot
+}
+
 if [ "$ARMED" == "yes" ]; then
+    if [[ "$ARMED_TS" =~ ^[0-9]+$ ]] && [[ "$ARMED_DELAY" =~ ^[0-9]+$ ]]; then
+        wait_for_cut $(( ARMED_TS + ARMED_DELAY + CUT_DEADLINE_MARGIN_SECONDS ))
+    fi
+
+    # Armed by a vrg-poweroff.sh that did not publish the countdown: no deadline
+    # to hold the wait against, keep the old behaviour.
     exit 0
 fi
 
@@ -179,4 +250,6 @@ if [ -z "$POWER_BYTE" ]; then
 fi
 
 write_register $REG_SHUTDOWN_DELAY $DELAY_SECONDS
-write_register $REG_POWER "$POWER_BYTE"
+write_register $REG_POWER "$POWER_BYTE" || exit 0
+
+wait_for_cut $(( $(date +%s) + DELAY_SECONDS + CUT_DEADLINE_MARGIN_SECONDS ))

@@ -23,6 +23,7 @@
 #   alarm_in_future=1|0  a wakeup alarm is enabled and scheduled ahead of now
 #   armed=yes|no         whether the cut was armed and verified here
 #   force_powercut=yes|no  BLE-beacon shutdown: cut power even while charging
+#   delay=<seconds>      PiSugar countdown started at ts when armed=yes
 #   ts=<epoch>
 #
 # On external power with a future wakeup alarm the poweroff is turned into a
@@ -81,7 +82,8 @@ LOG_FILE="$LOG_DIR/vrg-poweroff.log"
 # power appears in that window the cut executes with power present, a state the
 # PiSugar wakes from via neither the RTC alarm nor power-restore. The window is
 # fixed in hardware and cannot be closed, only made as small as the teardown
-# allows.
+# allows. If the cut does not happen anyway, the shutdown hook notices it is
+# still alive past the deadline and reboots instead of halting.
 POWER_CUT_DELAY_SECONDS=4
 
 log() {
@@ -108,6 +110,7 @@ charging=$charging
 alarm_in_future=$alarm_in_future
 armed=$armed
 force_powercut=$FORCE_POWERCUT
+delay=$POWER_CUT_DELAY_SECONDS
 ts=$(date +%s)
 EOF
 }

@@ -33,3 +33,8 @@ bot:
 
 power:
   ask_before_shutdown: true # power calls bot.is_ready_to_die before shutting down
+
+# Talks to the internet through sdk/egress.py: listed in WireGuard settings -> Routing
+net:
+  egress:
+    title: $bot.telegram.menu

@@ -9,6 +9,7 @@ import aiohttp
 
 import plugins.org_vrg_botvk.const as const
 from plugins.org_vrg_botvk.main import Bot
+from sdk.egress import Egress
 
 VK_API_BASE = "https://api.vk.com/method"
 
@@ -42,11 +43,18 @@ class VkApi:
   _bot: Bot
   _logger: Logger
   _tasks: set[asyncio.Task]
+  _egress: Egress
 
-  def __init__(self, bot: Bot, logger: Logger):
+  def __init__(self, bot: Bot, logger: Logger, egress: Egress):
     self._bot = bot
     self._logger = logger
+    self._egress = egress
     self._tasks = set()
+
+  async def _session(self, timeout: aiohttp.ClientTimeout) -> aiohttp.ClientSession:
+    # A new session (and connector) per request, so a change of the plugin's outbound
+    # route (WireGuard / default interface) applies to the next request
+    return aiohttp.ClientSession(timeout=timeout, connector=await self._egress.connector())
 
   async def abort(self):
     """Cancels all active tasks"""
@@ -76,7 +84,7 @@ class VkApi:
 
     client_timeout = aiohttp.ClientTimeout(total=timeout)
     try:
-      async with aiohttp.ClientSession(timeout=client_timeout) as session:
+      async with await self._session(client_timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json(content_type=None)
 
@@ -95,7 +103,7 @@ class VkApi:
     self._log_request("upload", {"url": upload_url, "field": field, "file": str(file_path)})
 
     try:
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(upload_url, data=data) as response:
           response_json = await response.json(content_type=None)
 
@@ -124,7 +132,7 @@ class VkApi:
 
     client_timeout = aiohttp.ClientTimeout(total=http_timeout)
     try:
-      async with aiohttp.ClientSession(timeout=client_timeout) as session:
+      async with await self._session(client_timeout) as session:
         async with session.get(server, params=params) as response:
           response_json = await response.json(content_type=None)
 

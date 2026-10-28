@@ -66,6 +66,14 @@ single service journal holds the logs of all its plugins. Read them with
 name to its service and filters by the tag. The business event journal (`sdk/journal.py`) is a
 separate thing and still writes files.
 
+### Outbound routing (WireGuard)
+
+WireGuard never becomes the default route. Only traffic sourced from the tunnel address goes
+through it: replies to anything reached through WG (web UI, ssh) and plugins selected in
+WireGuard settings → Routing. A plugin that talks to the internet creates its connections via
+`plugin.egress` (`sdk/egress.py`) and declares `net: egress` in its `manifest.yaml`. Details:
+`plugins/org_vrg_net/README.md`.
+
 ### Default plugins and method-to-plugin assignment rules
 
 | Service | Short name | Logic |

@@ -78,6 +78,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
     connection_listener_factory=ConnectionListenerFactory(),
   )
   plugin.init_api_client()
+  plugin.init_egress()
 
   http_logger = log.create_logger("http_logger", args.http_log_level, tag="bot_http:")
 
@@ -85,7 +86,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
 
   bot = Bot(TOKEN, load_chats(), context)
 
-  tg_api = TelegramApi(bot, http_logger)
+  tg_api = TelegramApi(bot, http_logger, plugin.egress)
 
   # `/more` and `/status` are shared bot-menu commands handled by this gateway itself
   # (bot.command) via the standard gateway command flow. The logic lives in the SDK so

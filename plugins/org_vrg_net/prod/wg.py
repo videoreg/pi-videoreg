@@ -1,10 +1,16 @@
 import asyncio
+import os
 import subprocess
+import time
 from logging import Logger
 
 import dbus
 
+import plugins.org_vrg_net.const as const
 from plugins.org_vrg_net.wg import Config, WireguardMonitor
+
+# Safety net for routing changes made outside of the monitor; its own up/down drops the cache
+ROUTING_INFO_TTL = 60
 
 
 class WireguardMonitorImpl(WireguardMonitor):
@@ -15,6 +21,16 @@ class WireguardMonitorImpl(WireguardMonitor):
   def __init__(self, logger: Logger, config: Config):
     self._logger = logger
     self._config = config
+
+    # Serializes bringing the interface up / down: the monitor loop, the UI switch, bot
+    # commands and the restart after a config change may race otherwise
+    self._lock = asyncio.Lock()
+
+    # get_routing_info(cached=True) result. Plugins ask for it on their connections (via
+    # net.wg_egress), so it is not re-read from the kernel each time; dropped whenever the
+    # interface goes up or down
+    self._routing_info = None
+    self._routing_info_expires_at = 0
 
     # Store the last state to prevent duplicate actions
     self.last_state = {"wifi": False, "modem": False, "wg_active": False}
@@ -128,53 +144,107 @@ class WireguardMonitorImpl(WireguardMonitor):
     await proc.wait()
     return proc.returncode == 0
 
-  async def start_wireguard(self):
-    """Starts WireGuard (async)"""
-    self._logger.info("Starting WireGuard...")
-
+  async def _wg_quick(self, action: str, target: str) -> bool:
     proc = await asyncio.create_subprocess_exec(
       "sudo",
       "wg-quick",
-      "up",
-      self._config.wg_interface,
+      action,
+      target,
       stdout=asyncio.subprocess.PIPE,
       stderr=asyncio.subprocess.PIPE,
     )
 
     stdout, stderr = await proc.communicate()
 
-    if proc.returncode == 0:
+    if proc.returncode != 0:
+      error_msg = stderr.decode() if stderr else "Unknown error"
+      self._logger.error(f"wg-quick {action} failed: {error_msg}")
+      return False
+    return True
+
+  async def _run(self, *cmd: str) -> str:
+    """Runs a command and returns its stdout (empty on failure)"""
+    proc = await asyncio.create_subprocess_exec(
+      *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode() if proc.returncode == 0 else ""
+
+  async def _start(self) -> bool:
+    self._logger.info("Starting WireGuard...")
+    self._routing_info = None
+
+    if await self._wg_quick("up", self._config.wg_interface):
       self._logger.info("WireGuard started successfully")
       await self.notify_wg_enabled()
       return True
-    else:
-      error_msg = stderr.decode() if stderr else "Unknown error"
-      self._logger.error(f"Failed to start WireGuard: {error_msg}")
-      return False
+    return False
 
-  async def stop_wireguard(self):
-    """Stops WireGuard (async)"""
+  async def _stop(self) -> bool:
     self._logger.info("Stopping WireGuard...")
+    self._routing_info = None
 
-    proc = await asyncio.create_subprocess_exec(
-      "sudo",
-      "wg-quick",
-      "down",
-      self._config.wg_interface,
-      stdout=asyncio.subprocess.PIPE,
-      stderr=asyncio.subprocess.PIPE,
-    )
-
-    stdout, stderr = await proc.communicate()
-
-    if proc.returncode == 0:
+    if await self._wg_quick("down", self._config.wg_interface):
       self._logger.info("WireGuard stopped successfully")
       await self.notify_wg_disabled()
       return True
-    else:
-      error_msg = stderr.decode() if stderr else "Unknown error"
-      self._logger.error(f"Failed to stop WireGuard: {error_msg}")
-      return False
+    return False
+
+  async def start_wireguard(self):
+    """Starts WireGuard (async)"""
+    async with self._lock:
+      return await self._start()
+
+  async def stop_wireguard(self):
+    """Stops WireGuard (async)"""
+    async with self._lock:
+      return await self._stop()
+
+  async def restart_wireguard(self):
+    async with self._lock:
+      if await self.is_wg_active():
+        await self._stop()
+      return await self._start()
+
+  async def get_public_key(self, private_key: str) -> str | None:
+    proc = await asyncio.create_subprocess_exec(
+      "wg",
+      "pubkey",
+      stdin=asyncio.subprocess.PIPE,
+      stdout=asyncio.subprocess.PIPE,
+      stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await proc.communicate(input=private_key.encode())
+    return stdout.decode().strip() if proc.returncode == 0 else None
+
+  async def get_routing_info(self, cached: bool = False) -> dict:
+    now = time.monotonic()
+    if cached and self._routing_info is not None and now < self._routing_info_expires_at:
+      return self._routing_info
+
+    info = {"address": None, "rule": False, "default_route": False}
+
+    table = str(const.WG_ROUTE_TABLE)
+
+    addr_out = await self._run("ip", "-4", "-o", "addr", "show", "dev", self._config.wg_interface)
+    for line in addr_out.splitlines():
+      # Format: "5: wg0    inet 10.8.0.2/24 scope global wg0 ..."
+      parts = line.split()
+      if "inet" in parts:
+        info["address"] = parts[parts.index("inet") + 1].split("/")[0]
+        break
+
+    if info["address"]:
+      # Format: "1000:\tfrom 10.8.0.2 lookup 51821"
+      rules = await self._run("ip", "-4", "rule", "show", "table", table)
+      info["rule"] = f"from {info['address']} " in rules.replace("\t", " ") + " "
+
+      routes = await self._run("ip", "-4", "route", "show", "table", table, "default")
+      info["default_route"] = bool(routes.strip())
+
+    self._routing_info = info
+    self._routing_info_expires_at = now + ROUTING_INFO_TTL
+    return info
 
   def _parse_wg_show(self, output: str) -> dict:
     """
@@ -348,31 +418,34 @@ class WireguardMonitorImpl(WireguardMonitor):
         return False
       self._config_checked = True
 
-    # Get the current state
-    connections = self.get_active_connections()
-    wifi = self.is_wifi_connected(connections)
-    modem = self.is_modem_active(connections)
-    wg_active = await self.is_wg_active()
+    # Read the state and act on it under the lock, so a concurrent up/down (UI switch,
+    # config save) can't change it in between
+    async with self._lock:
+      # Get the current state
+      connections = self.get_active_connections()
+      wifi = self.is_wifi_connected(connections)
+      modem = self.is_modem_active(connections)
+      wg_active = await self.is_wg_active()
 
-    # Check whether the state has changed
-    current_state = {"wifi": wifi, "modem": modem, "wg_active": wg_active}
+      # Check whether the state has changed
+      current_state = {"wifi": wifi, "modem": modem, "wg_active": wg_active}
 
-    if current_state != self.last_state:
-      self._logger.info(f"State changed: wifi={wifi}, modem={modem}, wg={wg_active}")
-      self.last_state = current_state
-    else:
-      pass
-      # self._logger.debug(f"State unchanged: wifi={wifi}, modem={modem}, wg={wg_active}")
+      if current_state != self.last_state:
+        self._logger.info(f"State changed: wifi={wifi}, modem={modem}, wg={wg_active}")
+        if current_state["wg_active"] != self.last_state["wg_active"]:
+          # Brought up / down from outside (e.g. wg-quick from a shell)
+          self._routing_info = None
+        self.last_state = current_state
 
-    # Make a decision
-    if self.skip_on_wifi and wifi:
-      # At home (WiFi client connected) — stop WireGuard
-      if wg_active:
-        await self.stop_wireguard()
-    else:
-      # Away from home (or WiFi is not a reason to skip) — start WireGuard
-      if not wg_active:
-        await self.start_wireguard()
+      # Make a decision
+      if self.skip_on_wifi and wifi:
+        # At home (WiFi client connected) — stop WireGuard
+        if wg_active:
+          await self._stop()
+      else:
+        # Away from home (or WiFi is not a reason to skip) — start WireGuard
+        if not wg_active:
+          await self._start()
 
     return True
 

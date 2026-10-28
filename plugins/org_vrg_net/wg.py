@@ -58,6 +58,28 @@ class WireguardMonitor:
     """
     raise NotImplementedError()
 
+  async def get_routing_info(self, cached: bool = False) -> dict:
+    """
+    Gets the state of the source-based routing set up by task/net/wg-routes.sh.
+    With cached=True, may return a recent result instead of querying the kernel.
+
+    Returns:
+        dict with fields:
+        - address (str): IPv4 address of the interface (without mask) or None
+        - rule (bool): whether traffic sourced from the address is routed into the tunnel table
+        - default_route (bool): whether the tunnel table has a default route, i.e. the peer's
+          AllowedIPs include 0.0.0.0/0 and arbitrary internet hosts are reachable through it
+    """
+    raise NotImplementedError()
+
+  async def restart_wireguard(self):
+    """Brings WireGuard down (if it is up) and up again, e.g. to apply a new config (async)"""
+    raise NotImplementedError()
+
+  async def get_public_key(self, private_key: str) -> str | None:
+    """Derives the public key from a private key (`wg pubkey`)"""
+    raise NotImplementedError()
+
   async def notify_wg_enabled(self):
     pass
 

@@ -8,6 +8,7 @@ import aiohttp
 
 import plugins.org_vrg_bot.const as const
 from plugins.org_vrg_bot.main import Bot, BotCommand
+from sdk.egress import Egress
 
 
 def track_task(func):
@@ -32,11 +33,18 @@ class TelegramApi:
   _bot: Bot
   _logger: Logger
   _tasks: set[asyncio.Task]
+  _egress: Egress
 
-  def __init__(self, bot: Bot, logger: Logger):
+  def __init__(self, bot: Bot, logger: Logger, egress: Egress):
     self._bot = bot
     self._logger = logger
+    self._egress = egress
     self._tasks = set()
+
+  async def _session(self, timeout: aiohttp.ClientTimeout) -> aiohttp.ClientSession:
+    # A new session (and connector) per request, so a change of the plugin's outbound
+    # route (WireGuard / default interface) applies to the next request
+    return aiohttp.ClientSession(timeout=timeout, connector=await self._egress.connector())
 
   async def abort(self):
     """Cancels all active tasks"""
@@ -66,7 +74,7 @@ class TelegramApi:
 
     timeout = aiohttp.ClientTimeout(total=http_timeout)
     try:
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.get(url, params=params) as response:
           response_json = await response.json()
 
@@ -93,7 +101,7 @@ class TelegramApi:
 
     try:
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=params) as response:
           response_json = await response.json()
 
@@ -120,7 +128,7 @@ class TelegramApi:
 
     try:
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=params) as response:
           response_json = await response.json()
 
@@ -144,7 +152,7 @@ class TelegramApi:
       self._log_request(method, {"chat_id": chat_id, "photo": photo_path})
 
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_PHOTO)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json()
 
@@ -172,7 +180,7 @@ class TelegramApi:
       )
 
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_VIDEO)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json()
 
@@ -196,7 +204,7 @@ class TelegramApi:
       self._log_request(method, {"chat_id": chat_id, "document": document_path})
 
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_DOCUMENT)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json()
 
@@ -217,7 +225,7 @@ class TelegramApi:
 
     try:
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=params) as response:
           response_json = await response.json()
 
@@ -238,7 +246,7 @@ class TelegramApi:
 
     try:
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json()
 
@@ -268,7 +276,7 @@ class TelegramApi:
 
     try:
       timeout = aiohttp.ClientTimeout(total=const.TIMEOUT_SEND_MESSAGE)
-      async with aiohttp.ClientSession(timeout=timeout) as session:
+      async with await self._session(timeout) as session:
         async with session.post(url, data=data) as response:
           response_json = await response.json()
 

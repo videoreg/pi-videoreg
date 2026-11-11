@@ -25,7 +25,8 @@ class CameraClient:
         return await resp.json()
 
   async def get_photo(self) -> bytes:
-    async with aiohttp.ClientSession(timeout=self._timeout) as session:
+    timeout = aiohttp.ClientTimeout(total=const.PHOTO_TIMEOUT_SECONDS)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
       async with session.get(f"{self._base}/photo") as resp:
         resp.raise_for_status()
         return await resp.read()

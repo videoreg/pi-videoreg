@@ -19,5 +19,8 @@ BLE_PROVISION_TIMEOUT = 60.0  # device-side WiFi connect may take up to ~30 s
 
 HEALTH_POLL_SECONDS = 30
 HTTP_TIMEOUT_SECONDS = 10
+# A 1080p frame at JPEG quality 95 is ~1.2 MB; over a weak WiFi link the
+# transfer from the camera can take ~15-20 s.
+PHOTO_TIMEOUT_SECONDS = 45
 
 FIRST_CAMERA_NUMBER = 2  # camera #1 is the built-in main camera

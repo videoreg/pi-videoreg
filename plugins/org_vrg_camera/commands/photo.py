@@ -1,7 +1,7 @@
 import asyncio
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import plugins.org_vrg_http.functions as functions
 from plugins.org_vrg_camera.plugin import CameraPlugin
@@ -69,7 +69,7 @@ class CommandPhoto(GatewayCommand):
       return
 
     path = response.get_data().get("path")
-    self._save_rear_photo_to_fave(path, number)
+    self._save_rear_photo_to_fave(path)
     # The file is left on disk on purpose: bot.send_image reads it
     # asynchronously after this command returns. The rearcam plugin reaps
     # stale rear_photo_*.jpg on the next take_photo call.
@@ -78,12 +78,26 @@ class CommandPhoto(GatewayCommand):
     else:
       await gateway.send_text(payload, path)
 
-  def _save_rear_photo_to_fave(self, path: str, number: int):
-    """Copies the rear-camera photo to the favorites folder and registers it."""
+  def _save_rear_photo_to_fave(self, path: str):
+    """Copies the rear-camera photo to the favorites folder and registers it.
+
+    The name must match DATE_FORMAT (`%Y-%m-%d_%H-%M-%S`) — list_media skips
+    unparseable names. On a same-second collision with a main-camera shot the
+    timestamp is bumped by a second until free.
+    """
     try:
-      name = f"{datetime.today().strftime('%Y-%m-%d_%H-%M-%S')}_rear{number}.jpg"
-      dst = self._plugin.runner.videoreg.jpeg_fave_path(name)
+      dt = datetime.today()
+      vr = self._plugin.runner.videoreg
+      for _ in range(10):
+        name = dt.strftime("%Y-%m-%d_%H-%M-%S")
+        dst = vr.jpeg_fave_path(f"{name}.jpg")
+        if not dst.exists():
+          break
+        dt += timedelta(seconds=1)
+      else:
+        self._plugin.logger.error("rear photo fave copy failed: no free name")
+        return
       shutil.copy2(path, str(dst))
-      self._plugin.runner.media_manager.append_file(MediaFileType.JPEG_FAVE, name)
+      self._plugin.runner.media_manager.append_file(MediaFileType.JPEG_FAVE, f"{name}.jpg")
     except (OSError, PermissionError) as e:
       self._plugin.logger.error(f"rear photo fave copy failed: {e}")

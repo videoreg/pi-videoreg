@@ -3,6 +3,7 @@ http:
     - url: rearcam
       title: Rear cameras
       icon: video
+      component: RearcamSettingsComponent
 
   components:
     - RearcamSettingsComponent.js

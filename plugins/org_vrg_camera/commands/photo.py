@@ -1,5 +1,7 @@
 import asyncio
 import os
+import shutil
+from datetime import datetime
 
 import plugins.org_vrg_http.functions as functions
 from plugins.org_vrg_camera.plugin import CameraPlugin
@@ -67,6 +69,7 @@ class CommandPhoto(GatewayCommand):
       return
 
     path = response.get_data().get("path")
+    self._save_rear_photo_to_fave(path, number)
     # The file is left on disk on purpose: bot.send_image reads it
     # asynchronously after this command returns. The rearcam plugin reaps
     # stale rear_photo_*.jpg on the next take_photo call.
@@ -74,3 +77,13 @@ class CommandPhoto(GatewayCommand):
       await gateway.send_image(payload, path)
     else:
       await gateway.send_text(payload, path)
+
+  def _save_rear_photo_to_fave(self, path: str, number: int):
+    """Copies the rear-camera photo to the favorites folder and registers it."""
+    try:
+      name = f"{datetime.today().strftime('%Y-%m-%d_%H-%M-%S')}_rear{number}.jpg"
+      dst = self._plugin.runner.videoreg.jpeg_fave_path(name)
+      shutil.copy2(path, str(dst))
+      self._plugin.runner.media_manager.append_file(MediaFileType.JPEG_FAVE, name)
+    except (OSError, PermissionError) as e:
+      self._plugin.logger.error(f"rear photo fave copy failed: {e}")

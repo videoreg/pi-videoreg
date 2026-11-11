@@ -96,9 +96,16 @@ async def provision(mac: str, ssid: str, password: str, hub: str, logger=None) -
 
   try:
     async with BleakClient(mac, timeout=20.0) as client:
+      await client.start_notify(const.BLE_CHR_RESULT_UUID, on_notify)
+
+      # bleak 3.x does not learn the negotiated MTU by itself (mtu_size
+      # defaults to 23); acquiring it once also triggers the MTU exchange.
+      try:
+        await client._acquire_mtu()
+      except Exception:
+        pass
       if logger:
         logger.info(f"provisioning {mac}: connected, mtu={client.mtu_size}")
-      await client.start_notify(const.BLE_CHR_RESULT_UUID, on_notify)
 
       device_pub = bytes(await client.read_gatt_char(const.BLE_CHR_PUBKEY_UUID))
       if len(device_pub) != 32:

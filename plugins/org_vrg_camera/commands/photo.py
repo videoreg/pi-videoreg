@@ -67,13 +67,10 @@ class CommandPhoto(GatewayCommand):
       return
 
     path = response.get_data().get("path")
-    try:
-      if gateway.support(GatewayInteractions.IMAGE.value):
-        await gateway.send_image(payload, path)
-      else:
-        await gateway.send_text(payload, path)
-    finally:
-      try:
-        os.unlink(path)
-      except OSError:
-        pass
+    # The file is left on disk on purpose: bot.send_image reads it
+    # asynchronously after this command returns. The rearcam plugin reaps
+    # stale rear_photo_*.jpg on the next take_photo call.
+    if gateway.support(GatewayInteractions.IMAGE.value):
+      await gateway.send_image(payload, path)
+    else:
+      await gateway.send_text(payload, path)

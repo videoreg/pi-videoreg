@@ -217,7 +217,12 @@ class RearcamPlugin(Plugin):
   # ---- photo / status ----
 
   async def take_photo(self, number: int) -> str:
-    """Fetch a JPEG from camera #N and save it to the plugin data dir."""
+    """Fetch a JPEG from camera #N and save it to the plugin data dir.
+
+    The file is not deleted by the caller: gateway image delivery is async
+    (bot reads the file after the api call returns). Stale photos are reaped
+    here instead.
+    """
     device_id, dev = self._find_by_number(number)
     if not dev or not dev.get("ip"):
       raise RuntimeError("camera_not_found")
@@ -227,7 +232,17 @@ class RearcamPlugin(Plugin):
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(jpeg)
+    self._reap_stale_photos(path.parent)
     return str(path)
+
+  def _reap_stale_photos(self, dir_path, max_age_s: int = 3600):
+    now = time.time()
+    for f in dir_path.glob("rear_photo_*.jpg"):
+      try:
+        if now - f.stat().st_mtime > max_age_s:
+          f.unlink()
+      except OSError:
+        pass
 
   async def get_camera_status(self, number: int) -> dict:
     device_id, dev = self._find_by_number(number)

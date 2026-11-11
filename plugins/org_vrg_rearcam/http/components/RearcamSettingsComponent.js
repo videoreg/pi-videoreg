@@ -47,6 +47,22 @@ const RearcamSettingsComponent = {
               <span v-if="dev.firmware"> · fw {{ dev.firmware }}</span>
             </span>
           </div>
+          <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
+            <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
+            <select
+              class="form-input"
+              style="max-width: 240px;"
+              :value="frameKey(configs[dev.number].frame)"
+              @change="setFrame(dev, $event.target.value)"
+              :disabled="busy"
+            >
+              <option
+                v-for="f in configs[dev.number].frames"
+                :key="frameKey(f)"
+                :value="frameKey(f)"
+              >{{ f.width }}×{{ f.height }} @ {{ f.fps }} fps</option>
+            </select>
+          </div>
           <div class="info-row">
             <span></span>
             <button class="btn btn-ghost-danger" @click="forget(dev)" :disabled="busy">
@@ -104,6 +120,7 @@ const RearcamSettingsComponent = {
   data() {
     return {
       devices: [],
+      configs: {},
       found: [],
       loading: false,
       scanning: false,
@@ -136,10 +153,61 @@ const RearcamSettingsComponent = {
           return;
         }
         this.devices = result.devices || [];
+        this.devices.filter(d => d.online).forEach(d => this.loadConfig(d.number));
       } catch (err) {
         this.error = this.$t('http.common.error_connection');
       } finally {
         this.loading = false;
+      }
+    },
+
+    frameKey(f) {
+      return f ? `${f.width}x${f.height}` : '';
+    },
+
+    async loadConfig(number) {
+      try {
+        const response = await fetch(`/api/rearcam/config?number=${number}`, { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const config = await response.json();
+        this.configs = { ...this.configs, [number]: config };
+      } catch (err) {
+        // Config is optional: an old firmware simply has no frame selector
+      }
+    },
+
+    async setFrame(dev, value) {
+      const [width, height] = value.split('x').map(Number);
+      if (!width || !height) return;
+      this.error = '';
+      this.success = '';
+      this.busy = true;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 50000);
+        const response = await fetch('/api/rearcam/config', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: dev.number, width, height }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const result = await response.json();
+        if (!response.ok) {
+          this.error = result.error || this.$t('rearcam.settings.error_frame');
+          await this.loadConfig(dev.number);
+          return;
+        }
+        this.success = this.$t('rearcam.settings.frame_saved');
+        this.configs = { ...this.configs, [dev.number]: { ...this.configs[dev.number], frame: result.frame } };
+      } catch (err) {
+        this.error = err.name === 'AbortError'
+          ? this.$t('rearcam.settings.error_timeout')
+          : this.$t('http.common.error_connection');
+        await this.loadConfig(dev.number);
+      } finally {
+        this.busy = false;
       }
     },
 

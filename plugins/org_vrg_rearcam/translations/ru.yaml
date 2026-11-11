@@ -24,6 +24,9 @@ rearcam.settings.error_timeout: "Камера не ответила воврем
 rearcam.settings.error_load: "Не удалось загрузить список камер"
 rearcam.settings.photo_btn: "Фото"
 rearcam.settings.photo_error: "Не удалось получить фото"
+rearcam.settings.frame_label: "Размер кадра"
+rearcam.settings.frame_saved: "Размер кадра сохранён"
+rearcam.settings.error_frame: "Не удалось сменить размер кадра"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Камера {{n}} не подключена"

@@ -252,6 +252,30 @@ class RearcamPlugin(Plugin):
     health, status = await asyncio.gather(client.get_health(), client.get_status())
     return {**health, **status, "number": number, "device_id": device_id}
 
+  async def get_camera_config(self, number: int) -> dict:
+    device_id, dev = self._find_by_number(number)
+    if not dev or not dev.get("ip"):
+      raise RuntimeError("camera_not_found")
+    config = await CameraClient(dev["ip"]).get_config()
+    config["number"] = number
+    config["device_id"] = device_id
+    saved = dev.get("frame")
+    if saved:
+      config["saved_frame"] = saved
+    return config
+
+  async def set_camera_config(self, number: int, width: int, height: int) -> dict:
+    """Switch the camera's frame size and remember the choice in the registry."""
+    device_id, dev = self._find_by_number(number)
+    if not dev or not dev.get("ip"):
+      raise RuntimeError("camera_not_found")
+    frame = await CameraClient(dev["ip"]).set_config(width, height)
+    devices = self._devices()
+    if device_id in devices:
+      devices[device_id]["frame"] = {"width": width, "height": height}
+      self._save_devices(devices)
+    return {"number": number, "frame": frame}
+
   # ---- health polling ----
 
   async def _health_poll_loop(self):

@@ -1,3 +1,4 @@
+from plugins.org_vrg_rearcam.methods.common import parse_camera_number
 from plugins.org_vrg_rearcam.plugin import RearcamPlugin
 from sdk.socket.api import ApiMethod
 
@@ -12,8 +13,8 @@ class MethodGetStatus(ApiMethod):
     self._plugin = plugin
 
   async def exec(self, args):
-    number = args.get("number") if isinstance(args, dict) else None
-    if not isinstance(number, int) or number < 2:
+    number = parse_camera_number(args)
+    if number is None:
       return {"status": "error", "error": "invalid_number"}
     try:
       status = await self._plugin.get_camera_status(number)

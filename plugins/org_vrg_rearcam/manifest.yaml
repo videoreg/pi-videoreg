@@ -31,3 +31,13 @@ http:
       method: get
       plugin: rearcam.get_status
       timeout: 20
+
+    - url: rearcam/config
+      method: get
+      plugin: rearcam.get_config
+      timeout: 20
+
+    - url: rearcam/config
+      method: post
+      plugin: rearcam.set_config
+      timeout: 45 # sensor reinit takes a few seconds

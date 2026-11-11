@@ -24,6 +24,9 @@ rearcam.settings.error_timeout: "Timed out waiting for the camera"
 rearcam.settings.error_load: "Failed to load camera list"
 rearcam.settings.photo_btn: "Photo"
 rearcam.settings.photo_error: "Failed to get a photo"
+rearcam.settings.frame_label: "Frame size"
+rearcam.settings.frame_saved: "Frame size saved"
+rearcam.settings.error_frame: "Failed to change the frame size"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Camera {{n}} is not paired"

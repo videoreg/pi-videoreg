@@ -18,6 +18,7 @@ services:
   - name: vrg-camera
     plugins:
       - org_vrg_camera
+      - org_vrg_rearcam
   - name: vrg-modem
     plugins:
       - org_vrg_modem
@@ -65,6 +66,10 @@ plugins:
       - url: camera
         menu: Камера
         component: CameraComponent.js
+
+  - id: org_vrg_rearcam
+    name: rearcam
+    enabled: true
 
   - id: org_vrg_bot
     name: bot

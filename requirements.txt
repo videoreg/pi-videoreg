@@ -8,3 +8,4 @@ PyYAML
 inotify-simple
 pyserial
 bleak
+cryptography

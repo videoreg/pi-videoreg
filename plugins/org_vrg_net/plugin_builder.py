@@ -20,6 +20,7 @@ from plugins.org_vrg_net.methods.import_wireguard_config import MethodImportWire
 from plugins.org_vrg_net.methods.save_wireguard_config import MethodSaveWireguardConfig
 from plugins.org_vrg_net.methods.set_connection_enabled import MethodSetConnectionEnabled
 from plugins.org_vrg_net.methods.set_wifi_blocked import MethodSetWifiBlocked
+from plugins.org_vrg_net.methods.wifi_credentials import MethodWifiCredentials
 from plugins.org_vrg_net.methods.set_wifi_mode import MethodSetWifiMode
 from plugins.org_vrg_net.methods.set_wireguard_routing import MethodSetWireguardRouting
 from plugins.org_vrg_net.methods.wg_auto import MethodWgAuto
@@ -126,6 +127,7 @@ async def build_plugin(runner: ServiceRunner, args: Namespace, plugin_manifest: 
       "generate_wireguard_key": MethodGenerateWireguardKey(plugin),
       "wifi_block": MethodSetWifiBlocked(net_controls, plugin.state, blocked=True),
       "wifi_unblock": MethodSetWifiBlocked(net_controls, plugin.state, blocked=False),
+      "wifi_credentials": MethodWifiCredentials(net_controls),
       "modem_info": method_modem_info,
       "modem_dashboard": MethodGetModemDashboard(method_modem_info, method_connections),
     }

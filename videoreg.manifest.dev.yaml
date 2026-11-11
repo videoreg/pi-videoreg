@@ -11,6 +11,7 @@ services:
       - org_vrg_power
       - org_vrg_http
       - org_vrg_camera
+      - org_vrg_rearcam
       - org_vrg_bot
       - org_vrg_botvk
       - org_vrg_modem

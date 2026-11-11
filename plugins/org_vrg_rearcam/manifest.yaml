@@ -1,0 +1,32 @@
+http:
+  menu_settings:
+    - url: rearcam
+      title: Rear cameras
+      icon: video
+
+  components:
+    - RearcamSettingsComponent.js
+
+  api:
+    - url: rearcam/devices
+      method: get
+      plugin: rearcam.list_devices
+
+    - url: rearcam/scan
+      method: get
+      plugin: rearcam.scan_ble
+      timeout: 20 # one-shot BLE scan runs ~8 s
+
+    - url: rearcam/provision
+      method: post
+      plugin: rearcam.provision
+      timeout: 90 # BLE handshake + WiFi connect may take up to ~40 s
+
+    - url: rearcam/forget
+      method: post
+      plugin: rearcam.forget
+
+    - url: rearcam/status
+      method: get
+      plugin: rearcam.get_status
+      timeout: 20

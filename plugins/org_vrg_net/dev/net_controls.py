@@ -17,6 +17,9 @@ class NetControlsImpl(NetControls):
   async def get_connection_info(self, connection_name: str, properties_map: dict = None) -> dict:
     return {}
 
+  async def get_wifi_credentials(self) -> dict:
+    return {}
+
   async def set_connection_property(self, connection_name: str, property_name: str, value: str):
     pass
 

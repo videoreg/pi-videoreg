@@ -8,6 +8,9 @@ from sdk.media_manager import MediaFileType
 
 
 class CommandPhoto(GatewayCommand):
+  """Take a photo. Args: [N] [night] — N is the camera number
+  (1 or omitted = the built-in main camera, 2+ = paired rear cameras)."""
+
   _plugin: CameraPlugin
 
   def __init__(self, plugin: CameraPlugin):
@@ -15,7 +18,17 @@ class CommandPhoto(GatewayCommand):
     self._plugin = plugin
 
   async def exec(self, gateway: Gateway, payload, args):
-    is_night = args == "night"
+    number = 1
+    is_night = False
+    for token in (args or "").split() if isinstance(args, str) else []:
+      if token == "night":
+        is_night = True
+      elif token.isdigit():
+        number = int(token)
+
+    if number >= 2:
+      asyncio.create_task(self._take_rear_photo_and_send(gateway, payload, number))
+      return
 
     await self._plugin.suspend_video()
 
@@ -32,3 +45,35 @@ class CommandPhoto(GatewayCommand):
     else:
       link = await functions.get_link(dir="photo", file_name=name)
       await gateway.send_text(payload, link)
+
+  async def _take_rear_photo_and_send(self, gateway: Gateway, payload, number: int):
+    i18n = self._plugin.runner.i18n
+    try:
+      response = await self._plugin.api_client.exec(
+        "rearcam.get_photo", {"number": number}, timeout=30
+      )
+    except Exception as e:
+      self._plugin.logger.error(f"rearcam.get_photo failed: {e}", exc_info=True)
+      await gateway.send_text(payload, i18n.t("rearcam.photo_failed", n=number))
+      return
+
+    if not response.is_ok():
+      error = response.get_error()
+      if error == "camera_not_found":
+        text = i18n.t("rearcam.photo_camera_not_found", n=number)
+      else:
+        text = i18n.t("rearcam.photo_failed", n=number)
+      await gateway.send_text(payload, text)
+      return
+
+    path = response.get_data().get("path")
+    try:
+      if gateway.support(GatewayInteractions.IMAGE.value):
+        await gateway.send_image(payload, path)
+      else:
+        await gateway.send_text(payload, path)
+    finally:
+      try:
+        os.unlink(path)
+      except OSError:
+        pass

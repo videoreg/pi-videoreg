@@ -4,6 +4,7 @@ import asyncio
 import subprocess
 from logging import Logger
 
+from plugins.org_vrg_net import const
 from plugins.org_vrg_net.net_controls import NetControls
 from sdk.helper import stream_subprocess
 from sdk.videoreg import Videoreg
@@ -155,6 +156,58 @@ class NetControlsImpl(NetControls):
       self._logger.error(f"Error getting connection info for '{connection_name}': {e}")
 
     return info
+
+  async def get_wifi_credentials(self) -> dict:
+    """SSID + PSK + local IP of the WiFi network the device itself is on.
+
+    AP profile first (the device is the access point), then the WiFi-client
+    profile (the device is connected to a router) — the rear camera joins the
+    same network. Secrets are read via `sudo nmcli --show-secrets` (allowed by
+    tools/install/sudoers). Never log the password.
+    """
+    for connection_name, mode in (
+      (const.NM_CONNECTION_AP, "ap"),
+      (const.NM_CONNECTION_WIFI, "wifi"),
+    ):
+      info = await self.get_connection_info(connection_name)
+      if not info.get("enabled"):
+        continue
+      secrets = await self._read_wifi_secrets(connection_name)
+      if secrets.get("ssid"):
+        return {
+          "mode": mode,
+          "ssid": secrets["ssid"],
+          "password": secrets.get("password", ""),
+          "ip": info.get("ip", ""),
+        }
+    return {}
+
+  async def _read_wifi_secrets(self, connection_name: str) -> dict:
+    """Read ssid/psk of a WiFi profile via nmcli --show-secrets (root-only)."""
+    result = {"ssid": "", "password": ""}
+    try:
+      process = await asyncio.create_subprocess_exec(
+        "sudo", "nmcli", "--show-secrets", "connection", "show", connection_name,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+      )
+      stdout, stderr = await process.communicate()
+      if process.returncode != 0:
+        self._logger.warning(f"nmcli --show-secrets failed for '{connection_name}'")
+        return result
+      for line in stdout.decode("utf-8").split("\n"):
+        if ":" not in line:
+          continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if key == "802-11-wireless.ssid":
+          result["ssid"] = value if value != "--" else ""
+        elif key == "802-11-wireless-security.psk":
+          result["password"] = value if value != "--" else ""
+    except Exception as e:
+      self._logger.error(f"Error reading WiFi secrets for '{connection_name}': {e}")
+    return result
 
   async def _get_device_ip(self, device: str):
     """Get the IP address of a device"""

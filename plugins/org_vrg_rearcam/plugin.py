@@ -56,6 +56,17 @@ class RearcamPlugin(Plugin):
         return device_id, dev
     return None, None
 
+  def _adopt_pending_by_ip(self, devices: dict, device_id: str, ip: str) -> dict | None:
+    """Re-key a `pending-*` record (created when identity fetch failed) to the real id."""
+    if not ip:
+      return None
+    for did, dev in list(devices.items()):
+      if did.startswith("pending-") and dev.get("ip") == ip:
+        devices[device_id] = devices.pop(did)
+        self.logger.info(f"camera {device_id} adopts pending record {did}")
+        return devices[device_id]
+    return None
+
   def list_devices(self) -> list[dict]:
     result = []
     for device_id, dev in sorted(
@@ -82,8 +93,25 @@ class RearcamPlugin(Plugin):
     devices = self._devices()
     dev = devices.get(device_id)
     if not dev:
-      self.logger.warning(f"heartbeat from unknown camera {device_id} ({ip})")
-      return
+      # A camera that was provisioned while the hub was off (or by another
+      # hub) announces itself by heartbeat; adopt it with the next free number.
+      dev = self._adopt_pending_by_ip(devices, device_id, ip)
+      if not dev:
+        number = max(
+          [d.get("number", const.FIRST_CAMERA_NUMBER - 1) for d in devices.values()]
+          + [const.FIRST_CAMERA_NUMBER - 1]
+        ) + 1
+        dev = {
+          "number": number,
+          "name": f"Camera {number}",
+          "ble_mac": "",
+          "ip": ip,
+          "firmware": fw,
+          "paired_at": int(time.time()),
+          "last_seen": int(time.time()),
+        }
+        devices[device_id] = dev
+        self.logger.info(f"auto-registered camera {device_id} (#{number}) from heartbeat ({ip})")
     if ip and dev.get("ip") != ip:
       dev["ip"] = ip
     if fw and dev.get("firmware") != fw:

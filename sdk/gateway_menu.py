@@ -15,6 +15,8 @@ feature plugins opt in without the gateways hardcoding them:
         - text: Power
           callback_data: command__power__power
           weigh: 30                         # optional; higher sorts earlier (default 0)
+      menu_commands_method: rearcam.get_menu_commands  # dynamic menu commands
+      # (videoreg-api method returning {"data": {"commands": [{name,title,weigh?}]}})
 
 The `bot` key names the family of bot-type gateways (both Telegram and VK read it); its
 button `callback_data` and status method names are gateway-neutral.
@@ -87,6 +89,25 @@ def read_status_methods(plugins: list[dict]) -> list[str]:
 
   methods.sort(key=lambda m: m[0])
   return [method for _plugin_name, method in methods]
+
+
+def read_menu_commands_methods(plugins: list[dict]) -> list[tuple[str, str]]:
+  """Collect `bot.menu_commands_method` from all plugins for the dynamic menu.
+
+  Returns (plugin_name, method) pairs, sorted by plugin name. Each method is a
+  videoreg-api method returning `{"status": "ok", "data": {"commands": [...]}}`
+  — extra gateway menu commands the plugin wants registered right now (e.g.
+  one command per paired device). The plugin name tags the returned commands
+  so the gateway routes them to `<plugin>.command`.
+  """
+  methods: list[tuple[str, str]] = []
+  for plugin_name, bot in _iter_bot_sections(plugins):
+    method = bot.get("menu_commands_method")
+    if isinstance(method, str) and method:
+      methods.append((plugin_name, method))
+
+  methods.sort(key=lambda m: m[0])
+  return methods
 
 
 class CommandMore(GatewayCommand):

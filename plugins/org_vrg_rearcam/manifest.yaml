@@ -5,6 +5,11 @@ http:
       icon: video
       component: RearcamSettingsComponent
 
+bot:
+  # Dynamic bot menu commands: one /photo_N per paired camera. The bot gateway
+  # queries this method when (re)building its command list (bot.reload_commands).
+  menu_commands_method: rearcam.get_menu_commands
+
   components:
     - RearcamSettingsComponent.js
 

@@ -24,3 +24,7 @@ HTTP_TIMEOUT_SECONDS = 10
 PHOTO_TIMEOUT_SECONDS = 45
 
 FIRST_CAMERA_NUMBER = 2  # camera #1 is the built-in main camera
+
+# Bot menu order for the dynamic /photo_N entries: just below /photo (100),
+# above /video (90).
+MENU_COMMAND_WEIGH = 95

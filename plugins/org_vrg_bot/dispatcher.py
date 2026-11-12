@@ -43,6 +43,12 @@ class Dispatcher:
   async def stop_pooling(self):
     self._stop_event.set()
 
+  def update_commands(self, commands: list[Command]):
+    """Swap the dispatch table (bot.reload_commands rebuilds it when a plugin's
+    dynamic menu commands change). Plain attribute swap: a command already
+    being dispatched finishes on the old list."""
+    self._commands = commands
+
   async def _delay(self, backoff: Backoff):
     delay = backoff.next_delay()
 

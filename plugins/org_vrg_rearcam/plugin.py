@@ -23,6 +23,9 @@ class RearcamPlugin(Plugin):
   def __init__(self, id, name, runner):
     super().__init__(id, name, runner)
     self._online: dict[str, bool] = {}  # device_id -> online (runtime only)
+    # Maps gateway command names ("photo_N") to CommandPhoto handlers; owned by
+    # the builder's GatewayCommandMethod, kept in sync with the camera registry.
+    self.gateway_commands: dict = {}
 
   async def start(self):
     await super().start()
@@ -32,6 +35,9 @@ class RearcamPlugin(Plugin):
     except Exception as e:
       self.logger.error(f"failed to start register server: {e}", exc_info=True)
     self._poll_task = asyncio.create_task(self._health_poll_loop())
+    # Cameras paired in previous sessions need their /photo_N commands on the
+    # bot; the bot also retries on its own side, this is best-effort.
+    self.trigger_bot_commands_reload()
 
   async def stop(self):
     if self._poll_task:
@@ -87,6 +93,55 @@ class RearcamPlugin(Plugin):
       )
     return result
 
+  # ---- gateway commands (/photo_N) ----
+
+  def menu_commands(self) -> list[dict]:
+    """Dynamic bot menu entries: one /photo_N per paired rear camera."""
+    commands = []
+    for dev in self.list_devices():
+      number = dev.get("number")
+      if not number:
+        continue
+      name = dev.get("name") or f"camera {number}"
+      commands.append(
+        {
+          "name": f"photo_{number}",
+          "title": f"Take photo ({name})",
+          "weigh": const.MENU_COMMAND_WEIGH,
+        }
+      )
+    return commands
+
+  def sync_gateway_commands(self):
+    """Re-register /photo_N handlers to match the current camera registry."""
+    from plugins.org_vrg_rearcam.commands.photo import CommandPhoto
+
+    wanted = {
+      f"photo_{dev['number']}": dev["number"]
+      for dev in self.list_devices()
+      if dev.get("number")
+    }
+    for name in [n for n in self.gateway_commands if n.startswith("photo_") and n not in wanted]:
+      del self.gateway_commands[name]
+    for name, number in wanted.items():
+      if name not in self.gateway_commands:
+        self.gateway_commands[name] = CommandPhoto(self, number)
+
+  def trigger_bot_commands_reload(self):
+    """Best-effort refresh of the bot's command list and Telegram menu."""
+    asyncio.create_task(self._reload_bot_commands())
+
+  async def _reload_bot_commands(self, attempts: int = 3):
+    for attempt in range(attempts):
+      try:
+        response = await self.api_client.exec("bot.reload_commands", None, timeout=15)
+        if response.is_ok():
+          return
+      except Exception:
+        pass
+      await asyncio.sleep(5 * (attempt + 1))
+    self.logger.warning("bot.reload_commands failed; the /photo_N bot menu may be stale")
+
   # ---- heartbeat from cameras ----
 
   async def on_camera_register(self, device_id: str, ip: str, fw: str):
@@ -112,6 +167,8 @@ class RearcamPlugin(Plugin):
         }
         devices[device_id] = dev
         self.logger.info(f"auto-registered camera {device_id} (#{number}) from heartbeat ({ip})")
+        self.sync_gateway_commands()
+        self.trigger_bot_commands_reload()
     if ip and dev.get("ip") != ip:
       dev["ip"] = ip
     if fw and dev.get("firmware") != fw:
@@ -189,6 +246,8 @@ class RearcamPlugin(Plugin):
     self._save_devices(devices)
     self._online[device_id] = bool(ip)
     self.logger.info(f"camera provisioned: {device_id} as #{number} ip={ip}")
+    self.sync_gateway_commands()
+    self.trigger_bot_commands_reload()
     return {"device_id": device_id, **devices[device_id], "online": self._online[device_id]}
 
   async def _await_camera_identity(self, ip: str) -> tuple[str, str]:
@@ -212,6 +271,8 @@ class RearcamPlugin(Plugin):
     self._save_devices(devices)
     self._online.pop(device_id, None)
     self.logger.info(f"camera {device_id} (#{number}) forgotten")
+    self.sync_gateway_commands()
+    self.trigger_bot_commands_reload()
     return True
 
   # ---- photo / status ----

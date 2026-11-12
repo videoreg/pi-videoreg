@@ -22,6 +22,7 @@ class BotPlugin(Plugin):
   _last_chargin_state = None
   _pooling_task: asyncio.Task = None
   _sync_task: asyncio.Task = None
+  _reload_task: asyncio.Task = None
   _waiting_token_logged = False
 
   def __init__(self, id, name, runner):
@@ -39,6 +40,43 @@ class BotPlugin(Plugin):
     # asyncio.create_task(self._start_power_loop())
 
     self._sync_task = asyncio.create_task(self._sync_settings_loop())
+    self._reload_task = asyncio.create_task(self._initial_commands_reload())
+
+  async def reload_commands(self) -> list[str]:
+    """Rebuild the command list and re-push the Telegram menu to all chats.
+
+    Pulls dynamic menu commands (e.g. rearcam's /photo_N) from the plugins
+    declaring `bot.menu_commands_method`; triggered via bot.reload_commands
+    when a plugin's dynamic set changes, and retried at startup.
+    """
+    from plugins.org_vrg_bot.command_list import build_command_list, fetch_dynamic_menu_commands
+
+    merged_plugins = self.runner.videoreg.refresh_merged_manifest()["plugins"]
+    dynamic = await fetch_dynamic_menu_commands(self.api_client, merged_plugins, self.logger)
+    commands, bot_commands = build_command_list(
+      self, merged_plugins, self.name, self.tg_api, dynamic
+    )
+    self.dispatcher.update_commands(commands)
+    for chat in (self.bot.chats if self.bot else []):
+      try:
+        await self.tg_api.set_my_commands(chat.chat_id, bot_commands)
+      except Exception as e:
+        self.logger.warning(f"setMyCommands failed for chat {chat.chat_id}: {e}")
+    names = [c.name for c in commands]
+    self.logger.info(f"commands reloaded: {names}")
+    return names
+
+  async def _initial_commands_reload(self):
+    # Plugins with dynamic menu commands may still be starting when the bot
+    # comes up; they also trigger bot.reload_commands themselves once ready.
+    for delay in (5, 15, 30, 60):
+      await asyncio.sleep(delay)
+      if not self.runner.is_running():
+        return
+      try:
+        await self.reload_commands()
+      except Exception as e:
+        self.logger.warning(f"initial commands reload failed: {e}")
 
   async def _sync_settings_loop(self):
     while self.runner.is_running():
@@ -72,6 +110,9 @@ class BotPlugin(Plugin):
 
   async def stop(self):
     await super().stop()
+    if self._reload_task and not self._reload_task.done():
+      self._reload_task.cancel()
+      await asyncio.gather(self._reload_task, return_exceptions=True)
     await self._stop_pooling()
 
   async def _stop_pooling(self):

@@ -19,7 +19,8 @@ Runs inside the `vrg-camera` service.
 3. **Runtime**. A background poller checks each camera's `GET /health` every 30 s and
    maintains the online flag; heartbeats refresh `ip`/`firmware`/`last_seen`.
 4. **Use**. `/photo N` (N ≥ 2) fetches a JPEG via `rearcam.get_photo`; the Web UI lists
-   cameras and their state.
+   cameras and their state. Additionally each paired camera gets its own bot menu
+   command `/photo_N` (see "Gateway commands" below).
 
 ## State
 
@@ -37,6 +38,17 @@ camera #1 is the built-in main camera. The online flag is runtime-only (not pers
 | `rearcam.forget` | `{number}` | `{devices: [...]}` |
 | `rearcam.get_photo` | `{number}` | `{path: <local jpeg>}` |
 | `rearcam.get_status` | `{number}` | camera health + status merged |
+| `rearcam.get_menu_commands` | — | `{commands: [{name, title, weigh}]}` |
+
+## Gateway commands
+
+For every paired camera the plugin registers a `/photo_N` gateway command
+(`commands/photo.py`, wired into `rearcam.command` via the plugin-owned
+`gateway_commands` dict kept in sync by `sync_gateway_commands()`). The bot
+discovers the entries through the `bot.menu_commands_method` manifest key: it
+calls `rearcam.get_menu_commands` when (re)building its command list
+(`bot.reload_commands`), which this plugin triggers after pairing, forgetting,
+heartbeat auto-registration and on startup.
 
 Provisioning errors are machine-readable strings: `bad_password`, `ssid_not_found`,
 `timeout`, `bleak_not_available`, `no_wifi_network`.

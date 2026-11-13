@@ -5,6 +5,9 @@ they (re)connect to WiFi (heartbeat, see the rear-camera-protocol spec).
 This server listens on REGISTER_PORT and forwards registrations to the plugin.
 """
 
+import time
+from datetime import datetime
+
 from aiohttp import web
 
 import plugins.org_vrg_rearcam.const as const
@@ -19,6 +22,7 @@ class RegisterServer:
     app = web.Application()
     app.router.add_post(const.REGISTER_PATH, self._handle_register)
     app.router.add_get("/api/health", self._handle_health)
+    app.router.add_get("/api/time", self._handle_time)
     self._runner = web.AppRunner(app)
     await self._runner.setup()
     site = web.TCPSite(self._runner, host="0.0.0.0", port=const.REGISTER_PORT)
@@ -32,6 +36,21 @@ class RegisterServer:
 
   async def _handle_health(self, request: web.Request):
     return web.json_response({"status": "ok"})
+
+  async def _handle_time(self, request: web.Request):
+    """Current time for cameras without NTP (see the protocol spec).
+
+    `epoch` is UTC; `utc_offset_s` is the hub's current local offset including
+    DST, so the camera can show local time without a timezone database.
+    """
+    now = time.time()
+    offset = datetime.now().astimezone().utcoffset()
+    return web.json_response(
+        {
+            "epoch": int(now),
+            "utc_offset_s": int(offset.total_seconds()) if offset else 0,
+        }
+    )
 
   async def _handle_register(self, request: web.Request):
     try:

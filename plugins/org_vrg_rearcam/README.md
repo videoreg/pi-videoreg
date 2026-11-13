@@ -2,7 +2,8 @@
 
 Pairs additional cameras (e.g. a rear-view camera) with the device and serves them to
 the rest of the system. The wire protocol is specified in the `rear-camera-protocol`
-repository; the reference camera firmware lives in `esp32-rear-camera`.
+project (sibling checkout `../rear-camera-protocol`, README.md); the reference camera
+firmware lives in `esp32-rear-camera` (`../esp32-rear-camera`).
 
 Runs inside the `vrg-camera` service.
 

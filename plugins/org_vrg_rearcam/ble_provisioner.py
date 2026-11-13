@@ -13,6 +13,7 @@ where total_len covers the whole frame including the length field itself.
 
 import asyncio
 import json
+import os
 import struct
 
 import plugins.org_vrg_rearcam.const as const
@@ -119,8 +120,6 @@ async def provision(mac: str, ssid: str, password: str, hub: str, logger=None) -
 
       shared = priv.exchange(X25519PublicKey.from_public_bytes(device_pub))
       aes = AESGCM(shared)
-
-      import os
 
       creds = json.dumps({"ssid": ssid, "password": password, "hub": hub}).encode()
       nonce = os.urandom(12)

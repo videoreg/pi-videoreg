@@ -1,4 +1,6 @@
 import os
+import shutil
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 
@@ -63,6 +65,29 @@ class MediaManager:
 
     self._cache[file_type] = files
     return files
+
+  def save_jpeg_to_fave(self, src_path: str) -> str | None:
+    """Copy a JPEG into the favorites folder and register it in the cache.
+
+    The name must match DATE_FORMAT (`%Y-%m-%d_%H-%M-%S`) — list_media skips
+    unparseable names. On a same-second collision the timestamp is bumped by a
+    second until free. Returns the favorite file name, or None on failure.
+    """
+    try:
+      dt = datetime.today()
+      for _ in range(10):
+        name = dt.strftime("%Y-%m-%d_%H-%M-%S")
+        dst = self._videoreg.jpeg_fave_path(f"{name}.jpg")
+        if not dst.exists():
+          break
+        dt += timedelta(seconds=1)
+      else:
+        return None
+      shutil.copy2(src_path, str(dst))
+      self.append_file(MediaFileType.JPEG_FAVE, f"{name}.jpg")
+      return f"{name}.jpg"
+    except (OSError, PermissionError):
+      return None
 
   def invalidate(self, file_type: MediaFileType):
     """Clears the cache for the given file type. The next call to get_files will re-read from disk."""

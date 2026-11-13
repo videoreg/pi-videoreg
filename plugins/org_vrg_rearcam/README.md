@@ -25,7 +25,8 @@ Runs inside the `vrg-camera` service.
 ## State
 
 `plugin.state["devices"]`: `device_id` (STA MAC, 12 lowercase hex chars) →
-`{number, name, ble_mac, ip, paired_at, last_seen, firmware}`. Numbers start at 2 —
+`{number, name, ble_mac, ip, paired_at, last_seen, firmware, frame?}` (`frame` — the frame
+size chosen via `set_config`). Numbers start at 2 —
 camera #1 is the built-in main camera. The online flag is runtime-only (not persisted).
 
 ## API methods
@@ -38,6 +39,8 @@ camera #1 is the built-in main camera. The online flag is runtime-only (not pers
 | `rearcam.forget` | `{number}` | `{devices: [...]}` |
 | `rearcam.get_photo` | `{number}` | `{path: <local jpeg>}` |
 | `rearcam.get_status` | `{number}` | camera health + status merged |
+| `rearcam.get_config` | `{number}` | `{frame: {width,height,fps}, frames: [...], saved_frame?}` |
+| `rearcam.set_config` | `{number, width, height}` | `{frame: {width,height,fps}}` (persisted on the camera) |
 | `rearcam.get_menu_commands` | — | `{commands: [{name, title, weigh}]}` |
 
 ## Gateway commands
@@ -56,4 +59,5 @@ Provisioning errors are machine-readable strings: `bad_password`, `ssid_not_foun
 ## HTTP endpoints (via `http.api` in manifest.yaml)
 
 `GET /api/rearcam/devices`, `GET /api/rearcam/scan`, `POST /api/rearcam/provision`,
-`POST /api/rearcam/forget`, `GET /api/rearcam/status?number=N`.
+`POST /api/rearcam/forget`, `GET /api/rearcam/status?number=N`,
+`GET /api/rearcam/config?number=N`, `POST /api/rearcam/config` (`{number, width, height}`).

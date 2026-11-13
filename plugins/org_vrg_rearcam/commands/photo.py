@@ -1,9 +1,5 @@
-import shutil
-from datetime import datetime, timedelta
-
 from plugins.org_vrg_rearcam.plugin import RearcamPlugin
 from sdk.gateway import Gateway, GatewayCommand, GatewayInteractions
-from sdk.media_manager import MediaFileType
 
 
 class CommandPhoto(GatewayCommand):
@@ -34,7 +30,8 @@ class CommandPhoto(GatewayCommand):
       await gateway.send_text(payload, text)
       return
 
-    self._save_to_fave(path)
+    if not self._plugin.runner.media_manager.save_jpeg_to_fave(path):
+      self._plugin.logger.error("rear photo fave copy failed: no free name")
     # The file is left on disk on purpose: bot.send_image reads it
     # asynchronously after this command returns. The plugin reaps stale
     # rear_photo_*.jpg on the next take_photo call.
@@ -42,27 +39,3 @@ class CommandPhoto(GatewayCommand):
       await gateway.send_image(payload, path)
     else:
       await gateway.send_text(payload, path)
-
-  def _save_to_fave(self, path: str):
-    """Copies the rear-camera photo to the favorites folder and registers it.
-
-    The name must match DATE_FORMAT (`%Y-%m-%d_%H-%M-%S`) — list_media skips
-    unparseable names. On a same-second collision with a main-camera shot the
-    timestamp is bumped by a second until free.
-    """
-    try:
-      dt = datetime.today()
-      vr = self._plugin.runner.videoreg
-      for _ in range(10):
-        name = dt.strftime("%Y-%m-%d_%H-%M-%S")
-        dst = vr.jpeg_fave_path(f"{name}.jpg")
-        if not dst.exists():
-          break
-        dt += timedelta(seconds=1)
-      else:
-        self._plugin.logger.error("rear photo fave copy failed: no free name")
-        return
-      shutil.copy2(path, str(dst))
-      self._plugin.runner.media_manager.append_file(MediaFileType.JPEG_FAVE, f"{name}.jpg")
-    except (OSError, PermissionError) as e:
-      self._plugin.logger.error(f"rear photo fave copy failed: {e}")

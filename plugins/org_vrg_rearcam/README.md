@@ -16,7 +16,9 @@ Runs inside the `vrg-camera` service.
    `net.wifi_credentials` — plus the hub URL `http://<hub-ip>:8531`.
 2. **Registration (heartbeat)**. After connecting, the camera POSTs
    `{device_id, ip, fw}` to `{hub}/api/register`. This plugin runs that tiny HTTP
-   server (`register_server.py`, port 8531).
+   server (`register_server.py`, port 8531). The same server exposes
+   `GET /api/time` (`{epoch, utc_offset_s}`) — the camera syncs its clock from
+   it on every WiFi (re)connect and every 6 h afterwards.
 3. **Runtime**. A background poller checks each camera's `GET /health` every 30 s and
    maintains the online flag; heartbeats refresh `ip`/`firmware`/`last_seen`.
 4. **Use**. `/photo N` (N ≥ 2) fetches a JPEG via `rearcam.get_photo`; the Web UI lists

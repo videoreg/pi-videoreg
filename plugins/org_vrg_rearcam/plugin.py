@@ -212,51 +212,67 @@ class RearcamPlugin(Plugin):
     result = await ble_provisioner.provision(mac, ssid, password, hub, token, logger=self.logger)
     ip = result.get("ip", "")
 
-    # The BLE result carries only the IP; fetch the identity over HTTP.
-    device_id = ""
-    firmware = ""
-    if ip:
-      device_id, firmware = await self._await_camera_identity(ip, token)
-
     devices = self._devices()
 
     # Re-provisioning an already paired camera keeps its number.
     existing_id = None
     for did, dev in devices.items():
-      if dev.get("ble_mac") == mac.upper() or (device_id and did == device_id):
+      if dev.get("ble_mac") == mac.upper():
         existing_id = did
         break
 
     if existing_id:
-      device_id = device_id or existing_id
-      dev = devices.pop(existing_id)
-      number = dev.get("number")
+      number = devices.pop(existing_id).get("number")
     else:
       number = max(
         [d.get("number", const.FIRST_CAMERA_NUMBER - 1) for d in devices.values()]
         + [const.FIRST_CAMERA_NUMBER - 1]
       ) + 1
 
-    if not device_id:
-      device_id = f"pending-{mac.replace(':', '').lower()}"
-
+    # Save the record (with the token) right away: the camera starts calling
+    # the hub with the new token seconds after the BLE result, long before the
+    # identity fetch below finishes — a heartbeat that arrives earlier must
+    # still be accepted. Until the real device_id is known the record lives
+    # under a pending key and is adopted by token (see on_camera_register).
+    device_id = existing_id or f"pending-{mac.replace(':', '').lower()}"
     devices[device_id] = {
       "number": number,
       "name": name or f"Camera {number}",
       "ble_mac": mac.upper(),
       "ip": ip,
-      "firmware": firmware,
+      "firmware": "",
       "paired_at": int(time.time()),
       "last_seen": int(time.time()),
       "access_token": token,
     }
     self._save_devices(devices)
+
+    # The BLE result carries only the IP; fetch the identity over HTTP.
+    firmware = ""
+    if ip:
+      fetched_id, firmware = await self._await_camera_identity(ip, token)
+      if fetched_id and fetched_id != device_id:
+        devices = self._devices()
+        # The camera's heartbeat may already have adopted the pending record.
+        if device_id in devices:
+          devices[fetched_id] = devices.pop(device_id)
+          self._online[fetched_id] = self._online.pop(device_id, False)
+        device_id = fetched_id
+        self._save_devices(devices)
+
+    devices = self._devices()
+    if device_id in devices:
+      if ip and devices[device_id].get("ip") != ip:
+        devices[device_id]["ip"] = ip
+      if firmware:
+        devices[device_id]["firmware"] = firmware
+      self._save_devices(devices)
     self._online[device_id] = bool(ip)
     self.logger.info(f"camera provisioned: {device_id} as #{number} ip={ip}")
     self.sync_gateway_commands()
     self.trigger_bot_commands_reload()
     # Never hand the access token out through the plugin API.
-    record = {k: v for k, v in devices[device_id].items() if k != "access_token"}
+    record = {k: v for k, v in devices.get(device_id, {}).items() if k != "access_token"}
     return {"device_id": device_id, **record, "online": self._online[device_id]}
 
   async def _await_camera_identity(self, ip: str, token: str) -> tuple[str, str]:

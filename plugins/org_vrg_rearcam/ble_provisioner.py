@@ -71,8 +71,12 @@ async def scan_cameras(duration: float = const.BLE_SCAN_SECONDS) -> list[dict]:
   return devices
 
 
-async def provision(mac: str, ssid: str, password: str, hub: str, logger=None) -> dict:
-  """Provision the camera at `mac` with WiFi credentials and the hub URL.
+async def provision(mac: str, ssid: str, password: str, hub: str, token: str, logger=None) -> dict:
+  """Provision the camera at `mac` with WiFi credentials, the hub URL and token.
+
+  `token` is the per-camera access token the camera will present on all HTTP
+  requests (see the protocol spec); the hub generates it per provisioning, so
+  re-provisioning rotates the token.
 
   Returns {"status": "connected", "ip": ...} on success; raises ProvisionError
   with the device-reported reason ("bad_password" / "ssid_not_found" / "timeout")
@@ -121,7 +125,7 @@ async def provision(mac: str, ssid: str, password: str, hub: str, logger=None) -
       shared = priv.exchange(X25519PublicKey.from_public_bytes(device_pub))
       aes = AESGCM(shared)
 
-      creds = json.dumps({"ssid": ssid, "password": password, "hub": hub}).encode()
+      creds = json.dumps({"ssid": ssid, "password": password, "hub": hub, "token": token}).encode()
       nonce = os.urandom(12)
       blob = struct.pack("<H", 2 + 12 + len(creds) + 16) + nonce + aes.encrypt(nonce, creds, None)
 

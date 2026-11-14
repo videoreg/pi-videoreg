@@ -37,12 +37,22 @@ class RegisterServer:
   async def _handle_health(self, request: web.Request):
     return web.json_response({"status": "ok"})
 
+  @staticmethod
+  def _bearer_token(request: web.Request) -> str:
+    header = request.headers.get("Authorization", "")
+    if header.startswith("Bearer "):
+      return header[len("Bearer "):].strip()
+    return ""
+
   async def _handle_time(self, request: web.Request):
     """Current time for cameras without NTP (see the protocol spec).
 
-    `epoch` is UTC; `utc_offset_s` is the hub's current local offset including
-    DST, so the camera can show local time without a timezone database.
+    Requires the same bearer token as /api/register. `epoch` is UTC;
+    `utc_offset_s` is the hub's current local offset including DST, so the
+    camera can show local time without a timezone database.
     """
+    if not self._plugin.token_known(self._bearer_token(request)):
+      return web.json_response({"error": "unauthorized"}, status=401)
     now = time.time()
     offset = datetime.now().astimezone().utcoffset()
     return web.json_response(
@@ -64,9 +74,12 @@ class RegisterServer:
     if not isinstance(device_id, str) or not device_id:
       return web.json_response({"error": "device_id_required"}, status=400)
 
-    await self._plugin.on_camera_register(
+    accepted = await self._plugin.on_camera_register(
       device_id=device_id,
       ip=ip if isinstance(ip, str) else "",
       fw=fw if isinstance(fw, str) else "",
+      token=self._bearer_token(request),
     )
+    if not accepted:
+      return web.json_response({"error": "unauthorized"}, status=401)
     return web.json_response({"status": "ok"})

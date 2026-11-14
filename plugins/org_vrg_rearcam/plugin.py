@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 import time
 
 import plugins.org_vrg_rearcam.const as const
@@ -62,16 +63,15 @@ class RearcamPlugin(Plugin):
         return device_id, dev
     return None, None
 
-  def _adopt_pending_by_ip(self, devices: dict, device_id: str, ip: str) -> dict | None:
-    """Re-key a `pending-*` record (created when identity fetch failed) to the real id."""
-    if not ip:
-      return None
-    for did, dev in list(devices.items()):
-      if did.startswith("pending-") and dev.get("ip") == ip:
-        devices[device_id] = devices.pop(did)
-        self.logger.info(f"camera {device_id} adopts pending record {did}")
-        return devices[device_id]
-    return None
+  def token_known(self, token: str) -> bool:
+    """True when `token` matches the access_token of any registered camera."""
+    if not token:
+      return False
+    return any(dev.get("access_token") == token for dev in self._devices().values())
+
+  @staticmethod
+  def _client_for(dev: dict, timeout: float = const.HTTP_TIMEOUT_SECONDS) -> CameraClient:
+    return CameraClient(dev["ip"], token=dev.get("access_token", ""), timeout=timeout)
 
   def list_devices(self) -> list[dict]:
     result = []
@@ -144,31 +144,33 @@ class RearcamPlugin(Plugin):
 
   # ---- heartbeat from cameras ----
 
-  async def on_camera_register(self, device_id: str, ip: str, fw: str):
+  async def on_camera_register(self, device_id: str, ip: str, fw: str, token: str) -> bool:
+    """Heartbeat from a camera. Returns False when the token is rejected (401).
+
+    Unknown cameras are NOT auto-registered: a heartbeat is accepted only from
+    a camera whose access_token is in the registry (see the protocol spec).
+    A `pending-*` record (created when the identity fetch after provisioning
+    failed) is adopted by matching its token and re-keyed to the real id.
+    """
     devices = self._devices()
     dev = devices.get(device_id)
-    if not dev:
-      # A camera that was provisioned while the hub was off (or by another
-      # hub) announces itself by heartbeat; adopt it with the next free number.
-      dev = self._adopt_pending_by_ip(devices, device_id, ip)
+    if dev and token and token == dev.get("access_token"):
+      pass  # known camera, token matches
+    else:
+      dev = None
+      if token:
+        for did, candidate in list(devices.items()):
+          if did.startswith("pending-") and candidate.get("access_token") == token:
+            devices[device_id] = devices.pop(did)
+            dev = devices[device_id]
+            self._online[device_id] = self._online.pop(did, False)
+            self.logger.info(f"camera {device_id} adopts pending record {did}")
+            self.sync_gateway_commands()
+            self.trigger_bot_commands_reload()
+            break
       if not dev:
-        number = max(
-          [d.get("number", const.FIRST_CAMERA_NUMBER - 1) for d in devices.values()]
-          + [const.FIRST_CAMERA_NUMBER - 1]
-        ) + 1
-        dev = {
-          "number": number,
-          "name": f"Camera {number}",
-          "ble_mac": "",
-          "ip": ip,
-          "firmware": fw,
-          "paired_at": int(time.time()),
-          "last_seen": int(time.time()),
-        }
-        devices[device_id] = dev
-        self.logger.info(f"auto-registered camera {device_id} (#{number}) from heartbeat ({ip})")
-        self.sync_gateway_commands()
-        self.trigger_bot_commands_reload()
+        self.logger.warning(f"rejected heartbeat from {device_id} ({ip}): bad or missing token")
+        return False
     if ip and dev.get("ip") != ip:
       dev["ip"] = ip
     if fw and dev.get("firmware") != fw:
@@ -181,6 +183,7 @@ class RearcamPlugin(Plugin):
       f"camera {device_id} (#{dev.get('number')}) registered: ip={ip} fw={fw}"
       + ("" if was_online else " (online)")
     )
+    return True
 
   # ---- provisioning ----
 
@@ -203,14 +206,17 @@ class RearcamPlugin(Plugin):
       raise RuntimeError("no_wifi_network")
     hub = f"http://{hub_ip}:{const.REGISTER_PORT}"
 
-    result = await ble_provisioner.provision(mac, ssid, password, hub, logger=self.logger)
+    # Per-camera access token, generated on every provisioning: re-provisioning
+    # rotates the token (see the protocol spec).
+    token = secrets.token_hex(32)
+    result = await ble_provisioner.provision(mac, ssid, password, hub, token, logger=self.logger)
     ip = result.get("ip", "")
 
     # The BLE result carries only the IP; fetch the identity over HTTP.
     device_id = ""
     firmware = ""
     if ip:
-      device_id, firmware = await self._await_camera_identity(ip)
+      device_id, firmware = await self._await_camera_identity(ip, token)
 
     devices = self._devices()
 
@@ -242,17 +248,20 @@ class RearcamPlugin(Plugin):
       "firmware": firmware,
       "paired_at": int(time.time()),
       "last_seen": int(time.time()),
+      "access_token": token,
     }
     self._save_devices(devices)
     self._online[device_id] = bool(ip)
     self.logger.info(f"camera provisioned: {device_id} as #{number} ip={ip}")
     self.sync_gateway_commands()
     self.trigger_bot_commands_reload()
-    return {"device_id": device_id, **devices[device_id], "online": self._online[device_id]}
+    # Never hand the access token out through the plugin API.
+    record = {k: v for k, v in devices[device_id].items() if k != "access_token"}
+    return {"device_id": device_id, **record, "online": self._online[device_id]}
 
-  async def _await_camera_identity(self, ip: str) -> tuple[str, str]:
+  async def _await_camera_identity(self, ip: str, token: str) -> tuple[str, str]:
     """Poll /health until the camera's HTTP API is up; return (device_id, fw)."""
-    client = CameraClient(ip, timeout=5)
+    client = CameraClient(ip, token=token, timeout=5)
     for _ in range(10):
       try:
         health = await client.get_health()
@@ -287,7 +296,7 @@ class RearcamPlugin(Plugin):
     device_id, dev = self._find_by_number(number)
     if not dev or not dev.get("ip"):
       raise RuntimeError("camera_not_found")
-    jpeg = await CameraClient(dev["ip"]).get_photo()
+    jpeg = await self._client_for(dev).get_photo()
     path = self.runner.videoreg.plugin_private_path(
       self.id, f"rear_photo_{number}_{int(time.time())}.jpg"
     )
@@ -309,7 +318,7 @@ class RearcamPlugin(Plugin):
     device_id, dev = self._find_by_number(number)
     if not dev or not dev.get("ip"):
       raise RuntimeError("camera_not_found")
-    client = CameraClient(dev["ip"])
+    client = self._client_for(dev)
     health, status = await asyncio.gather(client.get_health(), client.get_status())
     return {**health, **status, "number": number, "device_id": device_id}
 
@@ -317,7 +326,7 @@ class RearcamPlugin(Plugin):
     device_id, dev = self._find_by_number(number)
     if not dev or not dev.get("ip"):
       raise RuntimeError("camera_not_found")
-    config = await CameraClient(dev["ip"]).get_config()
+    config = await self._client_for(dev).get_config()
     config["number"] = number
     config["device_id"] = device_id
     saved = dev.get("frame")
@@ -330,7 +339,7 @@ class RearcamPlugin(Plugin):
     device_id, dev = self._find_by_number(number)
     if not dev or not dev.get("ip"):
       raise RuntimeError("camera_not_found")
-    frame = await CameraClient(dev["ip"]).set_config(width, height)
+    frame = await self._client_for(dev).set_config(width, height)
     devices = self._devices()
     if device_id in devices:
       devices[device_id]["frame"] = {"width": width, "height": height}
@@ -349,7 +358,7 @@ class RearcamPlugin(Plugin):
             self._online[device_id] = False
             continue
           try:
-            health = await CameraClient(ip, timeout=5).get_health()
+            health = await self._client_for(dev, timeout=5).get_health()
             self._online[device_id] = True
             fw = health.get("fw", "")
             if fw and fw != dev.get("firmware"):

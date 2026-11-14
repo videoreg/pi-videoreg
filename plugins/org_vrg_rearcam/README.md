@@ -13,14 +13,22 @@ Runs inside the `vrg-camera` service.
    The settings UI scans for it (`rearcam.scan_ble`), then `rearcam.provision` performs
    the encrypted handshake (ephemeral X25519, AES-256-GCM frames) and hands the camera
    the WiFi credentials of the network the hub itself is on — obtained from
-   `net.wifi_credentials` — plus the hub URL `http://<hub-ip>:8531`.
+   `net.wifi_credentials` — plus the hub URL `http://<hub-ip>:8531` and a per-camera
+   access token (`secrets.token_hex(32)`, regenerated on every provisioning, i.e.
+   token rotation).
 2. **Registration (heartbeat)**. After connecting, the camera POSTs
-   `{device_id, ip, fw}` to `{hub}/api/register`. This plugin runs that tiny HTTP
-   server (`register_server.py`, port 8531). The same server exposes
-   `GET /api/time` (`{epoch, utc_offset_s}`) — the camera syncs its clock from
-   it on every WiFi (re)connect and every 6 h afterwards.
+   `{device_id, ip, fw}` to `{hub}/api/register` with the
+   `Authorization: Bearer <token>` header. This plugin runs that tiny HTTP
+   server (`register_server.py`, port 8531); heartbeats with a missing or
+   mismatched token — including from unknown cameras — are rejected with 401
+   (no auto-registration; the camera is expected to re-provision over BLE).
+   The same server exposes `GET /api/time` (`{epoch, utc_offset_s}`), also
+   token-protected — the camera syncs its clock from it on every WiFi
+   (re)connect and every 6 h afterwards.
 3. **Runtime**. A background poller checks each camera's `GET /health` every 30 s and
    maintains the online flag; heartbeats refresh `ip`/`firmware`/`last_seen`.
+   All hub→camera calls send the camera's token in the `Authorization` header
+   (`CameraClient`).
 4. **Use**. `/photo N` (N ≥ 2) fetches a JPEG via `rearcam.get_photo`; the Web UI lists
    cameras and their state. Additionally each paired camera gets its own bot menu
    command `/photo_N` (see "Gateway commands" below).
@@ -28,8 +36,10 @@ Runs inside the `vrg-camera` service.
 ## State
 
 `plugin.state["devices"]`: `device_id` (STA MAC, 12 lowercase hex chars) →
-`{number, name, ble_mac, ip, paired_at, last_seen, firmware, frame?}` (`frame` — the frame
-size chosen via `set_config`). Numbers start at 2 —
+`{number, name, ble_mac, ip, paired_at, last_seen, firmware, access_token, frame?}`
+(`frame` — the frame size chosen via `set_config`; `access_token` — the bearer
+token issued at provisioning, rotated on re-provisioning; never exposed via the
+plugin's API methods). Numbers start at 2 —
 camera #1 is the built-in main camera. The online flag is runtime-only (not persisted).
 
 ## API methods
@@ -54,7 +64,7 @@ For every paired camera the plugin registers a `/photo_N` gateway command
 discovers the entries through the `bot.menu_commands_method` manifest key: it
 calls `rearcam.get_menu_commands` when (re)building its command list
 (`bot.reload_commands`), which this plugin triggers after pairing, forgetting,
-heartbeat auto-registration and on startup.
+adoption of a pending camera record and on startup.
 
 Provisioning errors are machine-readable strings: `bad_password`, `ssid_not_found`,
 `timeout`, `bleak_not_available`, `no_wifi_network`.

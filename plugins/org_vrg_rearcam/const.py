@@ -1,7 +1,7 @@
 # Rear camera (rearcam) plugin constants.
 # The wire protocol is specified in the rear-camera-protocol repository.
 
-STATE_KEY_DEVICES = "devices"  # device_id -> {number, name, ble_mac, ip, paired_at, last_seen, firmware}
+STATE_KEY_DEVICES = "devices"  # device_id -> {number, name, ble_mac, ip, paired_at, last_seen, firmware, access_token}
 
 # Hub-side registration server: cameras POST {hub}/api/register after (re)connecting.
 REGISTER_PORT = 8531

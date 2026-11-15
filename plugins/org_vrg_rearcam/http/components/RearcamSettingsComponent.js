@@ -47,6 +47,16 @@ const RearcamSettingsComponent = {
               <span v-if="dev.firmware"> · fw {{ dev.firmware }}</span>
             </span>
           </div>
+          <div class="info-row" v-if="dev.access_token">
+            <span class="info-label">{{ $t('rearcam.settings.token_label') }}</span>
+            <span>
+              <code
+                style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm); word-break: break-all;"
+                :title="$t('rearcam.settings.token_hint')"
+              >{{ dev.access_token }}</code>
+              <button class="btn btn-ghost" style="padding: 2px 8px;" @click="copyToken(dev.access_token)">⧉</button>
+            </span>
+          </div>
           <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
             <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
             <select
@@ -163,6 +173,21 @@ const RearcamSettingsComponent = {
 
     frameKey(f) {
       return f ? `${f.width}x${f.height}` : '';
+    },
+
+    async copyToken(token) {
+      try {
+        await navigator.clipboard.writeText(token);
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = token;
+        document.body.append(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      this.error = '';
+      this.success = this.$t('rearcam.settings.token_copied');
     },
 
     async loadConfig(number) {

@@ -38,15 +38,16 @@ Runs inside the `vrg-camera` service.
 `plugin.state["devices"]`: `device_id` (STA MAC, 12 lowercase hex chars) →
 `{number, name, ble_mac, ip, paired_at, last_seen, firmware, access_token, frame?}`
 (`frame` — the frame size chosen via `set_config`; `access_token` — the bearer
-token issued at provisioning, rotated on re-provisioning; never exposed via the
-plugin's API methods). Numbers start at 2 —
+token issued at provisioning, rotated on re-provisioning; `list_devices`
+exposes it to the settings UI so it can be pasted into the camera's own web
+page). Numbers start at 2 —
 camera #1 is the built-in main camera. The online flag is runtime-only (not persisted).
 
 ## API methods
 
 | Method | Args | Returns |
 |--------|------|---------|
-| `rearcam.list_devices` | — | `{devices: [...]}` |
+| `rearcam.list_devices` | — | `{devices: [...]}` (incl. `access_token` for the settings UI) |
 | `rearcam.scan_ble` | — | `{devices: [{mac, name, rssi}]}` (~8 s) |
 | `rearcam.provision` | `{mac, name?}` | `{device: {...}}` (up to ~40 s) |
 | `rearcam.forget` | `{number}` | `{devices: [...]}` |

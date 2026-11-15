@@ -25,6 +25,9 @@ rearcam.settings.error_load: "Не удалось загрузить списо�
 rearcam.settings.frame_label: "Размер кадра"
 rearcam.settings.frame_saved: "Размер кадра сохранён"
 rearcam.settings.error_frame: "Не удалось сменить размер кадра"
+rearcam.settings.token_label: "Токен доступа"
+rearcam.settings.token_hint: "Нужен для входа в веб-интерфейс самой камеры"
+rearcam.settings.token_copied: "Токен скопирован"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Камера {{n}} не подключена"

@@ -86,6 +86,9 @@ class RearcamPlugin(Plugin):
           "ble_mac": dev.get("ble_mac") or "",
           "ip": dev.get("ip") or "",
           "firmware": dev.get("firmware") or "",
+          # Shown in the settings UI so it can be pasted into the camera's
+          # own web page; the register server is the only other consumer.
+          "access_token": dev.get("access_token") or "",
           "paired_at": dev.get("paired_at"),
           "last_seen": dev.get("last_seen"),
           "online": self._online.get(device_id, False),

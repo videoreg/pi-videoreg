@@ -57,6 +57,12 @@ const RearcamSettingsComponent = {
               <button class="btn btn-ghost" style="padding: 2px 8px;" @click="copyToken(dev.access_token)">⧉</button>
             </span>
           </div>
+          <div class="info-row" v-if="dev.ip && dev.access_token">
+            <span class="info-label">{{ $t('rearcam.settings.webui_label') }}</span>
+            <span>
+              <a :href="cameraUiUrl(dev)" target="_blank" rel="noopener">{{ cameraUiUrl(dev) }}</a>
+            </span>
+          </div>
           <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
             <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
             <select
@@ -173,6 +179,12 @@ const RearcamSettingsComponent = {
 
     frameKey(f) {
       return f ? `${f.width}x${f.height}` : '';
+    },
+
+    /* Direct link to the camera's own web UI: the token goes in the URL, the
+     * camera sets a cookie and redirects to the clean address. */
+    cameraUiUrl(dev) {
+      return `http://${dev.ip}/?token=${encodeURIComponent(dev.access_token)}`;
     },
 
     async copyToken(token) {

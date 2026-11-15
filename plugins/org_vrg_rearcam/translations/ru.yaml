@@ -28,6 +28,7 @@ rearcam.settings.error_frame: "Не удалось сменить размер �
 rearcam.settings.token_label: "Токен доступа"
 rearcam.settings.token_hint: "Нужен для входа в веб-интерфейс самой камеры"
 rearcam.settings.token_copied: "Токен скопирован"
+rearcam.settings.webui_label: "Веб-интерфейс камеры"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Камера {{n}} не подключена"

@@ -28,6 +28,7 @@ rearcam.settings.error_frame: "Failed to change the frame size"
 rearcam.settings.token_label: "Access token"
 rearcam.settings.token_hint: "Required by the camera's own web interface"
 rearcam.settings.token_copied: "Token copied"
+rearcam.settings.webui_label: "Camera web UI"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Camera {{n}} is not paired"

@@ -33,35 +33,34 @@ const RearcamSettingsComponent = {
           style="margin-bottom: var(--spacing-md);"
         >
           <div class="info-row">
-            <span class="info-label">{{ dev.name || $t('rearcam.settings.camera_n', { n: dev.number }) }}</span>
+            <span class="info-label">#{{ dev.number }} — {{ dev.name || $t('rearcam.settings.camera_n', { n: dev.number }) }}</span>
             <span class="status-indicator" style="padding: 3px 8px;">
               <span class="status-dot" :class="{ active: dev.online }"></span>
               <span>{{ dev.online ? $t('rearcam.settings.online') : $t('rearcam.settings.offline') }}</span>
             </span>
           </div>
           <div class="info-row">
-            <span class="info-label">#{{ dev.number }}</span>
+            <span class="info-label">{{ $t('rearcam.settings.device_id_label') }}</span>
             <span>
               <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ dev.device_id }}</code>
-              <span v-if="dev.ip"> · {{ dev.ip }}</span>
-              <span v-if="dev.firmware"> · fw {{ dev.firmware }}</span>
             </span>
           </div>
-          <div class="info-row" v-if="dev.access_token">
-            <span class="info-label">{{ $t('rearcam.settings.token_label') }}</span>
+          <div class="info-row" v-if="dev.ip">
+            <span class="info-label">IP</span>
             <span>
-              <code
-                style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm); word-break: break-all;"
-                :title="$t('rearcam.settings.token_hint')"
-              >{{ dev.access_token }}</code>
-              <button class="btn btn-ghost" style="padding: 2px 8px;" @click="copyToken(dev.access_token)">⧉</button>
+              <a
+                v-if="dev.access_token"
+                :href="cameraUiUrl(dev)"
+                target="_blank"
+                rel="noopener"
+                :title="$t('rearcam.settings.webui_hint')"
+              >{{ dev.ip }} <icon name="open_in_new" :size="14"></icon></a>
+              <template v-else>{{ dev.ip }}</template>
             </span>
           </div>
-          <div class="info-row" v-if="dev.ip && dev.access_token">
-            <span class="info-label">{{ $t('rearcam.settings.webui_label') }}</span>
-            <span>
-              <a :href="cameraUiUrl(dev)" target="_blank" rel="noopener">{{ cameraUiUrl(dev) }}</a>
-            </span>
+          <div class="info-row" v-if="dev.firmware">
+            <span class="info-label">{{ $t('rearcam.settings.fw_label') }}</span>
+            <span>{{ dev.firmware }}</span>
           </div>
           <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
             <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
@@ -185,21 +184,6 @@ const RearcamSettingsComponent = {
      * camera sets a cookie and redirects to the clean address. */
     cameraUiUrl(dev) {
       return `http://${dev.ip}/?token=${encodeURIComponent(dev.access_token)}`;
-    },
-
-    async copyToken(token) {
-      try {
-        await navigator.clipboard.writeText(token);
-      } catch (err) {
-        const ta = document.createElement('textarea');
-        ta.value = token;
-        document.body.append(ta);
-        ta.select();
-        document.execCommand('copy');
-        ta.remove();
-      }
-      this.error = '';
-      this.success = this.$t('rearcam.settings.token_copied');
     },
 
     async loadConfig(number) {

@@ -25,10 +25,9 @@ rearcam.settings.error_load: "Failed to load camera list"
 rearcam.settings.frame_label: "Frame size"
 rearcam.settings.frame_saved: "Frame size saved"
 rearcam.settings.error_frame: "Failed to change the frame size"
-rearcam.settings.token_label: "Access token"
-rearcam.settings.token_hint: "Required by the camera's own web interface"
-rearcam.settings.token_copied: "Token copied"
-rearcam.settings.webui_label: "Camera web UI"
+rearcam.settings.device_id_label: "Device ID (MAC)"
+rearcam.settings.fw_label: "Firmware"
+rearcam.settings.webui_hint: "Open the camera web UI in a new tab"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Camera {{n}} is not paired"

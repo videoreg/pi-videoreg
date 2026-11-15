@@ -25,10 +25,9 @@ rearcam.settings.error_load: "Не удалось загрузить списо�
 rearcam.settings.frame_label: "Размер кадра"
 rearcam.settings.frame_saved: "Размер кадра сохранён"
 rearcam.settings.error_frame: "Не удалось сменить размер кадра"
-rearcam.settings.token_label: "Токен доступа"
-rearcam.settings.token_hint: "Нужен для входа в веб-интерфейс самой камеры"
-rearcam.settings.token_copied: "Токен скопирован"
-rearcam.settings.webui_label: "Веб-интерфейс камеры"
+rearcam.settings.device_id_label: "ID устройства (MAC)"
+rearcam.settings.fw_label: "Прошивка"
+rearcam.settings.webui_hint: "Открыть веб-интерфейс камеры в новой вкладке"
 
 # Bot / command responses
 rearcam.photo_camera_not_found: "Камера {{n}} не подключена"

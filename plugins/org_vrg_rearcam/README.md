@@ -14,8 +14,8 @@ Runs inside the `vrg-camera` service.
    the encrypted handshake (ephemeral X25519, AES-256-GCM frames) and hands the camera
    the WiFi credentials of the network the hub itself is on — obtained from
    `net.wifi_credentials` — plus the hub URL `http://<hub-ip>:8531` and a per-camera
-   access token (`secrets.token_hex(32)`, regenerated on every provisioning, i.e.
-   token rotation).
+   access token (`secrets.token_hex(6)` — ~12 chars, regenerated on every
+   provisioning, i.e. token rotation).
 2. **Registration (heartbeat)**. After connecting, the camera POSTs
    `{device_id, ip, fw}` to `{hub}/api/register` with the
    `Authorization: Bearer <token>` header. This plugin runs that tiny HTTP

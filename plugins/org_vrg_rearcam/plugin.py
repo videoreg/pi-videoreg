@@ -209,9 +209,10 @@ class RearcamPlugin(Plugin):
       raise RuntimeError("no_wifi_network")
     hub = f"http://{hub_ip}:{const.REGISTER_PORT}"
 
-    # Per-camera access token, generated on every provisioning: re-provisioning
+    # Per-camera access token (~12 chars, enough for the trusted local network
+    # and handy to type), generated on every provisioning: re-provisioning
     # rotates the token (see the protocol spec).
-    token = secrets.token_hex(32)
+    token = secrets.token_hex(6)
     result = await ble_provisioner.provision(mac, ssid, password, hub, token, logger=self.logger)
     ip = result.get("ip", "")
 

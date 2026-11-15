@@ -39,8 +39,7 @@ Runs inside the `vrg-camera` service.
 `{number, name, ble_mac, ip, paired_at, last_seen, firmware, access_token, frame?}`
 (`frame` — the frame size chosen via `set_config`; `access_token` — the bearer
 token issued at provisioning, rotated on re-provisioning; `list_devices`
-exposes it to the settings UI so it can be pasted into the camera's own web
-page). Numbers start at 2 —
+exposes it to the settings UI, which builds the camera web-UI link from it). Numbers start at 2 —
 camera #1 is the built-in main camera. The online flag is runtime-only (not persisted).
 
 ## API methods

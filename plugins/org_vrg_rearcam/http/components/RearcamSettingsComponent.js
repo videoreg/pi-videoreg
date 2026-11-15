@@ -54,6 +54,7 @@ const RearcamSettingsComponent = {
                 target="_blank"
                 rel="noopener"
                 :title="$t('rearcam.settings.webui_hint')"
+                style="color: var(--color-text-primary);"
               >{{ dev.ip }} <icon name="open_in_new" :size="14"></icon></a>
               <template v-else>{{ dev.ip }}</template>
             </span>

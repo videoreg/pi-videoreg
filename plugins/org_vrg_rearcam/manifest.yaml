@@ -7,7 +7,6 @@ http:
 
   components:
     - RearcamSettingsComponent.js
-    - RearcamIcons.js
 
   api:
     - url: rearcam/devices

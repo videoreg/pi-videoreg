@@ -1,9 +1,8 @@
 # Web UI tokens
 rearcam.settings.title: "Rear cameras"
-rearcam.settings.hint: "Additional WiFi cameras (e.g. a rear-view camera). Cameras join the same WiFi network the device is connected to."
-rearcam.settings.paired_title: "Paired cameras"
 rearcam.settings.no_cameras: "No cameras paired yet"
 rearcam.settings.add_btn: "Add camera"
+rearcam.settings.add_cancel: "Cancel"
 rearcam.settings.scanning: "Scanning..."
 rearcam.settings.scan_btn: "Search cameras"
 rearcam.settings.scan_hint: "Power on the camera. While unconfigured, it advertises itself over Bluetooth."

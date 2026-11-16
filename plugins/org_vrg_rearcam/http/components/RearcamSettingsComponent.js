@@ -15,82 +15,14 @@ const RearcamSettingsComponent = {
       <div v-if="error" class="alert alert-error">{{ error }}</div>
       <div v-if="success" class="alert alert-success">{{ success }}</div>
 
-      <!-- Paired cameras -->
-      <div class="info-block">
-        <div class="section-title">{{ $t('rearcam.settings.paired_title') }}</div>
-        <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
-          {{ $t('rearcam.settings.hint') }}
-        </p>
-
-        <div v-if="devices.length === 0" style="color: var(--color-text-secondary);">
-          {{ $t('rearcam.settings.no_cameras') }}
-        </div>
-
-        <div
-          v-for="dev in devices"
-          :key="dev.device_id"
-          class="info-rows"
-          style="margin-bottom: var(--spacing-md);"
-        >
-          <div class="info-row">
-            <span class="info-label">#{{ dev.number }} — {{ dev.name || $t('rearcam.settings.camera_n', { n: dev.number }) }}</span>
-            <span class="status-indicator" style="padding: 3px 8px;">
-              <span class="status-dot" :class="{ active: dev.online }"></span>
-              <span>{{ dev.online ? $t('rearcam.settings.online') : $t('rearcam.settings.offline') }}</span>
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">{{ $t('rearcam.settings.device_id_label') }}</span>
-            <span>
-              <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ dev.device_id }}</code>
-            </span>
-          </div>
-          <div class="info-row" v-if="dev.ip">
-            <span class="info-label">IP</span>
-            <span>
-              <a
-                v-if="dev.access_token"
-                :href="cameraUiUrl(dev)"
-                target="_blank"
-                rel="noopener"
-                :title="$t('rearcam.settings.webui_hint')"
-                style="color: var(--color-text-primary);"
-              >{{ dev.ip }} <icon name="open_in_new" :size="14"></icon></a>
-              <template v-else>{{ dev.ip }}</template>
-            </span>
-          </div>
-          <div class="info-row" v-if="dev.firmware">
-            <span class="info-label">{{ $t('rearcam.settings.fw_label') }}</span>
-            <span>{{ dev.firmware }}</span>
-          </div>
-          <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
-            <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
-            <select
-              class="form-input"
-              style="max-width: 240px;"
-              :value="frameKey(configs[dev.number].frame)"
-              @change="setFrame(dev, $event.target.value)"
-              :disabled="busy"
-            >
-              <option
-                v-for="f in configs[dev.number].frames"
-                :key="frameKey(f)"
-                :value="frameKey(f)"
-              >{{ f.width }}×{{ f.height }} @ {{ f.fps }} fps</option>
-            </select>
-          </div>
-          <div class="info-row">
-            <span></span>
-            <button class="btn btn-ghost-danger" @click="forget(dev)" :disabled="busy">
-              {{ $t('rearcam.settings.forget_btn') }}
-            </button>
-          </div>
-        </div>
+      <!-- Add a camera -->
+      <div style="margin-bottom: var(--spacing-md);">
+        <button class="btn btn-primary" @click="adding = !adding" :disabled="busy">
+          {{ adding ? $t('rearcam.settings.add_cancel') : $t('rearcam.settings.add_btn') }}
+        </button>
       </div>
 
-      <!-- Add a camera -->
-      <div class="info-block">
-        <div class="section-title">{{ $t('rearcam.settings.add_btn') }}</div>
+      <div v-if="adding" class="info-block">
         <p style="margin-bottom: var(--spacing-md); color: var(--color-text-secondary);">
           {{ $t('rearcam.settings.scan_hint') }}
         </p>
@@ -130,6 +62,73 @@ const RearcamSettingsComponent = {
           <span>{{ $t('rearcam.settings.provisioning') }}</span>
         </div>
       </div>
+
+      <div v-if="devices.length === 0" style="color: var(--color-text-secondary);">
+        {{ $t('rearcam.settings.no_cameras') }}
+      </div>
+
+      <!-- One card per camera; collapsed to name + IP + status by default -->
+      <div
+        v-for="dev in devices"
+        :key="dev.device_id"
+        class="info-block"
+      >
+        <div class="info-row" style="cursor: pointer;" @click="toggleExpanded(dev.device_id)">
+          <span class="info-label">#{{ dev.number }} — {{ dev.name || $t('rearcam.settings.camera_n', { n: dev.number }) }}</span>
+          <span style="display: flex; align-items: center; gap: var(--spacing-md);">
+            <a
+              v-if="dev.ip && dev.access_token"
+              :href="cameraUiUrl(dev)"
+              target="_blank"
+              rel="noopener"
+              :title="$t('rearcam.settings.webui_hint')"
+              style="color: var(--color-text-primary);"
+              @click.stop
+            >{{ dev.ip }}</a>
+            <span v-else-if="dev.ip">{{ dev.ip }}</span>
+            <span class="status-indicator" style="padding: 3px 8px;">
+              <span class="status-dot" :class="{ active: dev.online }"></span>
+              <span>{{ dev.online ? $t('rearcam.settings.online') : $t('rearcam.settings.offline') }}</span>
+            </span>
+          </span>
+        </div>
+
+        <template v-if="expanded[dev.device_id]">
+          <div class="info-row">
+            <span class="info-label">{{ $t('rearcam.settings.device_id_label') }}</span>
+            <span>
+              <code style="background: var(--color-bg-tertiary); padding: 2px 6px; border-radius: var(--radius-sm);">{{ dev.device_id }}</code>
+            </span>
+          </div>
+          <div class="info-row" v-if="dev.firmware">
+            <span class="info-label">{{ $t('rearcam.settings.fw_label') }}</span>
+            <span>{{ dev.firmware }}</span>
+          </div>
+          <div class="info-row" v-if="dev.online && configs[dev.number] && configs[dev.number].frames.length">
+            <span class="info-label">{{ $t('rearcam.settings.frame_label') }}</span>
+            <select
+              class="form-input"
+              style="max-width: 240px;"
+              :value="frameKey(configs[dev.number].frame)"
+              @change="setFrame(dev, $event.target.value)"
+              @click.stop
+              :disabled="busy"
+            >
+              <option
+                v-for="f in configs[dev.number].frames"
+                :key="frameKey(f)"
+                :value="frameKey(f)"
+              >{{ f.width}}×{{ f.height }} @ {{ f.fps }} fps</option>
+            </select>
+          </div>
+          <div class="info-row">
+            <span></span>
+            <button class="btn btn-ghost-danger" @click.stop="forget(dev)" :disabled="busy">
+              {{ $t('rearcam.settings.forget_btn') }}
+            </button>
+          </div>
+        </template>
+      </div>
     </div>
   `,
 
@@ -139,6 +138,8 @@ const RearcamSettingsComponent = {
       configs: {},
       found: [],
       loading: false,
+      adding: false,
+      expanded: {},
       scanning: false,
       scanned: false,
       busy: false,
@@ -179,6 +180,10 @@ const RearcamSettingsComponent = {
 
     frameKey(f) {
       return f ? `${f.width}x${f.height}` : '';
+    },
+
+    toggleExpanded(deviceId) {
+      this.expanded = { ...this.expanded, [deviceId]: !this.expanded[deviceId] };
     },
 
     /* Direct link to the camera's own web UI: the token goes in the URL, the
@@ -287,6 +292,7 @@ const RearcamSettingsComponent = {
         this.success = this.$t('rearcam.settings.provisioned');
         this.found = [];
         this.scanned = false;
+        this.adding = false;
         await this.loadDevices();
       } catch (err) {
         this.error = err.name === 'AbortError'

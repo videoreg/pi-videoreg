@@ -1,9 +1,8 @@
 # Web UI tokens
 rearcam.settings.title: "Камеры заднего вида"
-rearcam.settings.hint: "Дополнительные WiFi-камеры (например, камера заднего вида). Камеры подключаются к той же WiFi-сети, что и устройство."
-rearcam.settings.paired_title: "Подключённые камеры"
 rearcam.settings.no_cameras: "Камеры пока не подключены"
 rearcam.settings.add_btn: "Добавить камеру"
+rearcam.settings.add_cancel: "Отмена"
 rearcam.settings.scanning: "Поиск..."
 rearcam.settings.scan_btn: "Найти камеры"
 rearcam.settings.scan_hint: "Включите камеру. Пока она не настроена, она видна по Bluetooth."
